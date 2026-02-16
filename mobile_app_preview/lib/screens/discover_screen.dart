@@ -94,6 +94,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 _SimpleCarousel(
                   items: data.albums,
                   emptyText: 'Albüm bulunamadı.',
+                  onTap: (item) async {
+                    if (item.link.isNotEmpty) {
+                      await _openUrl(item.link);
+                    }
+                  },
                   subtitleBuilder: (item) {
                     final cnt = item.photoCount;
                     if (cnt > 0) return '$cnt fotoğraf';

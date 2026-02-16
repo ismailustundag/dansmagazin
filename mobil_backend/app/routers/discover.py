@@ -13,6 +13,7 @@ router = APIRouter(prefix="/discover", tags=["Keşfet"])
 WP_BASE = os.getenv("WP_BASE_URL", "https://www.dansmagazin.net").rstrip("/")
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 PUBLIC_MEDIA_BASE = os.getenv("PUBLIC_MEDIA_BASE", "https://foto.dansmagazin.net").rstrip("/")
+PUBLIC_WEB_BASE = os.getenv("PUBLIC_WEB_BASE", "https://foto.dansmagazin.net").rstrip("/")
 
 
 def _strip_html(text: str) -> str:
@@ -255,6 +256,7 @@ def _fetch_latest_albums(limit: int = 6) -> List[Dict[str, Any]]:
                     "cover": cover,
                     "created_at": r.get("created_at"),
                     "photo_count": int(r.get("photo_count") or 0),
+                    "link": f"{PUBLIC_WEB_BASE}/e/{r.get('slug')}/all" if r.get("slug") else "",
                 }
             )
         return out
