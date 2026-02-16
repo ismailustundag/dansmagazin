@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import 'news_detail_screen.dart';
 import 'screen_shell.dart';
@@ -70,16 +71,47 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 _NewsCarousel(items: data.news),
                 const SizedBox(height: 16),
                 const _SectionTitle(title: 'Yaklaşan Etkinlikler'),
-                _SimpleCarousel(items: data.events, emptyText: 'Etkinlik bulunamadı.'),
+                _SimpleCarousel(
+                  items: data.events,
+                  emptyText: 'Etkinlik bulunamadı.',
+                  onTap: (item) async {
+                    if (item.id > 0) {
+                      if (!mounted) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => NewsDetailScreen(postId: item.id),
+                        ),
+                      );
+                      return;
+                    }
+                    if (item.link.isNotEmpty) {
+                      await _openUrl(item.link);
+                    }
+                  },
+                ),
                 const SizedBox(height: 16),
                 const _SectionTitle(title: 'Son Yüklenen Albümler'),
-                _SimpleCarousel(items: data.albums, emptyText: 'Albüm bulunamadı.'),
+                _SimpleCarousel(
+                  items: data.albums,
+                  emptyText: 'Albüm bulunamadı.',
+                  subtitleBuilder: (item) {
+                    final cnt = item.photoCount;
+                    if (cnt > 0) return '$cnt fotoğraf';
+                    return item.date;
+                  },
+                ),
               ],
             );
           },
         ),
       ],
     );
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 
@@ -141,21 +173,30 @@ class _NewsItem {
 }
 
 class _CardItem {
+  final int id;
   final String name;
   final String cover;
   final String date;
+  final String link;
+  final int photoCount;
 
   _CardItem({
+    required this.id,
     required this.name,
     required this.cover,
     required this.date,
+    required this.link,
+    required this.photoCount,
   });
 
   factory _CardItem.fromJson(Map<String, dynamic> json) {
     return _CardItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? json['title'] ?? '').toString(),
       cover: (json['cover'] ?? json['image'] ?? '').toString(),
       date: (json['date'] ?? json['created_at'] ?? '').toString(),
+      link: (json['link'] ?? '').toString(),
+      photoCount: (json['photo_count'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -197,8 +238,15 @@ class _NewsCarousel extends StatelessWidget {
 class _SimpleCarousel extends StatelessWidget {
   final List<_CardItem> items;
   final String emptyText;
+  final Future<void> Function(_CardItem item)? onTap;
+  final String Function(_CardItem item)? subtitleBuilder;
 
-  const _SimpleCarousel({required this.items, required this.emptyText});
+  const _SimpleCarousel({
+    required this.items,
+    required this.emptyText,
+    this.onTap,
+    this.subtitleBuilder,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -211,7 +259,15 @@ class _SimpleCarousel extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, i) => _SmallCard(item: items[i]),
+        itemBuilder: (context, i) => _SmallCard(
+          item: items[i],
+          subtitle: subtitleBuilder != null ? subtitleBuilder!(items[i]) : items[i].date,
+          onTap: onTap == null
+              ? null
+              : () {
+                  onTap!(items[i]);
+                },
+        ),
       ),
     );
   }
@@ -310,51 +366,57 @@ class _NewsCard extends StatelessWidget {
 
 class _SmallCard extends StatelessWidget {
   final _CardItem item;
+  final String subtitle;
+  final VoidCallback? onTap;
 
-  const _SmallCard({required this.item});
+  const _SmallCard({required this.item, required this.subtitle, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 230,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFF121826),
-        border: Border.all(color: Colors.white12),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: item.cover.isNotEmpty
-                ? Image.network(
-                    item.cover,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                  )
-                : Container(color: const Color(0xFF1F2937)),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
-            child: Text(
-              item.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 230,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: const Color(0xFF121826),
+          border: Border.all(color: Colors.white12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: item.cover.isNotEmpty
+                  ? Image.network(
+                      item.cover,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                    )
+                  : Container(color: const Color(0xFF1F2937)),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-            child: Text(
-              item.date,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+              child: Text(
+                item.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

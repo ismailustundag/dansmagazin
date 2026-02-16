@@ -199,11 +199,12 @@ def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
             cover = f"{PUBLIC_MEDIA_BASE}/{cover_path}" if cover_path else ""
             out.append(
                 {
-                    "id": r.get("id"),
+                    "id": 0,
                     "slug": r.get("slug"),
                     "name": r.get("name"),
                     "date": r.get("created_at"),
                     "cover": cover,
+                    "link": "",
                 }
             )
         return out
@@ -222,9 +223,62 @@ def _fetch_latest_albums(limit: int = 6) -> List[Dict[str, Any]]:
         cur = conn.cursor()
         cur.execute(
             """
+            SELECT
+                stats.event_id AS slug,
+                COALESCE(se.name, stats.event_id) AS name,
+                ep.file_path,
+                ep.created_at,
+                stats.photo_count
+            FROM (
+                SELECT event_id, MAX(id) AS max_photo_id, COUNT(*) AS photo_count
+                FROM event_photos
+                GROUP BY event_id
+                ORDER BY MAX(id) DESC
+                LIMIT %s
+            ) stats
+            JOIN event_photos ep ON ep.id = stats.max_photo_id
+            LEFT JOIN saas_events se ON se.slug = stats.event_id
+            ORDER BY ep.id DESC
+            LIMIT %s
+            """,
+            (int(limit), int(limit)),
+        )
+        rows = cur.fetchall() or []
+        out = []
+        for r in rows:
+            file_path = (r.get("file_path") or "").lstrip("/")
+            cover = f"{PUBLIC_MEDIA_BASE}/{file_path}" if file_path else ""
+            out.append(
+                {
+                    "slug": r.get("slug"),
+                    "name": r.get("name"),
+                    "cover": cover,
+                    "created_at": r.get("created_at"),
+                    "photo_count": int(r.get("photo_count") or 0),
+                }
+            )
+        return out
+    finally:
+        conn.close()
+
+
+def _fetch_latest_albums_old(limit: int = 6) -> List[Dict[str, Any]]:
+    """
+    Legacy fallback; kept for quick rollback.
+    """
+    try:
+        conn = _db_conn()
+    except Exception:
+        return []
+    if not conn:
+        return []
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
             SELECT se.slug, se.name, ep.file_path, ep.created_at
             FROM event_photos ep
-            JOIN saas_events se ON se.slug = ep.event_id
+            LEFT JOIN saas_events se ON se.slug = ep.event_id
             ORDER BY ep.id DESC
             LIMIT %s
             """,
