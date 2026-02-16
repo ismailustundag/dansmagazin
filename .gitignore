@@ -1,0 +1,4 @@
+mobil_backend/.venv/
+mobil_backend/__pycache__/
+mobil_backend/.env
+mobil_backend/*.log

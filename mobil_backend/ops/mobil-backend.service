@@ -1,0 +1,14 @@
+[Unit]
+Description=Mobil Backend (FastAPI)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/mobil_backend
+EnvironmentFile=/home/ubuntu/mobil_backend/.env
+ExecStart=/home/ubuntu/mobil_backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100 --proxy-headers --forwarded-allow-ips=*
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
