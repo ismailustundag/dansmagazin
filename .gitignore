@@ -1,4 +1,15 @@
+# Flutter
+mobile_app_preview/.dart_tool/
+mobile_app_preview/build/
+mobile_app_preview/.flutter-plugins
+mobile_app_preview/.flutter-plugins-dependencies
+mobile_app_preview/.packages
+
+# Python
 mobil_backend/.venv/
 mobil_backend/__pycache__/
 mobil_backend/.env
 mobil_backend/*.log
+
+# OS
+.DS_Store
