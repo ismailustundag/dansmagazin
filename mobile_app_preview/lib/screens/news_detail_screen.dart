@@ -63,6 +63,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
             );
           }
           final item = snapshot.data!;
+          final normalizedHtml = _normalizeWpHtml(item.contentHtml);
           return ListView(
             padding: const EdgeInsets.all(12),
             children: [
@@ -86,7 +87,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                 style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 13),
               ),
               const SizedBox(height: 12),
-              Html(data: item.contentHtml),
+              Html(data: normalizedHtml),
               const SizedBox(height: 12),
               if (item.link.isNotEmpty)
                 ElevatedButton.icon(
@@ -105,6 +106,31 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _normalizeWpHtml(String html) {
+    var out = html;
+
+    // Resimleri ekran genişliğine zorla, taşmayı engelle.
+    out = out.replaceAllMapped(RegExp(r'<img([^>]*)>', caseSensitive: false), (m) {
+      final attrs = m.group(1) ?? '';
+      final clean = attrs
+          .replaceAll(RegExp(r'\swidth="[^"]*"', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\sheight="[^"]*"', caseSensitive: false), '');
+      return '<img$clean style="max-width:100%;height:auto;display:block;border-radius:10px;" />';
+    });
+
+    // iframe videoları da taşmasın.
+    out = out.replaceAllMapped(RegExp(r'<iframe([^>]*)>', caseSensitive: false), (m) {
+      final attrs = m.group(1) ?? '';
+      final clean = attrs
+          .replaceAll(RegExp(r'\swidth="[^"]*"', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\sheight="[^"]*"', caseSensitive: false), '');
+      return '<iframe$clean style="width:100%;max-width:100%;aspect-ratio:16/9;border:0;border-radius:10px;"></iframe>';
+    });
+
+    // Çok uzun satırların taşmasını engelle.
+    return '<div style="word-break:break-word;overflow-wrap:anywhere;">$out</div>';
   }
 }
 
