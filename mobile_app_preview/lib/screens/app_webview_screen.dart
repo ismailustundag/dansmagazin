@@ -55,10 +55,15 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF080B14),
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Uygulamaya dön',
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
         title: Text(widget.title),
         actions: [
           IconButton(
-            tooltip: 'Geri',
+            tooltip: 'Sayfa geri',
             onPressed: _canGoBack
                 ? () async {
                     await _controller.goBack();
@@ -68,7 +73,7 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
           IconButton(
-            tooltip: 'İleri',
+            tooltip: 'Sayfa ileri',
             onPressed: _canGoForward
                 ? () async {
                     await _controller.goForward();
