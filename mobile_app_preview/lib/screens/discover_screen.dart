@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'news_detail_screen.dart';
 import 'screen_shell.dart';
 
 class DiscoverScreen extends StatefulWidget {
@@ -14,27 +15,23 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _discoverUrl =
-      'https://api2.dansmagazin.net/discover?news_limit=20&events_limit=10&albums_limit=6';
+      'https://api2.dansmagazin.net/discover?news_limit=20&events_limit=12&albums_limit=6';
 
-  late Future<List<_NewsItem>> _newsFuture;
+  late Future<_DiscoverData> _future;
 
   @override
   void initState() {
     super.initState();
-    _newsFuture = _fetchNews();
+    _future = _fetchDiscover();
   }
 
-  Future<List<_NewsItem>> _fetchNews() async {
+  Future<_DiscoverData> _fetchDiscover() async {
     final resp = await http.get(Uri.parse(_discoverUrl));
     if (resp.statusCode != 200) {
       throw Exception('Discover endpoint hata: ${resp.statusCode}');
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    final raw = (body['news'] as List<dynamic>? ?? []);
-    return raw
-        .map((e) => _NewsItem.fromJson(e as Map<String, dynamic>))
-        .where((e) => e.title.trim().isNotEmpty)
-        .toList();
+    return _DiscoverData.fromJson(body);
   }
 
   @override
@@ -47,12 +44,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         _SectionTitle(
           title: 'Bu Hafta Öne Çıkan',
           trailing: TextButton(
-            onPressed: () => setState(() => _newsFuture = _fetchNews()),
+            onPressed: () => setState(() => _future = _fetchDiscover()),
             child: const Text('Yenile'),
           ),
         ),
-        FutureBuilder<List<_NewsItem>>(
-          future: _newsFuture,
+        FutureBuilder<_DiscoverData>(
+          future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(
@@ -62,32 +59,54 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             }
             if (snapshot.hasError) {
               return _ErrorCard(
-                text: 'Haberler alınamadı. Lütfen tekrar deneyin.',
-                onRetry: () => setState(() => _newsFuture = _fetchNews()),
+                text: 'Keşfet verisi alınamadı. Lütfen tekrar deneyin.',
+                onRetry: () => setState(() => _future = _fetchDiscover()),
               );
             }
-            final items = snapshot.data ?? [];
-            if (items.isEmpty) {
-              return const _InfoCard(text: 'Henüz haber bulunamadı.');
-            }
-            return SizedBox(
-              height: 210,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, i) => _NewsCard(item: items[i]),
-              ),
+            final data = snapshot.data ?? _DiscoverData.empty();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _NewsCarousel(items: data.news),
+                const SizedBox(height: 16),
+                const _SectionTitle(title: 'Yaklaşan Etkinlikler'),
+                _SimpleCarousel(items: data.events, emptyText: 'Etkinlik bulunamadı.'),
+                const SizedBox(height: 16),
+                const _SectionTitle(title: 'Son Yüklenen Albümler'),
+                _SimpleCarousel(items: data.albums, emptyText: 'Albüm bulunamadı.'),
+              ],
             );
           },
         ),
-        const SizedBox(height: 16),
-        const _SectionTitle(title: 'Yaklaşan Etkinlikler'),
-        const _InfoCard(text: 'Bu bölüm bir sonraki adımda etkinlik verisiyle bağlanacak.'),
-        const SizedBox(height: 16),
-        const _SectionTitle(title: 'Son Yüklenen Albümler'),
-        const _InfoCard(text: 'Bu bölüm bir sonraki adımda albüm verisiyle bağlanacak.'),
       ],
+    );
+  }
+}
+
+class _DiscoverData {
+  final List<_NewsItem> news;
+  final List<_CardItem> events;
+  final List<_CardItem> albums;
+
+  _DiscoverData({
+    required this.news,
+    required this.events,
+    required this.albums,
+  });
+
+  factory _DiscoverData.empty() => _DiscoverData(news: [], events: [], albums: []);
+
+  factory _DiscoverData.fromJson(Map<String, dynamic> json) {
+    final rawNews = (json['news'] as List<dynamic>? ?? []);
+    final rawEvents = (json['upcoming_events'] as List<dynamic>? ?? []);
+    final rawAlbums = (json['latest_albums'] as List<dynamic>? ?? []);
+    return _DiscoverData(
+      news: rawNews
+          .map((e) => _NewsItem.fromJson(e as Map<String, dynamic>))
+          .where((e) => e.title.trim().isNotEmpty)
+          .toList(),
+      events: rawEvents.map((e) => _CardItem.fromJson(e as Map<String, dynamic>)).toList(),
+      albums: rawAlbums.map((e) => _CardItem.fromJson(e as Map<String, dynamic>)).toList(),
     );
   }
 }
@@ -98,6 +117,7 @@ class _NewsItem {
   final String excerpt;
   final String image;
   final String link;
+  final String date;
 
   _NewsItem({
     required this.id,
@@ -105,6 +125,7 @@ class _NewsItem {
     required this.excerpt,
     required this.image,
     required this.link,
+    required this.date,
   });
 
   factory _NewsItem.fromJson(Map<String, dynamic> json) {
@@ -114,6 +135,84 @@ class _NewsItem {
       excerpt: (json['excerpt'] ?? '').toString(),
       image: (json['image'] ?? '').toString(),
       link: (json['link'] ?? '').toString(),
+      date: (json['date'] ?? '').toString(),
+    );
+  }
+}
+
+class _CardItem {
+  final String name;
+  final String cover;
+  final String date;
+
+  _CardItem({
+    required this.name,
+    required this.cover,
+    required this.date,
+  });
+
+  factory _CardItem.fromJson(Map<String, dynamic> json) {
+    return _CardItem(
+      name: (json['name'] ?? json['title'] ?? '').toString(),
+      cover: (json['cover'] ?? json['image'] ?? '').toString(),
+      date: (json['date'] ?? json['created_at'] ?? '').toString(),
+    );
+  }
+}
+
+class _NewsCarousel extends StatelessWidget {
+  final List<_NewsItem> items;
+
+  const _NewsCarousel({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const _InfoCard(text: 'Henüz haber bulunamadı.');
+    }
+    return SizedBox(
+      height: 220,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) {
+          final item = items[i];
+          return _NewsCard(
+            item: item,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => NewsDetailScreen(postId: item.id),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SimpleCarousel extends StatelessWidget {
+  final List<_CardItem> items;
+  final String emptyText;
+
+  const _SimpleCarousel({required this.items, required this.emptyText});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return _InfoCard(text: emptyText);
+    }
+    return SizedBox(
+      height: 185,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) => _SmallCard(item: items[i]),
+      ),
     );
   }
 }
@@ -144,52 +243,57 @@ class _SectionTitle extends StatelessWidget {
 
 class _NewsCard extends StatelessWidget {
   final _NewsItem item;
+  final VoidCallback onTap;
 
-  const _NewsCard({required this.item});
+  const _NewsCard({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 300,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: const Color(0xFF121826),
-        border: Border.all(color: Colors.white12),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: 130,
-            width: double.infinity,
-            child: item.image.isNotEmpty
-                ? Image.network(
-                    item.image,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imageFallback(),
-                  )
-                : _imageFallback(),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
-            child: Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 300,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF121826),
+          border: Border.all(color: Colors.white12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 130,
+              width: double.infinity,
+              child: item.image.isNotEmpty
+                  ? Image.network(
+                      item.image,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _imageFallback(),
+                    )
+                  : _imageFallback(),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-            child: Text(
-              item.excerpt,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+              child: Text(
+                item.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: Text(
+                item.excerpt,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -199,6 +303,58 @@ class _NewsCard extends StatelessWidget {
       color: const Color(0xFF1F2937),
       child: const Center(
         child: Icon(Icons.image_not_supported_outlined, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _SmallCard extends StatelessWidget {
+  final _CardItem item;
+
+  const _SmallCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 230,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: const Color(0xFF121826),
+        border: Border.all(color: Colors.white12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: item.cover.isNotEmpty
+                ? Image.network(
+                    item.cover,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                  )
+                : Container(color: const Color(0xFF1F2937)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+            child: Text(
+              item.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+            child: Text(
+              item.date,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65)),
+            ),
+          ),
+        ],
       ),
     );
   }

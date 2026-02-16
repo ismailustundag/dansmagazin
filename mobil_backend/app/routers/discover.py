@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 import httpx
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter(prefix="/discover", tags=["Keşfet"])
 
@@ -39,6 +39,41 @@ def _parse_wp_item(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _extract_wp_terms(item: Dict[str, Any]) -> List[str]:
+    emb = item.get("_embedded") or {}
+    term_groups = emb.get("wp:term") or []
+    terms: List[str] = []
+    for grp in term_groups:
+        if not isinstance(grp, list):
+            continue
+        for t in grp:
+            if not isinstance(t, dict):
+                continue
+            name = (t.get("name") or "").strip().lower()
+            slug = (t.get("slug") or "").strip().lower()
+            if name:
+                terms.append(name)
+            if slug:
+                terms.append(slug)
+    return terms
+
+
+def _is_event_post(item: Dict[str, Any]) -> bool:
+    keys = set(_extract_wp_terms(item))
+    text = (
+        ((item.get("title") or {}).get("rendered") or "")
+        + " "
+        + ((item.get("excerpt") or {}).get("rendered") or "")
+    ).lower()
+    for kw in ("event", "etkinlik", "festival", "workshop", "kamp", "congress"):
+        if kw in text:
+            return True
+    for kw in ("event", "events", "etkinlik", "festival", "workshop", "kongre", "bilet"):
+        if any(kw in v for v in keys):
+            return True
+    return False
+
+
 async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     page = 1
@@ -66,6 +101,60 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
     return items
 
 
+async def _fetch_wp_post_detail(post_id: int) -> Dict[str, Any]:
+    url = f"{WP_BASE}/wp-json/wp/v2/posts/{int(post_id)}"
+    params = {"_embed": "1"}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url, params=params)
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Haber bulunamadı")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"WordPress hata: {resp.status_code}")
+    item = resp.json()
+    base = _parse_wp_item(item)
+    base["content_html"] = ((item.get("content") or {}).get("rendered") or "").strip()
+    return base
+
+
+async def _fetch_wp_events(limit: int = 12) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    page = 1
+    max_scan = 60
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        while len(out) < limit and max_scan > 0:
+            per_page = 20
+            url = f"{WP_BASE}/wp-json/wp/v2/posts"
+            params = {"_embed": "1", "orderby": "date", "order": "desc", "page": page, "per_page": per_page}
+            resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                break
+            arr = resp.json()
+            if not arr:
+                break
+            for item in arr:
+                if _is_event_post(item):
+                    parsed = _parse_wp_item(item)
+                    out.append(
+                        {
+                            "id": parsed["id"],
+                            "slug": str(parsed["id"]),
+                            "name": parsed["title"],
+                            "date": parsed["date"],
+                            "cover": parsed["image"],
+                            "link": parsed["link"],
+                        }
+                    )
+                    if len(out) >= limit:
+                        break
+                max_scan -= 1
+                if max_scan <= 0:
+                    break
+            if len(arr) < per_page:
+                break
+            page += 1
+    return out[:limit]
+
+
 def _db_conn():
     if not DATABASE_URL:
         return None
@@ -76,7 +165,7 @@ def _db_conn():
     )
 
 
-def _fetch_upcoming_events(limit: int = 12) -> List[Dict[str, Any]]:
+def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
     try:
         conn = _db_conn()
     except Exception:
@@ -166,7 +255,12 @@ async def discover_home(
     albums_limit: int = Query(default=6, ge=1, le=12),
 ):
     news = await _fetch_wp_news(limit=news_limit)
-    events = _fetch_upcoming_events(limit=events_limit)
+    try:
+        events = await _fetch_wp_events(limit=events_limit)
+    except Exception:
+        events = []
+    if not events:
+        events = _fetch_upcoming_events_db(limit=events_limit)
     albums = _fetch_latest_albums(limit=albums_limit)
     return {
         "section": "kesfet",
@@ -175,3 +269,8 @@ async def discover_home(
         "upcoming_events": events,
         "latest_albums": albums,
     }
+
+
+@router.get("/news/{post_id}", summary="WordPress haber detayı")
+async def discover_news_detail(post_id: int):
+    return await _fetch_wp_post_detail(post_id)
