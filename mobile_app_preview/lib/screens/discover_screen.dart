@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 
+import 'app_webview_screen.dart';
 import 'news_detail_screen.dart';
 import 'screen_shell.dart';
 
@@ -74,7 +74,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 _SimpleCarousel(
                   items: data.events,
                   emptyText: 'Etkinlik bulunamadı.',
-                  onTap: (item) async {
+                  onTap: (item) {
                     if (item.id > 0) {
                       if (!mounted) return;
                       Navigator.of(context).push(
@@ -85,7 +85,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       return;
                     }
                     if (item.link.isNotEmpty) {
-                      await _openUrl(item.link);
+                      if (!mounted) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AppWebViewScreen(
+                            url: item.link,
+                            title: item.name,
+                          ),
+                        ),
+                      );
                     }
                   },
                 ),
@@ -94,9 +102,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 _SimpleCarousel(
                   items: data.albums,
                   emptyText: 'Albüm bulunamadı.',
-                  onTap: (item) async {
+                  onTap: (item) {
                     if (item.link.isNotEmpty) {
-                      await _openUrl(item.link);
+                      if (!mounted) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AppWebViewScreen(
+                            url: item.link,
+                            title: item.name,
+                          ),
+                        ),
+                      );
                     }
                   },
                   subtitleBuilder: (item) {
@@ -111,12 +127,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ),
       ],
     );
-  }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 
@@ -243,7 +253,7 @@ class _NewsCarousel extends StatelessWidget {
 class _SimpleCarousel extends StatelessWidget {
   final List<_CardItem> items;
   final String emptyText;
-  final Future<void> Function(_CardItem item)? onTap;
+  final void Function(_CardItem item)? onTap;
   final String Function(_CardItem item)? subtitleBuilder;
 
   const _SimpleCarousel({

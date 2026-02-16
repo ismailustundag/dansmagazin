@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
+
+import 'app_webview_screen.dart';
 
 class NewsDetailScreen extends StatefulWidget {
   final int postId;
@@ -91,21 +92,24 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
               const SizedBox(height: 12),
               if (item.link.isNotEmpty)
                 ElevatedButton.icon(
-                  onPressed: () => _open(item.link),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Dansmagazin.net üzerinde aç'),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AppWebViewScreen(
+                          url: item.link,
+                          title: 'Kaynak Haber',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.language_rounded),
+                  label: const Text('Kaynak sayfayı aç'),
                 ),
             ],
           );
         },
       ),
     );
-  }
-
-  Future<void> _open(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   String _normalizeWpHtml(String html) {
