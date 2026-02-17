@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/events_screen.dart';
-import 'screens/login_screen.dart';
 import 'screens/messages_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
@@ -41,17 +42,72 @@ class RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<RootScreen> {
+  static const _kRemember = 'auth.remember';
+  static const _kLoggedIn = 'auth.logged_in';
+  static const _kName = 'auth.name';
+  static const _kEmail = 'auth.email';
+
   int _index = 0;
+  bool _bootDone = false;
   bool _isLoggedIn = false;
+  bool _guestMode = false;
   String _userName = '';
   String _userEmail = '';
 
-  Future<void> _openLogin({int? targetIndex}) async {
-    final result = await Navigator.of(context).push<LoginResult>(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remember = prefs.getBool(_kRemember) ?? false;
+    final loggedIn = prefs.getBool(_kLoggedIn) ?? false;
+    if (!mounted) return;
+    setState(() {
+      _isLoggedIn = remember && loggedIn;
+      _guestMode = !_isLoggedIn;
+      _userName = prefs.getString(_kName) ?? '';
+      _userEmail = prefs.getString(_kEmail) ?? '';
+      _bootDone = true;
+    });
+  }
+
+  Future<void> _persist({
+    required bool remember,
+    required bool loggedIn,
+    required String name,
+    required String email,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kRemember, remember);
+    await prefs.setBool(_kLoggedIn, loggedIn);
+    await prefs.setString(_kName, name);
+    await prefs.setString(_kEmail, email);
+  }
+
+  Future<void> _openAuth({required bool allowGuest, int? targetIndex}) async {
+    final result = await Navigator.of(context).push<AuthResult>(
+      MaterialPageRoute(builder: (_) => AuthScreen(allowGuest: allowGuest)),
     );
     if (result == null || !mounted) return;
+    if (result.action == AuthAction.guest) {
+      setState(() {
+        _guestMode = true;
+        _isLoggedIn = false;
+      });
+      return;
+    }
+    await _persist(
+      remember: result.rememberMe,
+      loggedIn: true,
+      name: result.name,
+      email: result.email,
+    );
+    if (!mounted) return;
     setState(() {
+      _guestMode = true;
       _isLoggedIn = true;
       _userName = result.name;
       _userEmail = result.email;
@@ -59,18 +115,21 @@ class _RootScreenState extends State<RootScreen> {
     });
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    await _persist(remember: false, loggedIn: false, name: '', email: '');
+    if (!mounted) return;
     setState(() {
       _isLoggedIn = false;
       _userName = '';
       _userEmail = '';
       _index = 0;
+      _guestMode = false;
     });
   }
 
   void _onNavTap(int i) {
     if ((i == 3 || i == 4) && !_isLoggedIn) {
-      _openLogin(targetIndex: i);
+      _openAuth(allowGuest: false, targetIndex: i);
       return;
     }
     setState(() => _index = i);
@@ -78,20 +137,36 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_bootDone) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (!_guestMode && !_isLoggedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openAuth(allowGuest: true);
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final pages = [
       const DiscoverScreen(),
       const EventsScreen(),
       const PhotosScreen(),
       MessagesScreen(
         isLoggedIn: _isLoggedIn,
-        onLoginTap: () => _openLogin(targetIndex: 3),
+        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 3),
       ),
       ProfileScreen(
         isLoggedIn: _isLoggedIn,
         userName: _userName,
         userEmail: _userEmail,
-        onLoginTap: () => _openLogin(targetIndex: 4),
-        onLogoutTap: _logout,
+        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 4),
+        onLogoutTap: () {
+          _logout();
+        },
       ),
     ];
 
