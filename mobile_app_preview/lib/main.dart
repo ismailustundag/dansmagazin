@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'screens/discover_screen.dart';
 import 'screens/events_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/messages_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
@@ -41,26 +42,68 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   int _index = 0;
+  bool _isLoggedIn = false;
+  String _userName = '';
+  String _userEmail = '';
 
-  final List<Widget> _pages = const [
-    DiscoverScreen(),
-    EventsScreen(),
-    PhotosScreen(),
-    MessagesScreen(),
-    ProfileScreen(),
-  ];
+  Future<void> _openLogin({int? targetIndex}) async {
+    final result = await Navigator.of(context).push<LoginResult>(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _isLoggedIn = true;
+      _userName = result.name;
+      _userEmail = result.email;
+      if (targetIndex != null) _index = targetIndex;
+    });
+  }
+
+  void _logout() {
+    setState(() {
+      _isLoggedIn = false;
+      _userName = '';
+      _userEmail = '';
+      _index = 0;
+    });
+  }
+
+  void _onNavTap(int i) {
+    if ((i == 3 || i == 4) && !_isLoggedIn) {
+      _openLogin(targetIndex: i);
+      return;
+    }
+    setState(() => _index = i);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      const DiscoverScreen(),
+      const EventsScreen(),
+      const PhotosScreen(),
+      MessagesScreen(
+        isLoggedIn: _isLoggedIn,
+        onLoginTap: () => _openLogin(targetIndex: 3),
+      ),
+      ProfileScreen(
+        isLoggedIn: _isLoggedIn,
+        userName: _userName,
+        userEmail: _userEmail,
+        onLoginTap: () => _openLogin(targetIndex: 4),
+        onLogoutTap: _logout,
+      ),
+    ];
+
     return Scaffold(
-      body: _pages[_index],
+      body: pages[_index],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFFE53935),
         unselectedItemColor: Colors.white70,
         backgroundColor: const Color(0xFF0F172A),
-        onTap: (i) => setState(() => _index = i),
+        onTap: _onNavTap,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.explore_outlined),
