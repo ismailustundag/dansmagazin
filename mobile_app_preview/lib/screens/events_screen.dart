@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+import 'app_webview_screen.dart';
+
 class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
 
@@ -112,7 +114,18 @@ class _EventsScreenState extends State<EventsScreen> {
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: items.length,
-                    itemBuilder: (_, i) => _EventCard(item: items[i]),
+                    itemBuilder: (_, i) => _EventCard(
+                      item: items[i],
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => _EventDetailScreen(
+                              item: items[i],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   );
                 },
               ),
@@ -132,6 +145,7 @@ class _EventItem {
   final String startAt;
   final String endAt;
   final double entryFee;
+  final String ticketUrl;
 
   _EventItem({
     required this.id,
@@ -141,71 +155,157 @@ class _EventItem {
     required this.startAt,
     required this.endAt,
     required this.entryFee,
+    required this.ticketUrl,
   });
 
   factory _EventItem.fromJson(Map<String, dynamic> json) {
+    String absUrl(dynamic raw, {String fallbackHost = 'https://api2.dansmagazin.net'}) {
+      final v = (raw ?? '').toString().trim();
+      if (v.isEmpty) return '';
+      if (v.startsWith('http://') || v.startsWith('https://')) return v;
+      if (v.startsWith('/')) return '$fallbackHost$v';
+      return '$fallbackHost/$v';
+    }
+
     return _EventItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
-      cover: (json['cover'] ?? '').toString(),
+      cover: absUrl(
+        json['cover'] ?? json['cover_url'] ?? json['cover_path'] ?? json['image'] ?? json['image_url'],
+      ),
       startAt: (json['start_at'] ?? '').toString(),
       endAt: (json['end_at'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
+      ticketUrl: absUrl(
+        json['ticket_url'] ?? json['ticketUrl'] ?? json['link'] ?? json['url'] ?? json['permalink'],
+        fallbackHost: 'https://www.dansmagazin.net',
+      ),
     );
   }
 }
 
 class _EventCard extends StatelessWidget {
   final _EventItem item;
+  final VoidCallback? onTap;
 
-  const _EventCard({required this.item});
+  const _EventCard({required this.item, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121826),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (item.cover.isNotEmpty)
-            SizedBox(
-              height: 170,
-              width: double.infinity,
-              child: Image.network(
-                item.cover,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF121826),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (item.cover.isNotEmpty)
+              SizedBox(
+                height: 170,
+                width: double.infinity,
+                child: Image.network(
+                  item.cover,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  if (item.description.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      item.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text('Başlangıç: ${item.startAt.isEmpty ? "-" : item.startAt}'),
+                  Text('Bitiş: ${item.endAt.isEmpty ? "-" : item.endAt}'),
+                  Text('Giriş: ${item.entryFee.toStringAsFixed(2)} TL'),
+                  if (item.ticketUrl.trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Bilet sayfasını aç',
+                      style: TextStyle(color: Colors.red.shade300, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ],
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                if (item.description.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    item.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.white.withOpacity(0.8)),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text('Başlangıç: ${item.startAt.isEmpty ? "-" : item.startAt}'),
-                Text('Bitiş: ${item.endAt.isEmpty ? "-" : item.endAt}'),
-                Text('Giriş: ${item.entryFee.toStringAsFixed(2)} TL'),
-              ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EventDetailScreen extends StatelessWidget {
+  final _EventItem item;
+
+  const _EventDetailScreen({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = item.ticketUrl.trim();
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1020),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B1020),
+        title: Text(item.name),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (item.cover.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                item.cover,
+                height: 220,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 220,
+                  color: const Color(0xFF1F2937),
+                ),
+              ),
             ),
-          ),
+          const SizedBox(height: 14),
+          if (item.description.isNotEmpty)
+            Text(
+              item.description,
+              style: TextStyle(color: Colors.white.withOpacity(0.9), height: 1.35),
+            ),
+          const SizedBox(height: 10),
+          Text('Başlangıç: ${item.startAt.isEmpty ? "-" : item.startAt}'),
+          Text('Bitiş: ${item.endAt.isEmpty ? "-" : item.endAt}'),
+          Text('Giriş: ${item.entryFee.toStringAsFixed(2)} TL'),
+          const SizedBox(height: 20),
+          if (url.isNotEmpty)
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => AppWebViewScreen(url: url, title: item.name),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('Bilet/Detay Sayfasını Aç'),
+            ),
         ],
       ),
     );

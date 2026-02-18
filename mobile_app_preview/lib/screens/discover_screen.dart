@@ -75,15 +75,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   items: data.events,
                   emptyText: 'Etkinlik bulunamadı.',
                   onTap: (item) {
-                    if (item.id > 0) {
-                      if (!mounted) return;
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => NewsDetailScreen(postId: item.id),
-                        ),
-                      );
-                      return;
-                    }
                     if (item.link.isNotEmpty) {
                       if (!mounted) return;
                       Navigator.of(context).push(
@@ -93,6 +84,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             title: item.name,
                           ),
                         ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Bu etkinliğin detay linki henüz yok.')),
                       );
                     }
                   },
@@ -205,12 +200,25 @@ class _CardItem {
   });
 
   factory _CardItem.fromJson(Map<String, dynamic> json) {
+    String absUrl(dynamic raw, {String fallbackHost = 'https://api2.dansmagazin.net'}) {
+      final v = (raw ?? '').toString().trim();
+      if (v.isEmpty) return '';
+      if (v.startsWith('http://') || v.startsWith('https://')) return v;
+      if (v.startsWith('/')) return '$fallbackHost$v';
+      return '$fallbackHost/$v';
+    }
+
     return _CardItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? json['title'] ?? '').toString(),
-      cover: (json['cover'] ?? json['image'] ?? '').toString(),
+      cover: absUrl(
+        json['cover'] ?? json['cover_url'] ?? json['cover_path'] ?? json['image'] ?? json['image_url'],
+      ),
       date: (json['date'] ?? json['created_at'] ?? '').toString(),
-      link: (json['link'] ?? '').toString(),
+      link: absUrl(
+        json['link'] ?? json['ticket_url'] ?? json['ticketUrl'] ?? json['url'] ?? json['permalink'],
+        fallbackHost: 'https://www.dansmagazin.net',
+      ),
       photoCount: (json['photo_count'] as num?)?.toInt() ?? 0,
     );
   }

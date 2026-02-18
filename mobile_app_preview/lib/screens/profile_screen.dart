@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'placeholder_detail_screen.dart';
 import 'screen_shell.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -40,25 +41,61 @@ class ProfileScreen extends StatelessWidget {
       icon: Icons.person,
       subtitle: '$userName • $userEmail',
       content: [
-        const PreviewCard(
+        PreviewCard(
           title: 'Biletlerim',
           subtitle: 'Katıldığınız etkinlik biletleri',
           icon: Icons.confirmation_num,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const PlaceholderDetailScreen(
+                title: 'Biletlerim',
+                description: 'Satın aldığınız biletler bu ekranda listelenecek.',
+                icon: Icons.confirmation_num,
+              ),
+            ),
+          ),
         ),
-        const PreviewCard(
+        PreviewCard(
           title: 'Fotoğraflarım',
           subtitle: 'Eşleşen ve satın aldığınız fotoğraflar',
           icon: Icons.photo_library,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const PlaceholderDetailScreen(
+                title: 'Fotoğraflarım',
+                description: 'Kullanıcıya ait fotoğraflar bu ekranda olacak.',
+                icon: Icons.photo_library,
+              ),
+            ),
+          ),
         ),
-        const PreviewCard(
+        PreviewCard(
           title: 'Mesajlarım',
           subtitle: 'Organizatör ve destek konuşmaları',
           icon: Icons.mark_chat_unread,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const PlaceholderDetailScreen(
+                title: 'Mesajlarım',
+                description: 'Kullanıcı mesajları burada listelenecek.',
+                icon: Icons.mark_chat_unread,
+              ),
+            ),
+          ),
         ),
-        const PreviewCard(
+        PreviewCard(
           title: 'Ayarlar',
           subtitle: 'Bildirim, gizlilik, dil',
           icon: Icons.settings,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const PlaceholderDetailScreen(
+                title: 'Ayarlar',
+                description: 'Hesap ve uygulama ayarları bu ekranda yönetilecek.',
+                icon: Icons.settings,
+              ),
+            ),
+          ),
         ),
         PreviewCard(
           title: 'Çıkış Yap',
