@@ -16,7 +16,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 ADMIN_TOKEN = os.getenv("MOBILE_ADMIN_TOKEN", "").strip()
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_DIR = os.path.join(ROOT_DIR, "media", "submission_covers")
+ALT_UPLOAD_DIR = "/home/ubuntu/etkinlik_fotograf_projesi/media/submission_covers"
 PUBLIC_BASE = os.getenv("PUBLIC_WEB_BASE", "https://foto.dansmagazin.net").rstrip("/")
+PUBLIC_API_BASE = os.getenv("PUBLIC_API_BASE", "https://api2.dansmagazin.net").rstrip("/")
 
 
 def _db_conn():
@@ -47,6 +49,19 @@ def init_event_submission_tables():
         )
         """
     )
+    cur.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='approved_event_slug'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN approved_event_slug TEXT;
+            END IF;
+        END$$;
+        """
+    )
     conn.commit()
     conn.close()
     os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -66,7 +81,7 @@ def _iso_now() -> str:
 def _cover_url(path: str) -> str:
     if not path:
         return ""
-    return f"{PUBLIC_BASE}/events/submission-cover/{os.path.basename(path)}"
+    return f"{PUBLIC_API_BASE}/events/submission-cover/{os.path.basename(path)}"
 
 
 def _save_cover(upload: UploadFile) -> str:
@@ -86,10 +101,22 @@ def list_events(limit: int = 50):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, event_name, description, cover_path, start_at, end_at, entry_fee, created_at, approved_at
-        FROM mobile_event_submissions
-        WHERE status='approved'
-        ORDER BY COALESCE(approved_at, created_at) DESC
+        SELECT
+            mes.id,
+            mes.event_name,
+            mes.description,
+            mes.cover_path,
+            mes.start_at,
+            mes.end_at,
+            mes.entry_fee,
+            mes.created_at,
+            mes.approved_at,
+            mes.approved_event_slug,
+            COALESCE(se.ticket_url, '') AS ticket_url
+        FROM mobile_event_submissions mes
+        LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
+        WHERE mes.status='approved'
+        ORDER BY COALESCE(mes.approved_at, mes.created_at) DESC
         LIMIT %s
         """,
         (max(1, min(int(limit), 200)),),
@@ -107,6 +134,8 @@ def list_events(limit: int = 50):
                 "start_at": r["start_at"] or "",
                 "end_at": r["end_at"] or "",
                 "entry_fee": float(r["entry_fee"]) if r["entry_fee"] is not None else 0.0,
+                "ticket_url": r["ticket_url"] or "",
+                "slug": r["approved_event_slug"] or "",
             }
         )
     return {"section": "etkinlikler", "items": items}
@@ -249,5 +278,8 @@ def get_submission_cover(filename: str):
     safe_name = os.path.basename(filename)
     abs_path = os.path.join(UPLOAD_DIR, safe_name)
     if not os.path.exists(abs_path):
+        alt_path = os.path.join(ALT_UPLOAD_DIR, safe_name)
+        if os.path.exists(alt_path):
+            return FileResponse(alt_path)
         raise HTTPException(status_code=404, detail="Dosya bulunamadı")
     return FileResponse(abs_path)

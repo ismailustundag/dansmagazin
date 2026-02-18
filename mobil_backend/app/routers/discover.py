@@ -14,6 +14,7 @@ WP_BASE = os.getenv("WP_BASE_URL", "https://www.dansmagazin.net").rstrip("/")
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 PUBLIC_MEDIA_BASE = os.getenv("PUBLIC_MEDIA_BASE", "https://foto.dansmagazin.net").rstrip("/")
 PUBLIC_WEB_BASE = os.getenv("PUBLIC_WEB_BASE", "https://foto.dansmagazin.net").rstrip("/")
+PUBLIC_API_BASE = os.getenv("PUBLIC_API_BASE", "https://api2.dansmagazin.net").rstrip("/")
 
 
 def _strip_html(text: str) -> str:
@@ -178,14 +179,21 @@ def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
         # Not: mevcut şemada etkinlik tarih alanı olmadığı için en yeni aktif etkinlikler listeleniyor.
         cur.execute(
             """
-            SELECT se.id, se.slug, se.name, se.created_at,
+            SELECT se.id, se.slug, se.name, se.created_at, se.ticket_url,
                    (
                      SELECT ep.file_path
                      FROM event_photos ep
                      WHERE ep.event_id = se.slug
                      ORDER BY ep.id DESC
                      LIMIT 1
-                   ) AS cover_path
+                   ) AS cover_path,
+                   (
+                     SELECT mes.cover_path
+                     FROM mobile_event_submissions mes
+                     WHERE mes.approved_event_slug = se.slug
+                     ORDER BY mes.id DESC
+                     LIMIT 1
+                   ) AS submission_cover_path
             FROM saas_events se
             WHERE COALESCE(se.is_active, 1) = 1
             ORDER BY se.id DESC
@@ -196,8 +204,13 @@ def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
         rows = cur.fetchall() or []
         out = []
         for r in rows:
-            cover_path = (r.get("cover_path") or "").lstrip("/")
-            cover = f"{PUBLIC_MEDIA_BASE}/{cover_path}" if cover_path else ""
+            photo_cover_path = (r.get("cover_path") or "").lstrip("/")
+            submission_cover = (r.get("submission_cover_path") or "").strip()
+            if submission_cover:
+                cover = f"{PUBLIC_API_BASE}/events/submission-cover/{os.path.basename(submission_cover)}"
+            else:
+                cover = f"{PUBLIC_MEDIA_BASE}/{photo_cover_path}" if photo_cover_path else ""
+            ticket_url = (r.get("ticket_url") or "").strip()
             out.append(
                 {
                     "id": 0,
@@ -205,7 +218,7 @@ def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
                     "name": r.get("name"),
                     "date": r.get("created_at"),
                     "cover": cover,
-                    "link": "",
+                    "link": ticket_url or (f"{PUBLIC_WEB_BASE}/e/{r.get('slug')}" if r.get("slug") else ""),
                 }
             )
         return out
