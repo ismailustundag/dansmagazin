@@ -193,6 +193,84 @@ def _db_conn():
     )
 
 
+def init_news_reaction_table():
+    try:
+        conn = _db_conn()
+    except Exception:
+        return
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS news_reactions (
+                post_id BIGINT PRIMARY KEY,
+                like_count INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def _get_news_like_count(post_id: int) -> int:
+    try:
+        conn = _db_conn()
+    except Exception:
+        return 0
+    if not conn:
+        return 0
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT like_count FROM news_reactions WHERE post_id=%s", (int(post_id),))
+        row = cur.fetchone()
+        return int((row or {}).get("like_count") or 0)
+    except Exception:
+        return 0
+    finally:
+        conn.close()
+
+
+def _apply_news_like_delta(post_id: int, delta: int) -> int:
+    if delta == 0:
+        return _get_news_like_count(post_id)
+    try:
+        conn = _db_conn()
+    except Exception:
+        return _get_news_like_count(post_id)
+    if not conn:
+        return _get_news_like_count(post_id)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO news_reactions (post_id, like_count) VALUES (%s, 0) ON CONFLICT (post_id) DO NOTHING",
+            (int(post_id),),
+        )
+        cur.execute(
+            """
+            UPDATE news_reactions
+            SET like_count = GREATEST(0, like_count + %s),
+                updated_at = NOW()
+            WHERE post_id = %s
+            RETURNING like_count
+            """,
+            (int(delta), int(post_id)),
+        )
+        row = cur.fetchone() or {}
+        conn.commit()
+        return int(row.get("like_count") or 0)
+    except Exception:
+        conn.rollback()
+        return _get_news_like_count(post_id)
+    finally:
+        conn.close()
+
+
 def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
     try:
         conn = _db_conn()
@@ -348,6 +426,21 @@ def _fetch_latest_albums_old(limit: int = 6) -> List[Dict[str, Any]]:
         return out
     finally:
         conn.close()
+
+
+@router.get("/news/{post_id}/reactions", summary="Haber beğeni sayısı")
+async def news_reactions(post_id: int):
+    return {"post_id": int(post_id), "like_count": _get_news_like_count(post_id)}
+
+
+@router.post("/news/{post_id}/like", summary="Haber beğen")
+async def news_like(post_id: int):
+    return {"post_id": int(post_id), "like_count": _apply_news_like_delta(post_id, 1)}
+
+
+@router.post("/news/{post_id}/unlike", summary="Haber beğeniyi geri al")
+async def news_unlike(post_id: int):
+    return {"post_id": int(post_id), "like_count": _apply_news_like_delta(post_id, -1)}
 
 
 @router.get("", summary="Keşfet ana içerikleri")

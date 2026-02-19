@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.schemas import MobileMenuResponse
-from app.routers.discover import router as discover_router
+from app.routers.discover import init_news_reaction_table, router as discover_router
 from app.routers.events import (
     admin_router as admin_events_router,
     init_event_submission_tables,
@@ -17,6 +17,7 @@ app = FastAPI(title="Mobil Backend")
 @app.on_event("startup")
 def on_startup():
     init_event_submission_tables()
+    init_news_reaction_table()
 
 
 @app.get("/health")

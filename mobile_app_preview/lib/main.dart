@@ -181,8 +181,8 @@ class _RootScreenState extends State<RootScreen> {
         onTap: _onNavTap,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.explore_outlined),
-            activeIcon: Icon(Icons.explore),
+            icon: Icon(Icons.article_outlined),
+            activeIcon: Icon(Icons.article),
             label: 'Haberler',
           ),
           BottomNavigationBarItem(

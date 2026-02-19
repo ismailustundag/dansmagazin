@@ -49,10 +49,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   String _cartUrl() {
+    final cartBase = 'https://www.dansmagazin.net/sepet/';
     final pid = widget.wooProductId.trim();
     if (pid.isNotEmpty) {
-      final cart = Uri.encodeComponent('https://www.dansmagazin.net/sepet/');
-      return 'https://www.dansmagazin.net/?add-to-cart=$pid&quantity=1&redirect_to=$cart';
+      return '$cartBase?add-to-cart=$pid&quantity=1';
     }
     final t = widget.ticketUrl.trim();
     if (t.isEmpty) return '';
@@ -62,8 +62,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         u.queryParameters['product_id'] ??
         u.queryParameters['add-to-cart'];
     if (parsedPid != null && parsedPid.trim().isNotEmpty) {
-        final cart = Uri.encodeComponent('https://www.dansmagazin.net/sepet/');
-        return 'https://www.dansmagazin.net/?add-to-cart=${parsedPid.trim()}&quantity=1&redirect_to=$cart';
+      return '$cartBase?add-to-cart=${parsedPid.trim()}&quantity=1';
     }
     return t;
   }

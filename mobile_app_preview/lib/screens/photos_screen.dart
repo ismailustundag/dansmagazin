@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screen_shell.dart';
@@ -235,6 +236,19 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
     await _loadFavorites();
   }
 
+  Future<void> _openViewer(List<_Photo> photos, int initialIndex) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PhotoViewerScreen(
+          photos: photos,
+          initialIndex: initialIndex,
+          album: widget.album,
+        ),
+      ),
+    );
+    await _loadFavorites();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -283,12 +297,17 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () => _openViewer(photos, i),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                        ),
+                      ),
                     ),
                   ),
                   Positioned(
@@ -315,6 +334,129 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _PhotoViewerScreen extends StatefulWidget {
+  final List<_Photo> photos;
+  final int initialIndex;
+  final _Album album;
+
+  const _PhotoViewerScreen({
+    required this.photos,
+    required this.initialIndex,
+    required this.album,
+  });
+
+  @override
+  State<_PhotoViewerScreen> createState() => _PhotoViewerScreenState();
+}
+
+class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
+  late final PageController _controller;
+  int _index = 0;
+  List<_FavoritePhoto> _favorites = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final loaded = await _FavoriteStore.load();
+    if (!mounted) return;
+    setState(() => _favorites = loaded);
+  }
+
+  bool _isFavorite(String url) => _favorites.any((f) => f.url == url);
+
+  Future<void> _toggleFavorite(_Photo photo) async {
+    final isFav = _isFavorite(photo.url);
+    if (isFav) {
+      await _FavoriteStore.removeByUrl(photo.url);
+    } else {
+      await _FavoriteStore.add(
+        _FavoritePhoto(
+          url: photo.url,
+          thumbUrl: photo.thumbUrl,
+          albumSlug: widget.album.slug,
+          albumName: widget.album.name,
+          createdAt: photo.createdAt,
+        ),
+      );
+    }
+    await _loadFavorites();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photos[_index];
+    final fav = _isFavorite(photo.url);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text('${_index + 1}/${widget.photos.length}'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: widget.photos.length,
+              onPageChanged: (v) => setState(() => _index = v),
+              itemBuilder: (context, i) {
+                final p = widget.photos[i];
+                return InteractiveViewer(
+                  child: Center(
+                    child: Image.network(
+                      p.url,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            color: const Color(0xFF0B1020),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _toggleFavorite(photo),
+                    icon: Icon(
+                      fav ? Icons.favorite : Icons.favorite_border,
+                      color: fav ? Colors.redAccent : Colors.white,
+                    ),
+                    label: Text(fav ? 'Beğenildi' : 'Beğen'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Share.share(photo.url),
+                    icon: const Icon(Icons.share),
+                    label: const Text('Paylaş'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

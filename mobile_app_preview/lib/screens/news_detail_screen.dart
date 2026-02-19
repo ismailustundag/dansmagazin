@@ -16,7 +16,6 @@ class NewsDetailScreen extends StatefulWidget {
 }
 
 class _NewsDetailScreenState extends State<NewsDetailScreen> {
-  static const _kLikeCountPrefix = 'news_like_count_';
   static const _kLikedPrefix = 'news_liked_';
 
   late Future<_NewsDetail> _future;
@@ -32,25 +31,39 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
 
   Future<void> _loadLikeState() async {
     final prefs = await SharedPreferences.getInstance();
+    final r = await http.get(
+      Uri.parse('https://api2.dansmagazin.net/discover/news/${widget.postId}/reactions'),
+    );
+    var serverCount = 0;
+    if (r.statusCode == 200) {
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      serverCount = (body['like_count'] as num?)?.toInt() ?? 0;
+    }
     if (!mounted) return;
     setState(() {
-      _likeCount = prefs.getInt('$_kLikeCountPrefix${widget.postId}') ?? 0;
+      _likeCount = serverCount;
       _liked = prefs.getBool('$_kLikedPrefix${widget.postId}') ?? false;
     });
   }
 
   Future<void> _toggleLike() async {
     final nextLiked = !_liked;
-    final nextCount = nextLiked
-        ? _likeCount + 1
-        : (_likeCount > 0 ? _likeCount - 1 : 0);
+    final endpoint = nextLiked ? 'like' : 'unlike';
+    final r = await http.post(
+      Uri.parse('https://api2.dansmagazin.net/discover/news/${widget.postId}/$endpoint'),
+    );
+    var nextCount = _likeCount;
+    if (r.statusCode == 200) {
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      nextCount = (body['like_count'] as num?)?.toInt() ?? _likeCount;
+    }
+    if (!mounted) return;
     setState(() {
       _liked = nextLiked;
       _likeCount = nextCount;
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('$_kLikedPrefix${widget.postId}', nextLiked);
-    await prefs.setInt('$_kLikeCountPrefix${widget.postId}', nextCount);
   }
 
   Future<_NewsDetail> _fetchDetail() async {
