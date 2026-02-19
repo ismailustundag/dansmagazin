@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:http/http.dart' as http;
-
-import 'app_webview_screen.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NewsDetailScreen extends StatefulWidget {
   final int postId;
@@ -16,12 +16,41 @@ class NewsDetailScreen extends StatefulWidget {
 }
 
 class _NewsDetailScreenState extends State<NewsDetailScreen> {
+  static const _kLikeCountPrefix = 'news_like_count_';
+  static const _kLikedPrefix = 'news_liked_';
+
   late Future<_NewsDetail> _future;
+  int _likeCount = 0;
+  bool _liked = false;
 
   @override
   void initState() {
     super.initState();
     _future = _fetchDetail();
+    _loadLikeState();
+  }
+
+  Future<void> _loadLikeState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _likeCount = prefs.getInt('$_kLikeCountPrefix${widget.postId}') ?? 0;
+      _liked = prefs.getBool('$_kLikedPrefix${widget.postId}') ?? false;
+    });
+  }
+
+  Future<void> _toggleLike() async {
+    final nextLiked = !_liked;
+    final nextCount = nextLiked
+        ? _likeCount + 1
+        : (_likeCount > 0 ? _likeCount - 1 : 0);
+    setState(() {
+      _liked = nextLiked;
+      _likeCount = nextCount;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('$_kLikedPrefix${widget.postId}', nextLiked);
+    await prefs.setInt('$_kLikeCountPrefix${widget.postId}', nextCount);
   }
 
   Future<_NewsDetail> _fetchDetail() async {
@@ -90,21 +119,41 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
               const SizedBox(height: 12),
               Html(data: normalizedHtml),
               const SizedBox(height: 12),
-              if (item.link.isNotEmpty)
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => AppWebViewScreen(
-                          url: item.link,
-                          title: 'Kaynak Haber',
-                        ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _toggleLike,
+                      icon: Icon(
+                        _liked ? Icons.favorite : Icons.favorite_border,
+                        color: _liked ? Colors.redAccent : null,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.language_rounded),
-                  label: const Text('Kaynak sayfayı aç'),
+                      label: Text('Beğen ($_likeCount)'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final shareText = item.link.isNotEmpty
+                            ? '${item.title}\n${item.link}'
+                            : item.title;
+                        Share.share(shareText, subject: item.title);
+                      },
+                      icon: const Icon(Icons.share),
+                      label: const Text('Paylaş'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Paylaş seçeneğinde WhatsApp / Instagram / Facebook gibi uygulamalar listelenir.',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.55),
+                  fontSize: 12,
                 ),
+              ),
             ],
           );
         },

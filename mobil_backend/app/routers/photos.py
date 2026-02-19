@@ -22,6 +22,23 @@ def _db_conn():
     )
 
 
+def _norm_media_path(path: str) -> str:
+    p = (path or "").lstrip("/")
+    if p.startswith("media/"):
+        p = p[len("media/") :]
+    return p
+
+
+def _media_url(path: str) -> str:
+    p = _norm_media_path(path)
+    if not p:
+        return ""
+    b = PUBLIC_MEDIA_BASE.rstrip("/")
+    if b.endswith("/media"):
+        return f"{b}/{p}"
+    return f"{b}/media/{p}"
+
+
 def _albums(limit: int) -> List[Dict[str, Any]]:
     conn = _db_conn()
     if not conn:
@@ -53,12 +70,12 @@ def _albums(limit: int) -> List[Dict[str, Any]]:
         rows = cur.fetchall() or []
         out = []
         for r in rows:
-            fp = (r.get("file_path") or "").lstrip("/")
+            fp = r.get("file_path") or ""
             out.append(
                 {
                     "slug": r.get("slug"),
                     "name": r.get("name"),
-                    "cover": f"{PUBLIC_MEDIA_BASE}/{fp}" if fp else "",
+                    "cover": _media_url(fp),
                     "photo_count": int(r.get("photo_count") or 0),
                     "created_at": r.get("created_at"),
                     "link": f"{PUBLIC_WEB_BASE}/e/{r.get('slug')}/all" if r.get("slug") else "",
@@ -90,13 +107,13 @@ def _latest(limit: int) -> List[Dict[str, Any]]:
         rows = cur.fetchall() or []
         out = []
         for r in rows:
-            fp = (r.get("file_path") or "").lstrip("/")
+            fp = r.get("file_path") or ""
             out.append(
                 {
                     "id": int(r.get("id") or 0),
                     "slug": r.get("event_id"),
                     "event_name": r.get("event_name"),
-                    "image": f"{PUBLIC_MEDIA_BASE}/{fp}" if fp else "",
+                    "image": _media_url(fp),
                     "created_at": r.get("created_at"),
                 }
             )
@@ -126,11 +143,11 @@ def _event_photos(slug: str, limit: int) -> List[Dict[str, Any]]:
         rows = cur.fetchall() or []
         out = []
         for r in rows:
-            fp = (r.get("file_path") or "").lstrip("/")
+            fp = r.get("file_path") or ""
             out.append(
                 {
                     "id": int(r.get("id") or 0),
-                    "image": f"{PUBLIC_MEDIA_BASE}/{fp}" if fp else "",
+                    "image": _media_url(fp),
                     "created_at": r.get("created_at"),
                 }
             )

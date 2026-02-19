@@ -15,10 +15,36 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 PUBLIC_MEDIA_BASE = os.getenv("PUBLIC_MEDIA_BASE", "https://foto.dansmagazin.net").rstrip("/")
 PUBLIC_WEB_BASE = os.getenv("PUBLIC_WEB_BASE", "https://foto.dansmagazin.net").rstrip("/")
 PUBLIC_API_BASE = os.getenv("PUBLIC_API_BASE", "https://api2.dansmagazin.net").rstrip("/")
+MOBILE_UPLOAD_DIR = "/home/ubuntu/mobil_backend/media/submission_covers"
+ALT_UPLOAD_DIR = "/home/ubuntu/etkinlik_fotograf_projesi/media/submission_covers"
 
 
 def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]*>", "", text or "").strip()
+
+
+def _submission_cover_exists(path: str) -> bool:
+    if not path:
+        return False
+    bn = os.path.basename(path)
+    return os.path.exists(os.path.join(MOBILE_UPLOAD_DIR, bn)) or os.path.exists(os.path.join(ALT_UPLOAD_DIR, bn))
+
+
+def _norm_media_path(path: str) -> str:
+    p = (path or "").lstrip("/")
+    if p.startswith("media/"):
+        p = p[len("media/") :]
+    return p
+
+
+def _media_url(path: str) -> str:
+    p = _norm_media_path(path)
+    if not p:
+        return ""
+    b = PUBLIC_MEDIA_BASE.rstrip("/")
+    if b.endswith("/media"):
+        return f"{b}/{p}"
+    return f"{b}/media/{p}"
 
 
 def _parse_wp_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -204,12 +230,18 @@ def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
         rows = cur.fetchall() or []
         out = []
         for r in rows:
-            photo_cover_path = (r.get("cover_path") or "").lstrip("/")
+            photo_cover_path = _norm_media_path(r.get("cover_path") or "")
             submission_cover = (r.get("submission_cover_path") or "").strip()
             if submission_cover:
-                cover = f"{PUBLIC_API_BASE}/events/submission-cover/{os.path.basename(submission_cover)}"
+                # Mobil etkinlikte kapak kaynağı submission cover'dır; yanlış kapak göstermemek için
+                # dosya yoksa boş bırakıyoruz.
+                cover = (
+                    f"{PUBLIC_API_BASE}/events/submission-cover/{os.path.basename(submission_cover)}"
+                    if _submission_cover_exists(submission_cover)
+                    else ""
+                )
             else:
-                cover = f"{PUBLIC_MEDIA_BASE}/{photo_cover_path}" if photo_cover_path else ""
+                cover = _media_url(photo_cover_path)
             ticket_url = (r.get("ticket_url") or "").strip()
             out.append(
                 {
@@ -218,7 +250,8 @@ def _fetch_upcoming_events_db(limit: int = 12) -> List[Dict[str, Any]]:
                     "name": r.get("name"),
                     "date": r.get("created_at"),
                     "cover": cover,
-                    "link": ticket_url or (f"{PUBLIC_WEB_BASE}/e/{r.get('slug')}" if r.get("slug") else ""),
+                    # Mobil keşfette sadece bilet linki gösterilir; fotoğraf kayıt sayfasına düşmesin.
+                    "link": ticket_url,
                 }
             )
         return out
@@ -261,7 +294,7 @@ def _fetch_latest_albums(limit: int = 6) -> List[Dict[str, Any]]:
         out = []
         for r in rows:
             file_path = (r.get("file_path") or "").lstrip("/")
-            cover = f"{PUBLIC_MEDIA_BASE}/{file_path}" if file_path else ""
+            cover = _media_url(file_path)
             out.append(
                 {
                     "slug": r.get("slug"),

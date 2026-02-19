@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import 'app_webview_screen.dart';
 import 'news_detail_screen.dart';
 import 'screen_shell.dart';
 
@@ -16,7 +15,7 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _discoverUrl =
-      'https://api2.dansmagazin.net/discover?news_limit=20&events_limit=12&albums_limit=6';
+      'https://api2.dansmagazin.net/discover?news_limit=50&events_limit=0&albums_limit=0';
 
   late Future<_DiscoverData> _future;
 
@@ -38,12 +37,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   Widget build(BuildContext context) {
     return ScreenShell(
-      title: 'Keşfet',
-      icon: Icons.explore,
-      subtitle: 'Öne çıkan içerikler, yaklaşan etkinlikler ve yeni albümler.',
+      title: 'Haberler',
+      icon: Icons.article,
+      subtitle: 'Dansmagazin haberleri (en yeni en üstte).',
       content: [
         _SectionTitle(
-          title: 'Bu Hafta Öne Çıkan',
+          title: 'Tüm Haberler',
           trailing: TextButton(
             onPressed: () => setState(() => _future = _fetchDiscover()),
             child: const Text('Yenile'),
@@ -53,71 +52,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 190,
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 30),
                 child: Center(child: CircularProgressIndicator()),
               );
             }
             if (snapshot.hasError) {
               return _ErrorCard(
-                text: 'Keşfet verisi alınamadı. Lütfen tekrar deneyin.',
+                text: 'Haberler alınamadı. Lütfen tekrar deneyin.',
                 onRetry: () => setState(() => _future = _fetchDiscover()),
               );
             }
             final data = snapshot.data ?? _DiscoverData.empty();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _NewsCarousel(items: data.news),
-                const SizedBox(height: 16),
-                const _SectionTitle(title: 'Yaklaşan Etkinlikler'),
-                _SimpleCarousel(
-                  items: data.events,
-                  emptyText: 'Etkinlik bulunamadı.',
-                  onTap: (item) {
-                    if (item.link.isNotEmpty) {
-                      if (!mounted) return;
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AppWebViewScreen(
-                            url: item.link,
-                            title: item.name,
-                          ),
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Bu etkinliğin detay linki henüz yok.')),
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                const _SectionTitle(title: 'Son Yüklenen Albümler'),
-                _SimpleCarousel(
-                  items: data.albums,
-                  emptyText: 'Albüm bulunamadı.',
-                  onTap: (item) {
-                    if (item.link.isNotEmpty) {
-                      if (!mounted) return;
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AppWebViewScreen(
-                            url: item.link,
-                            title: item.name,
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  subtitleBuilder: (item) {
-                    final cnt = item.photoCount;
-                    if (cnt > 0) return '$cnt fotoğraf';
-                    return item.date;
-                  },
-                ),
-              ],
-            );
+            return _NewsList(items: data.news);
           },
         ),
       ],
@@ -127,28 +74,22 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
 class _DiscoverData {
   final List<_NewsItem> news;
-  final List<_CardItem> events;
-  final List<_CardItem> albums;
 
   _DiscoverData({
     required this.news,
-    required this.events,
-    required this.albums,
   });
 
-  factory _DiscoverData.empty() => _DiscoverData(news: [], events: [], albums: []);
+  factory _DiscoverData.empty() => _DiscoverData(news: []);
 
   factory _DiscoverData.fromJson(Map<String, dynamic> json) {
     final rawNews = (json['news'] as List<dynamic>? ?? []);
-    final rawEvents = (json['upcoming_events'] as List<dynamic>? ?? []);
-    final rawAlbums = (json['latest_albums'] as List<dynamic>? ?? []);
+    final news = rawNews
+        .map((e) => _NewsItem.fromJson(e as Map<String, dynamic>))
+        .where((e) => e.title.trim().isNotEmpty)
+        .toList();
+    news.sort((a, b) => b.date.compareTo(a.date));
     return _DiscoverData(
-      news: rawNews
-          .map((e) => _NewsItem.fromJson(e as Map<String, dynamic>))
-          .where((e) => e.title.trim().isNotEmpty)
-          .toList(),
-      events: rawEvents.map((e) => _CardItem.fromJson(e as Map<String, dynamic>)).toList(),
-      albums: rawAlbums.map((e) => _CardItem.fromJson(e as Map<String, dynamic>)).toList(),
+      news: news,
     );
   }
 }
@@ -182,116 +123,34 @@ class _NewsItem {
   }
 }
 
-class _CardItem {
-  final int id;
-  final String name;
-  final String cover;
-  final String date;
-  final String link;
-  final int photoCount;
-
-  _CardItem({
-    required this.id,
-    required this.name,
-    required this.cover,
-    required this.date,
-    required this.link,
-    required this.photoCount,
-  });
-
-  factory _CardItem.fromJson(Map<String, dynamic> json) {
-    String absUrl(dynamic raw, {String fallbackHost = 'https://api2.dansmagazin.net'}) {
-      final v = (raw ?? '').toString().trim();
-      if (v.isEmpty) return '';
-      if (v.startsWith('http://') || v.startsWith('https://')) return v;
-      if (v.startsWith('/')) return '$fallbackHost$v';
-      return '$fallbackHost/$v';
-    }
-
-    return _CardItem(
-      id: (json['id'] as num?)?.toInt() ?? 0,
-      name: (json['name'] ?? json['title'] ?? '').toString(),
-      cover: absUrl(
-        json['cover'] ?? json['cover_url'] ?? json['cover_path'] ?? json['image'] ?? json['image_url'],
-      ),
-      date: (json['date'] ?? json['created_at'] ?? '').toString(),
-      link: absUrl(
-        json['link'] ?? json['ticket_url'] ?? json['ticketUrl'] ?? json['url'] ?? json['permalink'],
-        fallbackHost: 'https://www.dansmagazin.net',
-      ),
-      photoCount: (json['photo_count'] as num?)?.toInt() ?? 0,
-    );
-  }
-}
-
-class _NewsCarousel extends StatelessWidget {
+class _NewsList extends StatelessWidget {
   final List<_NewsItem> items;
 
-  const _NewsCarousel({required this.items});
+  const _NewsList({required this.items});
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
       return const _InfoCard(text: 'Henüz haber bulunamadı.');
     }
-    return SizedBox(
-      height: 220,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, i) {
-          final item = items[i];
-          return _NewsCard(
-            item: item,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => NewsDetailScreen(postId: item.id),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SimpleCarousel extends StatelessWidget {
-  final List<_CardItem> items;
-  final String emptyText;
-  final void Function(_CardItem item)? onTap;
-  final String Function(_CardItem item)? subtitleBuilder;
-
-  const _SimpleCarousel({
-    required this.items,
-    required this.emptyText,
-    this.onTap,
-    this.subtitleBuilder,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return _InfoCard(text: emptyText);
-    }
-    return SizedBox(
-      height: 185,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, i) => _SmallCard(
-          item: items[i],
-          subtitle: subtitleBuilder != null ? subtitleBuilder!(items[i]) : items[i].date,
-          onTap: onTap == null
-              ? null
-              : () {
-                  onTap!(items[i]);
+    return Column(
+      children: items
+          .map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _NewsCard(
+                item: item,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => NewsDetailScreen(postId: item.id),
+                    ),
+                  );
                 },
-        ),
-      ),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }
@@ -332,7 +191,6 @@ class _NewsCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 300,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: const Color(0xFF121826),
@@ -342,9 +200,8 @@ class _NewsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              height: 130,
-              width: double.infinity,
+            AspectRatio(
+              aspectRatio: 16 / 9,
               child: item.image.isNotEmpty
                   ? Image.network(
                       item.image,
@@ -365,10 +222,10 @@ class _NewsCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
               child: Text(
-                item.excerpt,
-                maxLines: 2,
+                item.date,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 12),
+                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
               ),
             ),
           ],
@@ -382,64 +239,6 @@ class _NewsCard extends StatelessWidget {
       color: const Color(0xFF1F2937),
       child: const Center(
         child: Icon(Icons.image_not_supported_outlined, color: Colors.white54),
-      ),
-    );
-  }
-}
-
-class _SmallCard extends StatelessWidget {
-  final _CardItem item;
-  final String subtitle;
-  final VoidCallback? onTap;
-
-  const _SmallCard({required this.item, required this.subtitle, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: 230,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: const Color(0xFF121826),
-          border: Border.all(color: Colors.white12),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: item.cover.isNotEmpty
-                  ? Image.network(
-                      item.cover,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                    )
-                  : Container(color: const Color(0xFF1F2937)),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
-              child: Text(
-                item.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-              child: Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65)),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

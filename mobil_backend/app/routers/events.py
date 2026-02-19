@@ -37,6 +37,7 @@ def init_event_submission_tables():
             submitter_email TEXT,
             event_name TEXT NOT NULL,
             description TEXT,
+            event_date TEXT,
             venue TEXT,
             organizer_name TEXT,
             program_text TEXT,
@@ -68,6 +69,12 @@ def init_event_submission_tables():
         """
         DO $$
         BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='event_date'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN event_date TEXT;
+            END IF;
             IF NOT EXISTS (
                 SELECT 1 FROM information_schema.columns
                 WHERE table_name='mobile_event_submissions' AND column_name='venue'
@@ -141,6 +148,7 @@ def list_events(limit: int = 50):
             mes.id,
             mes.event_name,
             mes.description,
+            mes.event_date,
             mes.venue,
             mes.organizer_name,
             mes.program_text,
@@ -154,8 +162,8 @@ def list_events(limit: int = 50):
             COALESCE(se.ticket_url, '') AS ticket_url,
             COALESCE(se.external_event_id, '') AS woo_product_id
         FROM mobile_event_submissions mes
-        LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
-        WHERE mes.status='approved'
+        JOIN saas_events se ON se.slug = mes.approved_event_slug
+        WHERE mes.status='approved' AND COALESCE(se.is_active, 1)=1
         ORDER BY COALESCE(mes.approved_at, mes.created_at) DESC
         LIMIT %s
         """,
@@ -174,6 +182,7 @@ def list_events(limit: int = 50):
                 "id": r["id"],
                 "name": r["event_name"],
                 "description": r["description"] or "",
+                "event_date": r["event_date"] or r["start_at"] or "",
                 "venue": r["venue"] or "",
                 "organizer_name": r["organizer_name"] or "",
                 "program_text": r["program_text"] or "",
@@ -191,10 +200,11 @@ def list_events(limit: int = 50):
 
 @router.post("/submissions", summary="Yeni etkinlik talebi oluştur")
 async def create_submission(
-    submitter_name: str = Form(...),
-    submitter_email: str = Form(...),
+    submitter_name: str = Form(""),
+    submitter_email: str = Form(""),
     event_name: str = Form(...),
     description: str = Form(""),
+    event_date: str = Form(""),
     venue: str = Form(""),
     organizer_name: str = Form(""),
     program_text: str = Form(""),
@@ -217,21 +227,22 @@ async def create_submission(
     cur.execute(
         """
         INSERT INTO mobile_event_submissions
-        (submitter_name, submitter_email, event_name, description, venue, organizer_name, program_text, cover_path, start_at, end_at, entry_fee, status, created_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)
+        (submitter_name, submitter_email, event_name, description, event_date, venue, organizer_name, program_text, cover_path, start_at, end_at, entry_fee, status, created_at)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)
         RETURNING id
         """,
         (
-            submitter_name.strip(),
-            submitter_email.strip().lower(),
+            (submitter_name.strip() or "mobile-user"),
+            (submitter_email.strip().lower() or "mobile-user@dansmagazin.net"),
             event_name.strip(),
             description.strip(),
+            event_date.strip(),
             venue.strip(),
             organizer_name.strip(),
             program_text.strip(),
             cover_path,
-            start_at.strip(),
-            end_at.strip(),
+            (start_at.strip() or event_date.strip()),
+            (end_at.strip() or event_date.strip()),
             fee_val,
             _iso_now(),
         ),
