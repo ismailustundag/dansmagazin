@@ -183,7 +183,7 @@ class _RootScreenState extends State<RootScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.explore_outlined),
             activeIcon: Icon(Icons.explore),
-            label: 'Keşfet',
+            label: 'Haberler',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.event_outlined),

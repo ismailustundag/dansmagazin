@@ -15,7 +15,7 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _discoverUrl =
-      'https://api2.dansmagazin.net/discover?news_limit=50&events_limit=0&albums_limit=0';
+      'https://api2.dansmagazin.net/discover?news_limit=50&events_limit=1&albums_limit=1';
 
   late Future<_DiscoverData> _future;
 
