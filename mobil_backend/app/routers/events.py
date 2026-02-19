@@ -17,7 +17,6 @@ ADMIN_TOKEN = os.getenv("MOBILE_ADMIN_TOKEN", "").strip()
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_DIR = os.path.join(ROOT_DIR, "media", "submission_covers")
 ALT_UPLOAD_DIR = "/home/ubuntu/etkinlik_fotograf_projesi/media/submission_covers"
-PUBLIC_BASE = os.getenv("PUBLIC_WEB_BASE", "https://foto.dansmagazin.net").rstrip("/")
 PUBLIC_API_BASE = os.getenv("PUBLIC_API_BASE", "https://api2.dansmagazin.net").rstrip("/")
 
 
@@ -38,6 +37,9 @@ def init_event_submission_tables():
             submitter_email TEXT,
             event_name TEXT NOT NULL,
             description TEXT,
+            venue TEXT,
+            organizer_name TEXT,
+            program_text TEXT,
             cover_path TEXT,
             start_at TEXT,
             end_at TEXT,
@@ -62,9 +64,35 @@ def init_event_submission_tables():
         END$$;
         """
     )
+    cur.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='venue'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN venue TEXT;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='organizer_name'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN organizer_name TEXT;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='program_text'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN program_text TEXT;
+            END IF;
+        END$$;
+        """
+    )
     conn.commit()
     conn.close()
     os.makedirs(UPLOAD_DIR, exist_ok=True)
+    os.makedirs(ALT_UPLOAD_DIR, exist_ok=True)
 
 
 def _require_admin(x_admin_token: Optional[str]):
@@ -84,9 +112,17 @@ def _cover_url(path: str) -> str:
     return f"{PUBLIC_API_BASE}/events/submission-cover/{os.path.basename(path)}"
 
 
+def _cover_exists(path: str) -> bool:
+    if not path:
+        return False
+    bn = os.path.basename(path)
+    return os.path.exists(os.path.join(UPLOAD_DIR, bn)) or os.path.exists(os.path.join(ALT_UPLOAD_DIR, bn))
+
+
 def _save_cover(upload: UploadFile) -> str:
     filename = f"{uuid.uuid4().hex}.jpg"
-    abs_path = os.path.join(UPLOAD_DIR, filename)
+    # Kalıcı dizin olarak ana proje altını kullan; deploy sırasında silinmez.
+    abs_path = os.path.join(ALT_UPLOAD_DIR, filename)
     raw = upload.file.read()
     if len(raw) > 8 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Görsel çok büyük (max 8MB)")
@@ -105,6 +141,9 @@ def list_events(limit: int = 50):
             mes.id,
             mes.event_name,
             mes.description,
+            mes.venue,
+            mes.organizer_name,
+            mes.program_text,
             mes.cover_path,
             mes.start_at,
             mes.end_at,
@@ -112,7 +151,8 @@ def list_events(limit: int = 50):
             mes.created_at,
             mes.approved_at,
             mes.approved_event_slug,
-            COALESCE(se.ticket_url, '') AS ticket_url
+            COALESCE(se.ticket_url, '') AS ticket_url,
+            COALESCE(se.external_event_id, '') AS woo_product_id
         FROM mobile_event_submissions mes
         LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
         WHERE mes.status='approved'
@@ -125,16 +165,24 @@ def list_events(limit: int = 50):
     conn.close()
     items = []
     for r in rows:
+        cover_path = (r["cover_path"] or "").strip()
+        cover_url = ""
+        if cover_path and _cover_exists(cover_path):
+            cover_url = _cover_url(cover_path)
         items.append(
             {
                 "id": r["id"],
                 "name": r["event_name"],
                 "description": r["description"] or "",
-                "cover": _cover_url(r["cover_path"] or ""),
+                "venue": r["venue"] or "",
+                "organizer_name": r["organizer_name"] or "",
+                "program_text": r["program_text"] or "",
+                "cover": cover_url,
                 "start_at": r["start_at"] or "",
                 "end_at": r["end_at"] or "",
                 "entry_fee": float(r["entry_fee"]) if r["entry_fee"] is not None else 0.0,
                 "ticket_url": r["ticket_url"] or "",
+                "woo_product_id": r["woo_product_id"] or "",
                 "slug": r["approved_event_slug"] or "",
             }
         )
@@ -147,6 +195,9 @@ async def create_submission(
     submitter_email: str = Form(...),
     event_name: str = Form(...),
     description: str = Form(""),
+    venue: str = Form(""),
+    organizer_name: str = Form(""),
+    program_text: str = Form(""),
     start_at: str = Form(""),
     end_at: str = Form(""),
     entry_fee: str = Form("0"),
@@ -166,8 +217,8 @@ async def create_submission(
     cur.execute(
         """
         INSERT INTO mobile_event_submissions
-        (submitter_name, submitter_email, event_name, description, cover_path, start_at, end_at, entry_fee, status, created_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)
+        (submitter_name, submitter_email, event_name, description, venue, organizer_name, program_text, cover_path, start_at, end_at, entry_fee, status, created_at)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)
         RETURNING id
         """,
         (
@@ -175,6 +226,9 @@ async def create_submission(
             submitter_email.strip().lower(),
             event_name.strip(),
             description.strip(),
+            venue.strip(),
+            organizer_name.strip(),
+            program_text.strip(),
             cover_path,
             start_at.strip(),
             end_at.strip(),

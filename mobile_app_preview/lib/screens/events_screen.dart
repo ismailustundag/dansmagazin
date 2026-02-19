@@ -30,10 +30,9 @@ class _EventsScreenState extends State<EventsScreen> {
       throw Exception('Etkinlikler alınamadı');
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    final items = (body['items'] as List<dynamic>? ?? [])
+    return (body['items'] as List<dynamic>? ?? [])
         .map((e) => _EventItem.fromJson(e as Map<String, dynamic>))
         .toList();
-    return items;
   }
 
   Future<void> _openCreateDialog() async {
@@ -118,11 +117,7 @@ class _EventsScreenState extends State<EventsScreen> {
                       item: items[i],
                       onTap: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => _EventDetailScreen(
-                              item: items[i],
-                            ),
-                          ),
+                          MaterialPageRoute(builder: (_) => _EventDetailScreen(item: items[i])),
                         );
                       },
                     ),
@@ -146,6 +141,10 @@ class _EventItem {
   final String endAt;
   final double entryFee;
   final String ticketUrl;
+  final String venue;
+  final String organizerName;
+  final String programText;
+  final String wooProductId;
 
   _EventItem({
     required this.id,
@@ -156,6 +155,10 @@ class _EventItem {
     required this.endAt,
     required this.entryFee,
     required this.ticketUrl,
+    required this.venue,
+    required this.organizerName,
+    required this.programText,
+    required this.wooProductId,
   });
 
   factory _EventItem.fromJson(Map<String, dynamic> json) {
@@ -171,9 +174,7 @@ class _EventItem {
       id: (json['id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
-      cover: absUrl(
-        json['cover'] ?? json['cover_url'] ?? json['cover_path'] ?? json['image'] ?? json['image_url'],
-      ),
+      cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['cover_path'] ?? json['image'] ?? json['image_url']),
       startAt: (json['start_at'] ?? '').toString(),
       endAt: (json['end_at'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
@@ -181,6 +182,10 @@ class _EventItem {
         json['ticket_url'] ?? json['ticketUrl'] ?? json['link'] ?? json['url'] ?? json['permalink'],
         fallbackHost: 'https://www.dansmagazin.net',
       ),
+      venue: (json['venue'] ?? '').toString(),
+      organizerName: (json['organizer_name'] ?? json['organizer'] ?? '').toString(),
+      programText: (json['program_text'] ?? json['program'] ?? '').toString(),
+      wooProductId: (json['woo_product_id'] ?? '').toString(),
     );
   }
 }
@@ -190,6 +195,14 @@ class _EventCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _EventCard({required this.item, this.onTap});
+
+  String _fmtDate(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return '-';
+    DateTime? dt = DateTime.tryParse(v) ?? DateTime.tryParse(v.replaceAll(' ', 'T'));
+    if (dt == null) return v;
+    return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${(dt.year % 100).toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,26 +236,8 @@ class _EventCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(item.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                  if (item.description.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      item.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white.withOpacity(0.8)),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Text('Başlangıç: ${item.startAt.isEmpty ? "-" : item.startAt}'),
-                  Text('Bitiş: ${item.endAt.isEmpty ? "-" : item.endAt}'),
-                  Text('Giriş: ${item.entryFee.toStringAsFixed(2)} TL'),
-                  if (item.ticketUrl.trim().isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Bilet sayfasını aç',
-                      style: TextStyle(color: Colors.red.shade300, fontWeight: FontWeight.w600),
-                    ),
-                  ],
+                  const SizedBox(height: 6),
+                  Text('${_fmtDate(item.startAt)} - ${_fmtDate(item.endAt)}', style: TextStyle(color: Colors.white.withOpacity(0.82))),
                 ],
               ),
             ),
@@ -253,62 +248,170 @@ class _EventCard extends StatelessWidget {
   }
 }
 
-class _EventDetailScreen extends StatelessWidget {
+class _EventDetailScreen extends StatefulWidget {
   final _EventItem item;
 
   const _EventDetailScreen({required this.item});
 
   @override
+  State<_EventDetailScreen> createState() => _EventDetailScreenState();
+}
+
+class _EventDetailScreenState extends State<_EventDetailScreen> {
+  int _tab = 0;
+
+  String _fmtDate(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return '-';
+    DateTime? dt = DateTime.tryParse(v) ?? DateTime.tryParse(v.replaceAll(' ', 'T'));
+    if (dt == null) return v;
+    final dd = dt.day.toString().padLeft(2, '0');
+    final mm = dt.month.toString().padLeft(2, '0');
+    final yy = (dt.year % 100).toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mn = dt.minute.toString().padLeft(2, '0');
+    return '$dd.$mm.$yy  $hh:$mn';
+  }
+
+  String _cartUrl() {
+    final item = widget.item;
+    final pid = item.wooProductId.trim();
+    if (pid.isNotEmpty) {
+      return 'https://www.dansmagazin.net/sepet/?add-to-cart=$pid';
+    }
+    final t = item.ticketUrl.trim();
+    if (t.isEmpty) return '';
+    final u = Uri.tryParse(t);
+    if (u == null) return t;
+    final p = u.queryParameters['p'] ?? u.queryParameters['product_id'] ?? u.queryParameters['add-to-cart'];
+    if (p != null && p.trim().isNotEmpty) {
+      return 'https://www.dansmagazin.net/sepet/?add-to-cart=${p.trim()}';
+    }
+    return t;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = item.ticketUrl.trim();
+    final item = widget.item;
+    final buyUrl = _cartUrl();
+
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0B1020),
-        title: Text(item.name),
+        title: const Text('Etkinlik Detay'),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
           if (item.cover.isNotEmpty)
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               child: Image.network(
                 item.cover,
                 height: 220,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 220,
-                  color: const Color(0xFF1F2937),
+                errorBuilder: (_, __, ___) => Container(height: 220, color: const Color(0xFF1F2937)),
+              ),
+            ),
+          Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF121826),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Column(
+              children: [
+                _line(Icons.calendar_month, '${_fmtDate(item.startAt)} - ${_fmtDate(item.endAt)}'),
+                if (item.venue.trim().isNotEmpty) _line(Icons.location_on, item.venue.trim()),
+                if (item.organizerName.trim().isNotEmpty) _line(Icons.public, item.organizerName.trim()),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (buyUrl.isNotEmpty)
+            SizedBox(
+              height: 56,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE21C2A),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => AppWebViewScreen(url: buyUrl, title: item.name)),
+                  );
+                },
+                child: Text(
+                  'BILET SATIN AL  ₺${item.entryFee.toStringAsFixed(0)}',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
           const SizedBox(height: 14),
-          if (item.description.isNotEmpty)
-            Text(
-              item.description,
-              style: TextStyle(color: Colors.white.withOpacity(0.9), height: 1.35),
+          Row(
+            children: [
+              _tabBtn(0, 'Detaylar'),
+              const SizedBox(width: 8),
+              _tabBtn(1, 'Program'),
+              const SizedBox(width: 8),
+              _tabBtn(2, 'Konum'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF121826),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white12),
             ),
-          const SizedBox(height: 10),
-          Text('Başlangıç: ${item.startAt.isEmpty ? "-" : item.startAt}'),
-          Text('Bitiş: ${item.endAt.isEmpty ? "-" : item.endAt}'),
-          Text('Giriş: ${item.entryFee.toStringAsFixed(2)} TL'),
-          const SizedBox(height: 20),
-          if (url.isNotEmpty)
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => AppWebViewScreen(url: url, title: item.name),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.open_in_new),
-              label: const Text('Bilet/Detay Sayfasını Aç'),
+            child: Text(
+              _contentText(item),
+              style: TextStyle(color: Colors.white.withOpacity(0.92), height: 1.4),
             ),
+          ),
         ],
       ),
     );
+  }
+
+  Widget _line(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.white70),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 16))),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabBtn(int val, String title) {
+    final active = _tab == val;
+    return Expanded(
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: active ? const Color(0xFF1C2436) : const Color(0xFF0F172A),
+          side: BorderSide(color: active ? const Color(0xFFE53935) : Colors.white12),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        onPressed: () => setState(() => _tab = val),
+        child: Text(title),
+      ),
+    );
+  }
+
+  String _contentText(_EventItem item) {
+    if (_tab == 1) return item.programText.trim().isEmpty ? 'Program bilgisi girilmedi.' : item.programText.trim();
+    if (_tab == 2) return item.venue.trim().isEmpty ? 'Konum bilgisi girilmedi.' : item.venue.trim();
+    return item.description.trim().isEmpty ? 'Detay bilgisi girilmedi.' : item.description.trim();
   }
 }
 
@@ -326,6 +429,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final _emailCtrl = TextEditingController();
   final _eventCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _venueCtrl = TextEditingController();
+  final _orgCtrl = TextEditingController();
+  final _programCtrl = TextEditingController();
   final _startCtrl = TextEditingController();
   final _endCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
@@ -341,6 +447,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     _emailCtrl.dispose();
     _eventCtrl.dispose();
     _descCtrl.dispose();
+    _venueCtrl.dispose();
+    _orgCtrl.dispose();
+    _programCtrl.dispose();
     _startCtrl.dispose();
     _endCtrl.dispose();
     _feeCtrl.dispose();
@@ -376,6 +485,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['submitter_email'] = _emailCtrl.text.trim()
         ..fields['event_name'] = _eventCtrl.text.trim()
         ..fields['description'] = _descCtrl.text.trim()
+        ..fields['venue'] = _venueCtrl.text.trim()
+        ..fields['organizer_name'] = _orgCtrl.text.trim()
+        ..fields['program_text'] = _programCtrl.text.trim()
         ..fields['start_at'] = _startCtrl.text.trim()
         ..fields['end_at'] = _endCtrl.text.trim()
         ..fields['entry_fee'] = _feeCtrl.text.trim();
@@ -412,10 +524,13 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               _txt(_nameCtrl, 'Ad Soyad'),
               _txt(_emailCtrl, 'E-posta'),
               _txt(_eventCtrl, 'Etkinlik Adı'),
-              _txt(_descCtrl, 'Etkinlik Hakkında', maxLines: 3),
+              _txt(_descCtrl, 'Detaylar', maxLines: 3),
+              _txt(_programCtrl, 'Program', maxLines: 3),
+              _txt(_venueCtrl, 'Konum / Mekan'),
+              _txt(_orgCtrl, 'Organizatör'),
               _dateField(_startCtrl, 'Başlangıç Tarih/Saat'),
               _dateField(_endCtrl, 'Bitiş Tarih/Saat'),
-              _txt(_feeCtrl, 'Giriş Ücreti (TL)'),
+              _txt(_feeCtrl, 'Bilet Ücreti (TL)'),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -425,7 +540,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                       if (x != null) setState(() => _image = x);
                     },
                     icon: const Icon(Icons.image),
-                    label: const Text('Fotoğraf Seç'),
+                    label: const Text('Kapak Seç'),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
