@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'services/auth_api.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/events_screen.dart';
@@ -46,6 +47,10 @@ class _RootScreenState extends State<RootScreen> {
   static const _kLoggedIn = 'auth.logged_in';
   static const _kName = 'auth.name';
   static const _kEmail = 'auth.email';
+  static const _kSessionToken = 'auth.session_token';
+  static const _kAccountId = 'auth.account_id';
+  static const _kWpUserId = 'auth.wp_user_id';
+  static const _kWpRoles = 'auth.wp_roles';
 
   int _index = 0;
   bool _bootDone = false;
@@ -53,6 +58,10 @@ class _RootScreenState extends State<RootScreen> {
   bool _guestMode = false;
   String _userName = '';
   String _userEmail = '';
+  String _sessionToken = '';
+  int _accountId = 0;
+  int? _wpUserId;
+  List<String> _wpRoles = const [];
 
   @override
   void initState() {
@@ -64,12 +73,37 @@ class _RootScreenState extends State<RootScreen> {
     final prefs = await SharedPreferences.getInstance();
     final remember = prefs.getBool(_kRemember) ?? false;
     final loggedIn = prefs.getBool(_kLoggedIn) ?? false;
+    final token = prefs.getString(_kSessionToken) ?? '';
     if (!mounted) return;
+    if (remember && loggedIn && token.isNotEmpty) {
+      try {
+        final me = await AuthApi.me(token);
+        if (!mounted) return;
+        setState(() {
+          _isLoggedIn = true;
+          _guestMode = false;
+          _sessionToken = token;
+          _accountId = me.accountId;
+          _wpUserId = me.wpUserId;
+          _wpRoles = me.wpRoles;
+          _userName = me.name;
+          _userEmail = me.email;
+          _bootDone = true;
+        });
+        return;
+      } catch (_) {
+        // invalid/expired token: fall through to logged-out mode
+      }
+    }
     setState(() {
-      _isLoggedIn = remember && loggedIn;
-      _guestMode = !_isLoggedIn;
-      _userName = prefs.getString(_kName) ?? '';
-      _userEmail = prefs.getString(_kEmail) ?? '';
+      _isLoggedIn = false;
+      _guestMode = false;
+      _sessionToken = '';
+      _accountId = 0;
+      _wpUserId = null;
+      _wpRoles = const [];
+      _userName = '';
+      _userEmail = '';
       _bootDone = true;
     });
   }
@@ -79,12 +113,24 @@ class _RootScreenState extends State<RootScreen> {
     required bool loggedIn,
     required String name,
     required String email,
+    String sessionToken = '',
+    int accountId = 0,
+    int? wpUserId,
+    List<String> wpRoles = const [],
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kRemember, remember);
     await prefs.setBool(_kLoggedIn, loggedIn);
     await prefs.setString(_kName, name);
     await prefs.setString(_kEmail, email);
+    await prefs.setString(_kSessionToken, sessionToken);
+    await prefs.setInt(_kAccountId, accountId);
+    if (wpUserId == null) {
+      await prefs.remove(_kWpUserId);
+    } else {
+      await prefs.setInt(_kWpUserId, wpUserId);
+    }
+    await prefs.setStringList(_kWpRoles, wpRoles);
   }
 
   Future<void> _openAuth({required bool allowGuest, int? targetIndex}) async {
@@ -96,6 +142,10 @@ class _RootScreenState extends State<RootScreen> {
       setState(() {
         _guestMode = true;
         _isLoggedIn = false;
+        _sessionToken = '';
+        _accountId = 0;
+        _wpUserId = null;
+        _wpRoles = const [];
       });
       return;
     }
@@ -104,13 +154,21 @@ class _RootScreenState extends State<RootScreen> {
       loggedIn: true,
       name: result.name,
       email: result.email,
+      sessionToken: result.sessionToken,
+      accountId: result.accountId,
+      wpUserId: result.wpUserId,
+      wpRoles: result.wpRoles,
     );
     if (!mounted) return;
     setState(() {
-      _guestMode = true;
+      _guestMode = false;
       _isLoggedIn = true;
       _userName = result.name;
       _userEmail = result.email;
+      _sessionToken = result.sessionToken;
+      _accountId = result.accountId;
+      _wpUserId = result.wpUserId;
+      _wpRoles = result.wpRoles;
       if (targetIndex != null) _index = targetIndex;
     });
   }
@@ -122,6 +180,10 @@ class _RootScreenState extends State<RootScreen> {
       _isLoggedIn = false;
       _userName = '';
       _userEmail = '';
+      _sessionToken = '';
+      _accountId = 0;
+      _wpUserId = null;
+      _wpRoles = const [];
       _index = 0;
       _guestMode = false;
     });
@@ -163,6 +225,10 @@ class _RootScreenState extends State<RootScreen> {
         isLoggedIn: _isLoggedIn,
         userName: _userName,
         userEmail: _userEmail,
+        sessionToken: _sessionToken,
+        accountId: _accountId,
+        wpUserId: _wpUserId,
+        wpRoles: _wpRoles,
         onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 4),
         onLogoutTap: () {
           _logout();

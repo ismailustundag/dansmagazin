@@ -7,6 +7,10 @@ class ProfileScreen extends StatelessWidget {
   final bool isLoggedIn;
   final String userName;
   final String userEmail;
+  final String sessionToken;
+  final int accountId;
+  final int? wpUserId;
+  final List<String> wpRoles;
   final VoidCallback onLoginTap;
   final VoidCallback onLogoutTap;
 
@@ -15,6 +19,10 @@ class ProfileScreen extends StatelessWidget {
     required this.isLoggedIn,
     required this.userName,
     required this.userEmail,
+    required this.sessionToken,
+    required this.accountId,
+    required this.wpUserId,
+    required this.wpRoles,
     required this.onLoginTap,
     required this.onLogoutTap,
   });
@@ -39,7 +47,7 @@ class ProfileScreen extends StatelessWidget {
     return ScreenShell(
       title: 'Profil',
       icon: Icons.person,
-      subtitle: '$userName • $userEmail',
+      subtitle: '$userName • $userEmail${wpRoles.isNotEmpty ? ' • ${wpRoles.join(",")}' : ''}',
       content: [
         PreviewCard(
           title: 'Biletlerim',

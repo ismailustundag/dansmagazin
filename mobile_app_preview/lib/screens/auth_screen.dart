@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_api.dart';
+
 enum AuthAction { login, register, guest }
 
 class AuthResult {
@@ -7,12 +9,20 @@ class AuthResult {
   final String name;
   final String email;
   final bool rememberMe;
+  final String sessionToken;
+  final int accountId;
+  final int? wpUserId;
+  final List<String> wpRoles;
 
   const AuthResult({
     required this.action,
     this.name = '',
     this.email = '',
     this.rememberMe = false,
+    this.sessionToken = '',
+    this.accountId = 0,
+    this.wpUserId,
+    this.wpRoles = const [],
   });
 }
 
@@ -29,6 +39,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isRegister = false;
   bool _rememberMe = true;
+  bool _loading = false;
+  String? _error;
 
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -44,18 +56,49 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final email = _emailCtrl.text.trim();
-    final name = _isRegister ? _nameCtrl.text.trim() : email.split('@').first;
-    Navigator.of(context).pop(
-      AuthResult(
-        action: _isRegister ? AuthAction.register : AuthAction.login,
-        name: name,
-        email: email,
-        rememberMe: _rememberMe,
-      ),
-    );
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final session = _isRegister
+          ? await AuthApi.register(
+              email: _emailCtrl.text.trim(),
+              password: _passwordCtrl.text,
+              name: _nameCtrl.text.trim(),
+              rememberMe: _rememberMe,
+            )
+          : await AuthApi.login(
+              usernameOrEmail: _emailCtrl.text.trim(),
+              password: _passwordCtrl.text,
+              rememberMe: _rememberMe,
+            );
+      if (!mounted) return;
+      Navigator.of(context).pop(
+        AuthResult(
+          action: _isRegister ? AuthAction.register : AuthAction.login,
+          name: session.name.trim().isEmpty ? session.email.split('@').first : session.name,
+          email: session.email,
+          rememberMe: _rememberMe,
+          sessionToken: session.sessionToken,
+          accountId: session.accountId,
+          wpUserId: session.wpUserId,
+          wpRoles: session.wpRoles,
+        ),
+      );
+    } on AuthApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Beklenmeyen bir hata oluştu');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   @override
@@ -128,6 +171,13 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ],
                         const SizedBox(height: 6),
+                        if (_error != null) ...[
+                          Text(
+                            _error!,
+                            style: const TextStyle(color: Colors.redAccent),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
                           value: _rememberMe,
@@ -136,17 +186,25 @@ class _AuthScreenState extends State<AuthScreen> {
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
                         ElevatedButton(
-                          onPressed: _submit,
-                          child: Text(_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
+                          onPressed: _loading ? null : _submit,
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Text(_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
                         ),
                         TextButton(
-                          onPressed: () => setState(() => _isRegister = !_isRegister),
+                          onPressed: _loading ? null : () => setState(() => _isRegister = !_isRegister),
                           child: Text(_isRegister ? 'Hesabım var, giriş yap' : 'Hesabın yok mu? Kayıt ol'),
                         ),
                         if (widget.allowGuest) ...[
                           const SizedBox(height: 4),
                           OutlinedButton(
-                            onPressed: () {
+                            onPressed: _loading
+                                ? null
+                                : () {
                               Navigator.of(context).pop(
                                 const AuthResult(action: AuthAction.guest),
                               );
@@ -187,4 +245,3 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 }
-

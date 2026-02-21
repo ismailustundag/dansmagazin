@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.schemas import MobileMenuResponse
 from app.routers.discover import init_news_reaction_table, router as discover_router
+from app.routers.auth import router as auth_router
 from app.routers.events import (
     admin_router as admin_events_router,
     init_event_submission_tables,
@@ -29,7 +30,7 @@ def health():
 def mobile_menu():
     return {
         "items": [
-            {"key": "discover", "title": "Keşfet", "icon": "compass", "route": "/discover"},
+            {"key": "discover", "title": "Haberler", "icon": "newspaper", "route": "/discover"},
             {"key": "events", "title": "Etkinlikler", "icon": "calendar", "route": "/events"},
             {"key": "photos", "title": "Fotoğraflar", "icon": "image", "route": "/photos"},
             {"key": "messages", "title": "Mesajlar", "icon": "message-circle", "route": "/messages", "badge": 0},
@@ -38,6 +39,7 @@ def mobile_menu():
     }
 
 
+app.include_router(auth_router)
 app.include_router(discover_router)
 app.include_router(events_router)
 app.include_router(admin_events_router)
