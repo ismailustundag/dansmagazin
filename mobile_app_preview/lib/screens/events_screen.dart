@@ -103,6 +103,7 @@ class _EventsScreenState extends State<EventsScreen> {
                           MaterialPageRoute(
                             builder: (_) => EventDetailScreen(
                               title: items[i].name,
+                              submissionId: items[i].id,
                               cover: items[i].cover,
                               description: items[i].description,
                               eventDate: items[i].eventDate,
@@ -130,6 +131,7 @@ class _EventsScreenState extends State<EventsScreen> {
 }
 
 class _EventItem {
+  final int id;
   final String name;
   final String description;
   final String cover;
@@ -142,6 +144,7 @@ class _EventItem {
   final String wooProductId;
 
   _EventItem({
+    required this.id,
     required this.name,
     required this.description,
     required this.cover,
@@ -164,6 +167,7 @@ class _EventItem {
     }
 
     return _EventItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),

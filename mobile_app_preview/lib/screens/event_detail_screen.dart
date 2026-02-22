@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../services/checkout_api.dart';
+import '../services/event_social_api.dart';
 import 'app_webview_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
+  final int submissionId;
   final String title;
   final String cover;
   final String description;
@@ -18,6 +20,7 @@ class EventDetailScreen extends StatefulWidget {
 
   const EventDetailScreen({
     super.key,
+    required this.submissionId,
     required this.title,
     required this.cover,
     required this.description,
@@ -38,6 +41,16 @@ class EventDetailScreen extends StatefulWidget {
 class _EventDetailScreenState extends State<EventDetailScreen> {
   int _tab = 0;
   bool _openingCheckout = false;
+  bool _loadingAttendees = true;
+  bool _changingAttendance = false;
+  bool _joined = false;
+  List<EventAttendee> _attendees = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAttendees();
+  }
 
   String _fmtDate(String raw) {
     final v = raw.trim();
@@ -96,6 +109,71 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  Future<void> _loadAttendees() async {
+    if (!mounted) return;
+    setState(() => _loadingAttendees = true);
+    try {
+      final items = await EventSocialApi.attendees(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _attendees = items;
+        _joined = items.any((e) => e.isMe);
+      });
+    } catch (_) {
+      // liste yüklenemezse ekran akışı bozulmasın
+    } finally {
+      if (mounted) setState(() => _loadingAttendees = false);
+    }
+  }
+
+  void _showMsg(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _toggleAttend() async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      _showMsg('Katılım için önce giriş yapmalısın.');
+      return;
+    }
+    setState(() => _changingAttendance = true);
+    try {
+      if (_joined) {
+        await EventSocialApi.leave(submissionId: widget.submissionId, sessionToken: token);
+      } else {
+        await EventSocialApi.attend(submissionId: widget.submissionId, sessionToken: token);
+      }
+      await _loadAttendees();
+    } on EventSocialApiException catch (e) {
+      _showMsg(e.message);
+    } finally {
+      if (mounted) setState(() => _changingAttendance = false);
+    }
+  }
+
+  Future<void> _addFriend(int targetAccountId) async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      _showMsg('Arkadaş eklemek için önce giriş yapmalısın.');
+      return;
+    }
+    try {
+      await EventSocialApi.addFriend(
+        submissionId: widget.submissionId,
+        targetAccountId: targetAccountId,
+        sessionToken: token,
+      );
+      _showMsg('Arkadaş olarak eklendi.');
+      await _loadAttendees();
+    } on EventSocialApiException catch (e) {
+      _showMsg(e.message);
+    }
+  }
+
   String _contentText() {
     if (_tab == 1) return widget.program.trim().isEmpty ? 'Program bilgisi girilmedi.' : widget.program.trim();
     if (_tab == 2) return widget.venue.trim().isEmpty ? 'Konum bilgisi girilmedi.' : widget.venue.trim();
@@ -141,6 +219,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          SizedBox(
+            height: 52,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: _joined ? const Color(0xFF16A34A) : const Color(0xFFE53935)),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _changingAttendance ? null : _toggleAttend,
+              child: _changingAttendance
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      _joined ? 'KATILIMI GERI CEK' : 'ETKINLIGE KATILACAGIM',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 12),
           if (buyUrl.isNotEmpty)
             SizedBox(
               height: 56,
@@ -172,6 +272,54 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ),
               ),
             ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF121826),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Etkinliğe Katılacaklar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                if (_loadingAttendees)
+                  const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()))
+                else if (_attendees.isEmpty)
+                  const Text('Henüz katılımcı yok.')
+                else
+                  ..._attendees.map((a) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              a.isMe ? '${a.name} (Sen)' : a.name,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          if (!a.isMe && !a.isFriend)
+                            TextButton(
+                              onPressed: () => _addFriend(a.accountId),
+                              child: const Text('Arkadaş Ekle'),
+                            )
+                          else if (a.isFriend && !a.isMe)
+                            const Text('Arkadaş', style: TextStyle(color: Color(0xFF22C55E))),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
