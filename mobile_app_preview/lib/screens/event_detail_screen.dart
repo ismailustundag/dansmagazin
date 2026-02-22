@@ -48,23 +48,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return '$dd.$mm.$yy  $hh:$mn';
   }
 
-  String _cartUrl() {
-    final cartBase = 'https://www.dansmagazin.net/sepet/';
+  String _buyUrl() {
+    final t = widget.ticketUrl.trim();
+    if (t.isNotEmpty) {
+      final u = Uri.tryParse(t);
+      if (u != null) {
+        final parsedPid =
+            u.queryParameters['p'] ?? u.queryParameters['product_id'] ?? u.queryParameters['add-to-cart'];
+        if (parsedPid != null && parsedPid.trim().isNotEmpty) {
+          return 'https://www.dansmagazin.net/?post_type=product&p=${parsedPid.trim()}';
+        }
+      }
+      return t;
+    }
     final pid = widget.wooProductId.trim();
     if (pid.isNotEmpty) {
-      return '$cartBase?add-to-cart=$pid&quantity=1';
+      return 'https://www.dansmagazin.net/?post_type=product&p=$pid';
     }
-    final t = widget.ticketUrl.trim();
-    if (t.isEmpty) return '';
-    final u = Uri.tryParse(t);
-    if (u == null) return t;
-    final parsedPid = u.queryParameters['p'] ??
-        u.queryParameters['product_id'] ??
-        u.queryParameters['add-to-cart'];
-    if (parsedPid != null && parsedPid.trim().isNotEmpty) {
-      return '$cartBase?add-to-cart=${parsedPid.trim()}&quantity=1';
-    }
-    return t;
+    return '';
   }
 
   String _contentText() {
@@ -75,7 +76,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final buyUrl = _cartUrl();
+    final buyUrl = _buyUrl();
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(
