@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'friends_screen.dart';
+import 'messages_inbox_screen.dart';
 import 'placeholder_detail_screen.dart';
 import 'screen_shell.dart';
 
@@ -79,14 +81,24 @@ class ProfileScreen extends StatelessWidget {
         ),
         PreviewCard(
           title: 'Mesajlarım',
-          subtitle: 'Organizatör ve destek konuşmaları',
+          subtitle: 'Arkadaşlarınla yaptığın konuşmalar',
           icon: Icons.mark_chat_unread,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => const PlaceholderDetailScreen(
-                title: 'Mesajlarım',
-                description: 'Kullanıcı mesajları burada listelenecek.',
-                icon: Icons.mark_chat_unread,
+              builder: (_) => MessagesInboxScreen(
+                sessionToken: sessionToken,
+              ),
+            ),
+          ),
+        ),
+        PreviewCard(
+          title: 'Arkadaşlarım',
+          subtitle: 'Eklediğin arkadaşlar ve sosyal ağın',
+          icon: Icons.groups,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => FriendsScreen(
+                sessionToken: sessionToken,
               ),
             ),
           ),
