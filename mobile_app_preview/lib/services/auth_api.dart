@@ -7,6 +7,16 @@ class AuthApiException implements Exception {
   AuthApiException(this.message);
 }
 
+bool _readBool(dynamic v) {
+  if (v is bool) return v;
+  if (v is num) return v.toInt() == 1;
+  if (v is String) {
+    final s = v.trim().toLowerCase();
+    return s == '1' || s == 'true' || s == 'yes';
+  }
+  return false;
+}
+
 class AuthSession {
   final String sessionToken;
   final String expiresAt;
@@ -42,8 +52,7 @@ class AuthSession {
           .map((e) => e.toString())
           .toList(),
       appRole: (json['app_role'] ?? 'customer').toString(),
-      canCreateMobileEvent: (json['can_create_mobile_event'] == true) ||
-          (((json['can_create_mobile_event'] as num?)?.toInt() ?? 0) == 1),
+      canCreateMobileEvent: _readBool(json['can_create_mobile_event']),
     );
   }
 }
@@ -107,8 +116,7 @@ class AuthApi {
           .map((e) => e.toString())
           .toList(),
       appRole: (body['app_role'] ?? 'customer').toString(),
-      canCreateMobileEvent: (body['can_create_mobile_event'] == true) ||
-          (((body['can_create_mobile_event'] as num?)?.toInt() ?? 0) == 1),
+      canCreateMobileEvent: _readBool(body['can_create_mobile_event']),
     );
   }
 
