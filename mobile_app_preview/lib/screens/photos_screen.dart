@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'screen_shell.dart';
 
 class PhotosScreen extends StatefulWidget {
-  const PhotosScreen({super.key});
+  final int accountId;
+
+  const PhotosScreen({super.key, required this.accountId});
 
   @override
   State<PhotosScreen> createState() => _PhotosScreenState();
@@ -29,7 +32,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final loaded = await _FavoriteStore.load();
+    final loaded = await _FavoriteStore.load(widget.accountId);
     if (!mounted) return;
     setState(() => _favorites = loaded);
   }
@@ -107,8 +110,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
             if (_tab == 2) {
               return _FavoriteGrid(
                 photos: _favorites,
+                accountId: widget.accountId,
                 onUnfavorite: (url) async {
-                  await _FavoriteStore.removeByUrl(url);
+                  await _FavoriteStore.removeByUrl(widget.accountId, url);
                   await _loadFavorites();
                 },
               );
@@ -129,7 +133,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
                         onTap: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => AlbumPhotosScreen(album: album),
+                              builder: (_) => AlbumPhotosScreen(album: album, accountId: widget.accountId),
                             ),
                           );
                           await _loadFavorites();
@@ -161,8 +165,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
 class AlbumPhotosScreen extends StatefulWidget {
   final _Album album;
+  final int accountId;
 
-  const AlbumPhotosScreen({super.key, required this.album});
+  const AlbumPhotosScreen({super.key, required this.album, required this.accountId});
 
   @override
   State<AlbumPhotosScreen> createState() => _AlbumPhotosScreenState();
@@ -180,7 +185,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final loaded = await _FavoriteStore.load();
+    final loaded = await _FavoriteStore.load(widget.accountId);
     if (!mounted) return;
     setState(() => _favorites = loaded);
   }
@@ -221,9 +226,10 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   Future<void> _toggleFavorite(_Photo photo) async {
     final isFav = _isFavorite(photo.url);
     if (isFav) {
-      await _FavoriteStore.removeByUrl(photo.url);
+      await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
     } else {
       await _FavoriteStore.add(
+        widget.accountId,
         _FavoritePhoto(
           url: photo.url,
           thumbUrl: photo.thumbUrl,
@@ -243,6 +249,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           photos: photos,
           initialIndex: initialIndex,
           album: widget.album,
+          accountId: widget.accountId,
         ),
       ),
     );
@@ -343,11 +350,13 @@ class _PhotoViewerScreen extends StatefulWidget {
   final List<_Photo> photos;
   final int initialIndex;
   final _Album album;
+  final int accountId;
 
   const _PhotoViewerScreen({
     required this.photos,
     required this.initialIndex,
     required this.album,
+    required this.accountId,
   });
 
   @override
@@ -368,7 +377,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final loaded = await _FavoriteStore.load();
+    final loaded = await _FavoriteStore.load(widget.accountId);
     if (!mounted) return;
     setState(() => _favorites = loaded);
   }
@@ -378,9 +387,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   Future<void> _toggleFavorite(_Photo photo) async {
     final isFav = _isFavorite(photo.url);
     if (isFav) {
-      await _FavoriteStore.removeByUrl(photo.url);
+      await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
     } else {
       await _FavoriteStore.add(
+        widget.accountId,
         _FavoritePhoto(
           url: photo.url,
           thumbUrl: photo.thumbUrl,
@@ -520,9 +530,10 @@ class _AlbumCard extends StatelessWidget {
 
 class _FavoriteGrid extends StatelessWidget {
   final List<_FavoritePhoto> photos;
+  final int accountId;
   final Future<void> Function(String url) onUnfavorite;
 
-  const _FavoriteGrid({required this.photos, required this.onUnfavorite});
+  const _FavoriteGrid({required this.photos, required this.accountId, required this.onUnfavorite});
 
   @override
   Widget build(BuildContext context) {
@@ -546,12 +557,27 @@ class _FavoriteGrid extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => _FavoriteViewerScreen(
+                        photos: sorted,
+                        initialIndex: i,
+                        accountId: accountId,
+                      ),
+                    ),
+                  );
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                  ),
+                ),
               ),
             ),
             Positioned(
@@ -673,11 +699,11 @@ class _FavoritePhoto {
 }
 
 class _FavoriteStore {
-  static const _key = 'favorite_photos_v1';
+  static String _key(int accountId) => 'favorite_photos_v2_user_$accountId';
 
-  static Future<List<_FavoritePhoto>> load() async {
+  static Future<List<_FavoritePhoto>> load(int accountId) async {
     final prefs = await SharedPreferences.getInstance();
-    final rows = prefs.getStringList(_key) ?? const [];
+    final rows = prefs.getStringList(_key(accountId)) ?? const [];
     return rows
         .map((e) {
           try {
@@ -690,23 +716,144 @@ class _FavoriteStore {
         .toList();
   }
 
-  static Future<void> add(_FavoritePhoto photo) async {
+  static Future<void> add(int accountId, _FavoritePhoto photo) async {
     final prefs = await SharedPreferences.getInstance();
-    final current = await load();
+    final current = await load(accountId);
     final exists = current.any((p) => p.url == photo.url);
     if (!exists) {
       current.add(photo);
     }
     final rows = current.map((p) => jsonEncode(p.toJson())).toList();
-    await prefs.setStringList(_key, rows);
+    await prefs.setStringList(_key(accountId), rows);
   }
 
-  static Future<void> removeByUrl(String url) async {
+  static Future<void> removeByUrl(int accountId, String url) async {
     final prefs = await SharedPreferences.getInstance();
-    final current = await load();
+    final current = await load(accountId);
     current.removeWhere((p) => p.url == url);
     final rows = current.map((p) => jsonEncode(p.toJson())).toList();
-    await prefs.setStringList(_key, rows);
+    await prefs.setStringList(_key(accountId), rows);
+  }
+}
+
+class _FavoriteViewerScreen extends StatefulWidget {
+  final List<_FavoritePhoto> photos;
+  final int initialIndex;
+  final int accountId;
+
+  const _FavoriteViewerScreen({
+    required this.photos,
+    required this.initialIndex,
+    required this.accountId,
+  });
+
+  @override
+  State<_FavoriteViewerScreen> createState() => _FavoriteViewerScreenState();
+}
+
+class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
+  late final PageController _controller;
+  late int _index;
+  List<_FavoritePhoto> _favorites = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final loaded = await _FavoriteStore.load(widget.accountId);
+    if (!mounted) return;
+    setState(() => _favorites = loaded);
+  }
+
+  bool _isFavorite(String url) => _favorites.any((f) => f.url == url);
+
+  Future<void> _toggleFavorite(_FavoritePhoto photo) async {
+    if (_isFavorite(photo.url)) {
+      await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
+    } else {
+      await _FavoriteStore.add(widget.accountId, photo);
+    }
+    await _loadFavorites();
+  }
+
+  Future<void> _download(String url) async {
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('İndirme açılamadı')));
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photos[_index];
+    final fav = _isFavorite(photo.url);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text('${_index + 1}/${widget.photos.length}'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: widget.photos.length,
+              onPageChanged: (v) => setState(() => _index = v),
+              itemBuilder: (context, i) {
+                final p = widget.photos[i];
+                return InteractiveViewer(
+                  child: Center(
+                    child: Image.network(
+                      p.url,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            color: const Color(0xFF0B1020),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _toggleFavorite(photo),
+                    icon: Icon(
+                      fav ? Icons.favorite : Icons.favorite_border,
+                      color: fav ? Colors.redAccent : Colors.white,
+                    ),
+                    label: Text(fav ? 'Beğenildi' : 'Beğen'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _download(photo.url),
+                    icon: const Icon(Icons.download),
+                    label: const Text('İndir'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

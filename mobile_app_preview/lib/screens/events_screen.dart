@@ -40,7 +40,7 @@ class _EventsScreenState extends State<EventsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF0F172A),
-      builder: (_) => const _CreateEventSheet(),
+      builder: (_) => _CreateEventSheet(sessionToken: widget.sessionToken),
     );
     if (ok == true) setState(() => _future = _fetchEvents());
   }
@@ -226,7 +226,9 @@ class _EventCard extends StatelessWidget {
 }
 
 class _CreateEventSheet extends StatefulWidget {
-  const _CreateEventSheet();
+  final String sessionToken;
+
+  const _CreateEventSheet({required this.sessionToken});
 
   @override
   State<_CreateEventSheet> createState() => _CreateEventSheetState();
@@ -282,8 +284,6 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     });
     try {
       final req = http.MultipartRequest('POST', Uri.parse(_submitUrl))
-        ..fields['submitter_name'] = 'mobile-user'
-        ..fields['submitter_email'] = 'mobile-user@dansmagazin.net'
         ..fields['event_name'] = _eventCtrl.text.trim()
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim()
@@ -291,6 +291,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['event_date'] = _dateCtrl.text.trim()
         ..fields['entry_fee'] = _feeCtrl.text.trim();
+      final token = widget.sessionToken.trim();
+      if (token.isNotEmpty) {
+        req.headers['Authorization'] = 'Bearer $token';
+      }
 
       if (_image != null) {
         req.files.add(await http.MultipartFile.fromPath('cover_image', _image!.path));
@@ -320,7 +324,17 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Etkinliğini Ekle', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('Etkinliğini Ekle', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                  ),
+                  TextButton(
+                    onPressed: _sending ? null : () => Navigator.of(context).pop(false),
+                    child: const Text('Vazgeç'),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               _txt(_eventCtrl, 'Etkinlik Adı'),
               _txt(_descCtrl, 'Detaylar', maxLines: 3),

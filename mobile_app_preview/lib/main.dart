@@ -5,7 +5,7 @@ import 'services/auth_api.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/events_screen.dart';
-import 'screens/messages_screen.dart';
+import 'screens/store_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
 
@@ -216,12 +216,8 @@ class _RootScreenState extends State<RootScreen> {
     final pages = [
       DiscoverScreen(sessionToken: _sessionToken),
       EventsScreen(sessionToken: _sessionToken),
-      const PhotosScreen(),
-      MessagesScreen(
-        isLoggedIn: _isLoggedIn,
-        sessionToken: _sessionToken,
-        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 3),
-      ),
+      PhotosScreen(accountId: _accountId),
+      const StoreScreen(),
       ProfileScreen(
         isLoggedIn: _isLoggedIn,
         userName: _userName,
@@ -263,9 +259,9 @@ class _RootScreenState extends State<RootScreen> {
             label: 'Fotoğraflar',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            activeIcon: Icon(Icons.chat_bubble),
-            label: 'Mesajlar',
+            icon: Icon(Icons.storefront_outlined),
+            activeIcon: Icon(Icons.storefront),
+            label: 'Mağaza',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
