@@ -162,12 +162,30 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return;
     }
     try {
-      await EventSocialApi.addFriend(
+      final result = await EventSocialApi.addFriend(
         submissionId: widget.submissionId,
         targetAccountId: targetAccountId,
         sessionToken: token,
       );
-      _showMsg('Arkadaş olarak eklendi.');
+      final status = (result['status'] ?? '').toString();
+      if (mounted) {
+        setState(() {
+          _attendees = _attendees.map((a) {
+            if (a.accountId != targetAccountId) return a;
+            return EventAttendee(
+              accountId: a.accountId,
+              name: a.name,
+              isMe: a.isMe,
+              isFriend: status == 'already_friends' || status == 'friend',
+              friendStatus: status == 'already_friends'
+                  ? 'friend'
+                  : (status.isEmpty ? EventSocialApi.statusPendingOutgoing : status),
+              friendRequestId: (result['request_id'] as num?)?.toInt() ?? a.friendRequestId,
+            );
+          }).toList();
+        });
+      }
+      _showMsg(status == 'already_friends' ? 'Zaten arkadaşsınız.' : 'Arkadaşlık isteği gönderildi.');
       await _loadAttendees();
     } on EventSocialApiException catch (e) {
       _showMsg(e.message);
@@ -306,11 +324,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               style: const TextStyle(fontSize: 14),
                             ),
                           ),
-                          if (!a.isMe && !a.isFriend)
+                          if (!a.isMe && a.friendStatus == 'none')
                             TextButton(
                               onPressed: () => _addFriend(a.accountId),
                               child: const Text('Arkadaş Ekle'),
                             )
+                          else if (!a.isMe && a.friendStatus == 'pending_outgoing')
+                            const Text('Onay Bekleniyor', style: TextStyle(color: Color(0xFFF59E0B)))
+                          else if (!a.isMe && a.friendStatus == 'pending_incoming')
+                            const Text('Gelen İstek', style: TextStyle(color: Color(0xFF38BDF8)))
                           else if (a.isFriend && !a.isMe)
                             const Text('Arkadaş', style: TextStyle(color: Color(0xFF22C55E))),
                         ],

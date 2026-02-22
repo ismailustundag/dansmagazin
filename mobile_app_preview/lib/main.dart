@@ -51,6 +51,8 @@ class _RootScreenState extends State<RootScreen> {
   static const _kAccountId = 'auth.account_id';
   static const _kWpUserId = 'auth.wp_user_id';
   static const _kWpRoles = 'auth.wp_roles';
+  static const _kAppRole = 'auth.app_role';
+  static const _kCanCreateMobileEvent = 'auth.can_create_mobile_event';
 
   int _index = 0;
   bool _bootDone = false;
@@ -62,6 +64,8 @@ class _RootScreenState extends State<RootScreen> {
   int _accountId = 0;
   int? _wpUserId;
   List<String> _wpRoles = const [];
+  String _appRole = 'customer';
+  bool _canCreateMobileEvent = false;
 
   @override
   void initState() {
@@ -86,6 +90,8 @@ class _RootScreenState extends State<RootScreen> {
           _accountId = me.accountId;
           _wpUserId = me.wpUserId;
           _wpRoles = me.wpRoles;
+          _appRole = me.appRole;
+          _canCreateMobileEvent = me.canCreateMobileEvent;
           _userName = me.name;
           _userEmail = me.email;
           _bootDone = true;
@@ -102,6 +108,8 @@ class _RootScreenState extends State<RootScreen> {
       _accountId = 0;
       _wpUserId = null;
       _wpRoles = const [];
+      _appRole = 'customer';
+      _canCreateMobileEvent = false;
       _userName = '';
       _userEmail = '';
       _bootDone = true;
@@ -117,6 +125,8 @@ class _RootScreenState extends State<RootScreen> {
     int accountId = 0,
     int? wpUserId,
     List<String> wpRoles = const [],
+    String appRole = 'customer',
+    bool canCreateMobileEvent = false,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kRemember, remember);
@@ -131,6 +141,8 @@ class _RootScreenState extends State<RootScreen> {
       await prefs.setInt(_kWpUserId, wpUserId);
     }
     await prefs.setStringList(_kWpRoles, wpRoles);
+    await prefs.setString(_kAppRole, appRole);
+    await prefs.setBool(_kCanCreateMobileEvent, canCreateMobileEvent);
   }
 
   Future<void> _openAuth({required bool allowGuest, int? targetIndex}) async {
@@ -146,6 +158,8 @@ class _RootScreenState extends State<RootScreen> {
         _accountId = 0;
         _wpUserId = null;
         _wpRoles = const [];
+        _appRole = 'customer';
+        _canCreateMobileEvent = false;
       });
       return;
     }
@@ -158,6 +172,8 @@ class _RootScreenState extends State<RootScreen> {
       accountId: result.accountId,
       wpUserId: result.wpUserId,
       wpRoles: result.wpRoles,
+      appRole: result.appRole,
+      canCreateMobileEvent: result.canCreateMobileEvent,
     );
     if (!mounted) return;
     setState(() {
@@ -169,6 +185,8 @@ class _RootScreenState extends State<RootScreen> {
       _accountId = result.accountId;
       _wpUserId = result.wpUserId;
       _wpRoles = result.wpRoles;
+      _appRole = result.appRole;
+      _canCreateMobileEvent = result.canCreateMobileEvent;
       if (targetIndex != null) _index = targetIndex;
     });
   }
@@ -184,6 +202,8 @@ class _RootScreenState extends State<RootScreen> {
       _accountId = 0;
       _wpUserId = null;
       _wpRoles = const [];
+      _appRole = 'customer';
+      _canCreateMobileEvent = false;
       _index = 0;
       _guestMode = false;
     });
@@ -215,7 +235,10 @@ class _RootScreenState extends State<RootScreen> {
 
     final pages = [
       DiscoverScreen(sessionToken: _sessionToken),
-      EventsScreen(sessionToken: _sessionToken),
+      EventsScreen(
+        sessionToken: _sessionToken,
+        canCreateEvent: _canCreateMobileEvent,
+      ),
       PhotosScreen(accountId: _accountId),
       const StoreScreen(),
       ProfileScreen(

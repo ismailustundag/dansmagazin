@@ -15,6 +15,8 @@ class AuthSession {
   final String name;
   final int? wpUserId;
   final List<String> wpRoles;
+  final String appRole;
+  final bool canCreateMobileEvent;
 
   const AuthSession({
     required this.sessionToken,
@@ -24,6 +26,8 @@ class AuthSession {
     required this.name,
     required this.wpUserId,
     required this.wpRoles,
+    required this.appRole,
+    required this.canCreateMobileEvent,
   });
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
@@ -37,6 +41,9 @@ class AuthSession {
       wpRoles: (json['wp_roles'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
+      appRole: (json['app_role'] ?? 'customer').toString(),
+      canCreateMobileEvent: (json['can_create_mobile_event'] == true) ||
+          (((json['can_create_mobile_event'] as num?)?.toInt() ?? 0) == 1),
     );
   }
 }
@@ -99,6 +106,9 @@ class AuthApi {
       wpRoles: (body['wp_roles'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
+      appRole: (body['app_role'] ?? 'customer').toString(),
+      canCreateMobileEvent: (body['can_create_mobile_event'] == true) ||
+          (((body['can_create_mobile_event'] as num?)?.toInt() ?? 0) == 1),
     );
   }
 
@@ -124,4 +134,3 @@ class AuthApi {
     return fallback;
   }
 }
-

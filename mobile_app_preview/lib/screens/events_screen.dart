@@ -5,12 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+import '../services/auth_api.dart';
 import 'event_detail_screen.dart';
 
 class EventsScreen extends StatefulWidget {
   final String sessionToken;
+  final bool canCreateEvent;
 
-  const EventsScreen({super.key, required this.sessionToken});
+  const EventsScreen({
+    super.key,
+    required this.sessionToken,
+    required this.canCreateEvent,
+  });
 
   @override
   State<EventsScreen> createState() => _EventsScreenState();
@@ -19,11 +25,27 @@ class EventsScreen extends StatefulWidget {
 class _EventsScreenState extends State<EventsScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   late Future<List<_EventItem>> _future;
+  late bool _canCreateEvent;
 
   @override
   void initState() {
     super.initState();
+    _canCreateEvent = widget.canCreateEvent;
     _future = _fetchEvents();
+    _refreshPermissionFromBackend();
+  }
+
+  Future<void> _refreshPermissionFromBackend() async {
+    final t = widget.sessionToken.trim();
+    if (t.isEmpty) return;
+    try {
+      final me = await AuthApi.me(t);
+      if (!mounted) return;
+      setState(() => _canCreateEvent = me.canCreateMobileEvent);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _canCreateEvent = false);
+    }
   }
 
   Future<List<_EventItem>> _fetchEvents() async {
@@ -67,11 +89,15 @@ class _EventsScreenState extends State<EventsScreen> {
                   const Expanded(
                     child: Text('Etkinlikler', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
                   ),
-                  IconButton(
-                    tooltip: 'Etkinliğini Ekle',
-                    onPressed: _openCreateDialog,
-                    icon: const Icon(Icons.add_circle, size: 30, color: Color(0xFFE53935)),
-                  ),
+                  if (_canCreateEvent)
+                    TextButton.icon(
+                      onPressed: _openCreateDialog,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Etkinlik Oluştur'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFE53935),
+                      ),
+                    ),
                 ],
               ),
             ),

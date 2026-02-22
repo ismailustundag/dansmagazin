@@ -12,12 +12,16 @@ class EventAttendee {
   final String name;
   final bool isMe;
   final bool isFriend;
+  final String friendStatus;
+  final int? friendRequestId;
 
   const EventAttendee({
     required this.accountId,
     required this.name,
     required this.isMe,
     required this.isFriend,
+    required this.friendStatus,
+    required this.friendRequestId,
   });
 
   factory EventAttendee.fromJson(Map<String, dynamic> json) {
@@ -26,12 +30,42 @@ class EventAttendee {
       name: (json['name'] ?? '').toString(),
       isMe: (json['is_me'] == true),
       isFriend: (json['is_friend'] == true),
+      friendStatus: (json['friend_status'] ?? 'none').toString(),
+      friendRequestId: (json['friend_request_id'] as num?)?.toInt(),
+    );
+  }
+}
+
+class FriendRequestItem {
+  final int requestId;
+  final int peerAccountId;
+  final String peerName;
+  final String peerEmail;
+  final String createdAt;
+
+  const FriendRequestItem({
+    required this.requestId,
+    required this.peerAccountId,
+    required this.peerName,
+    required this.peerEmail,
+    required this.createdAt,
+  });
+
+  factory FriendRequestItem.fromJson(Map<String, dynamic> json) {
+    return FriendRequestItem(
+      requestId: (json['request_id'] as num?)?.toInt() ?? 0,
+      peerAccountId: (json['peer_account_id'] as num?)?.toInt() ?? 0,
+      peerName: (json['peer_name'] ?? '').toString(),
+      peerEmail: (json['peer_email'] ?? '').toString(),
+      createdAt: (json['created_at'] ?? '').toString(),
     );
   }
 }
 
 class EventSocialApi {
   static const String _base = 'https://api2.dansmagazin.net';
+
+  static const String statusPendingOutgoing = 'pending_outgoing';
 
   static Future<List<EventAttendee>> attendees({
     required int submissionId,
@@ -80,7 +114,7 @@ class EventSocialApi {
     }
   }
 
-  static Future<void> addFriend({
+  static Future<Map<String, dynamic>> addFriend({
     required int submissionId,
     required int targetAccountId,
     required String sessionToken,
@@ -91,6 +125,54 @@ class EventSocialApi {
     );
     if (resp.statusCode != 200) {
       throw EventSocialApiException(_parseError(resp.body, fallback: 'Arkadaş eklenemedi'));
+    }
+    try {
+      final body = jsonDecode(resp.body);
+      if (body is Map<String, dynamic>) return body;
+    } catch (_) {}
+    return const {};
+  }
+
+  static Future<List<FriendRequestItem>> friendRequests({
+    required String sessionToken,
+    String direction = 'incoming',
+  }) async {
+    final resp = await http.get(
+      Uri.parse('$_base/profile/friend-requests?direction=$direction'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Arkadaşlık istekleri alınamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? [])
+        .map((e) => FriendRequestItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<void> acceptFriendRequest({
+    required String sessionToken,
+    required int requestId,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/friend-requests/$requestId/accept'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'İstek kabul edilemedi'));
+    }
+  }
+
+  static Future<void> rejectFriendRequest({
+    required String sessionToken,
+    required int requestId,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/friend-requests/$requestId/reject'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'İstek reddedilemedi'));
     }
   }
 

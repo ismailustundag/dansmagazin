@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auth_api.dart';
 
@@ -13,6 +14,8 @@ class AuthResult {
   final int accountId;
   final int? wpUserId;
   final List<String> wpRoles;
+  final String appRole;
+  final bool canCreateMobileEvent;
 
   const AuthResult({
     required this.action,
@@ -23,6 +26,8 @@ class AuthResult {
     this.accountId = 0,
     this.wpUserId,
     this.wpRoles = const [],
+    this.appRole = 'customer',
+    this.canCreateMobileEvent = false,
   });
 }
 
@@ -36,6 +41,7 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  static final Uri _forgotPasswordUri = Uri.parse('https://dansmagazin.net/my-account/lost-password/');
   final _formKey = GlobalKey<FormState>();
   bool _isRegister = false;
   bool _rememberMe = true;
@@ -86,6 +92,8 @@ class _AuthScreenState extends State<AuthScreen> {
           accountId: session.accountId,
           wpUserId: session.wpUserId,
           wpRoles: session.wpRoles,
+          appRole: session.appRole,
+          canCreateMobileEvent: session.canCreateMobileEvent,
         ),
       );
     } on AuthApiException catch (e) {
@@ -98,6 +106,15 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _openForgotPassword() async {
+    try {
+      await launchUrl(_forgotPasswordUri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Şifre sıfırlama sayfası açılamadı');
     }
   }
 
@@ -199,6 +216,11 @@ class _AuthScreenState extends State<AuthScreen> {
                           onPressed: _loading ? null : () => setState(() => _isRegister = !_isRegister),
                           child: Text(_isRegister ? 'Hesabım var, giriş yap' : 'Hesabın yok mu? Kayıt ol'),
                         ),
+                        if (!_isRegister)
+                          TextButton(
+                            onPressed: _loading ? null : _openForgotPassword,
+                            child: const Text('Şifremi Unuttum'),
+                          ),
                         if (widget.allowGuest) ...[
                           const SizedBox(height: 4),
                           OutlinedButton(
