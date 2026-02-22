@@ -8,7 +8,9 @@ import 'package:image_picker/image_picker.dart';
 import 'event_detail_screen.dart';
 
 class EventsScreen extends StatefulWidget {
-  const EventsScreen({super.key});
+  final String sessionToken;
+
+  const EventsScreen({super.key, required this.sessionToken});
 
   @override
   State<EventsScreen> createState() => _EventsScreenState();
@@ -110,6 +112,7 @@ class _EventsScreenState extends State<EventsScreen> {
                               entryFee: items[i].entryFee,
                               ticketUrl: items[i].ticketUrl,
                               wooProductId: items[i].wooProductId,
+                              sessionToken: widget.sessionToken,
                             ),
                           ),
                         );

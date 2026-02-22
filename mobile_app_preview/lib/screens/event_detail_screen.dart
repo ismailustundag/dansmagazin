@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/checkout_api.dart';
 import 'app_webview_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class EventDetailScreen extends StatefulWidget {
   final double entryFee;
   final String ticketUrl;
   final String wooProductId;
+  final String sessionToken;
 
   const EventDetailScreen({
     super.key,
@@ -26,6 +28,7 @@ class EventDetailScreen extends StatefulWidget {
     required this.entryFee,
     required this.ticketUrl,
     required this.wooProductId,
+    required this.sessionToken,
   });
 
   @override
@@ -34,6 +37,7 @@ class EventDetailScreen extends StatefulWidget {
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
   int _tab = 0;
+  bool _openingCheckout = false;
 
   String _fmtDate(String raw) {
     final v = raw.trim();
@@ -66,6 +70,30 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return 'https://www.dansmagazin.net/?post_type=product&p=$pid';
     }
     return '';
+  }
+
+  Future<void> _openCheckout() async {
+    final directUrl = _buyUrl();
+    if (directUrl.isEmpty) return;
+
+    var targetUrl = directUrl;
+    if (widget.sessionToken.trim().isNotEmpty) {
+      try {
+        targetUrl = await CheckoutApi.buildAutoLoginUrl(
+          sessionToken: widget.sessionToken.trim(),
+          targetUrl: directUrl,
+        );
+      } catch (_) {
+        // Auto-login link üretimi başarısızsa normal ürün sayfasına düş.
+      }
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AppWebViewScreen(url: targetUrl, title: widget.title),
+      ),
+    );
   }
 
   String _contentText() {
@@ -122,17 +150,26 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => AppWebViewScreen(url: buyUrl, title: widget.title),
-                    ),
-                  );
-                },
-                child: Text(
-                  'BILET SATIN AL  ₺${widget.entryFee.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                ),
+                onPressed: _openingCheckout
+                    ? null
+                    : () async {
+                        setState(() => _openingCheckout = true);
+                        try {
+                          await _openCheckout();
+                        } finally {
+                          if (mounted) setState(() => _openingCheckout = false);
+                        }
+                      },
+                child: _openingCheckout
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(
+                        'BILET SATIN AL  ₺${widget.entryFee.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                      ),
               ),
             ),
           const SizedBox(height: 14),

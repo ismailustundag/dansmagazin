@@ -215,7 +215,7 @@ class _RootScreenState extends State<RootScreen> {
 
     final pages = [
       const DiscoverScreen(),
-      const EventsScreen(),
+      EventsScreen(sessionToken: _sessionToken),
       const PhotosScreen(),
       MessagesScreen(
         isLoggedIn: _isLoggedIn,
