@@ -7,7 +7,9 @@ import 'news_detail_screen.dart';
 import 'screen_shell.dart';
 
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key});
+  final String sessionToken;
+
+  const DiscoverScreen({super.key, required this.sessionToken});
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
@@ -64,7 +66,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               );
             }
             final data = snapshot.data ?? _DiscoverData.empty();
-            return _NewsList(items: data.news);
+            return _NewsList(items: data.news, sessionToken: widget.sessionToken);
           },
         ),
       ],
@@ -125,8 +127,9 @@ class _NewsItem {
 
 class _NewsList extends StatelessWidget {
   final List<_NewsItem> items;
+  final String sessionToken;
 
-  const _NewsList({required this.items});
+  const _NewsList({required this.items, required this.sessionToken});
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +146,10 @@ class _NewsList extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => NewsDetailScreen(postId: item.id),
+                      builder: (_) => NewsDetailScreen(
+                        postId: item.id,
+                        sessionToken: sessionToken,
+                      ),
                     ),
                   );
                 },

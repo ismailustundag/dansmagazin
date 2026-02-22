@@ -4,20 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class NewsDetailScreen extends StatefulWidget {
   final int postId;
+  final String sessionToken;
 
-  const NewsDetailScreen({super.key, required this.postId});
+  const NewsDetailScreen({super.key, required this.postId, required this.sessionToken});
 
   @override
   State<NewsDetailScreen> createState() => _NewsDetailScreenState();
 }
 
 class _NewsDetailScreenState extends State<NewsDetailScreen> {
-  static const _kLikedPrefix = 'news_liked_';
-
   late Future<_NewsDetail> _future;
   int _likeCount = 0;
   bool _liked = false;
@@ -29,21 +27,25 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     _loadLikeState();
   }
 
+  Map<String, String> _authHeaders() {
+    final t = widget.sessionToken.trim();
+    if (t.isEmpty) return const {};
+    return {'Authorization': 'Bearer $t'};
+  }
+
   Future<void> _loadLikeState() async {
-    final prefs = await SharedPreferences.getInstance();
     final r = await http.get(
       Uri.parse('https://api2.dansmagazin.net/discover/news/${widget.postId}/reactions'),
+      headers: _authHeaders(),
     );
-    var serverCount = 0;
+    if (!mounted) return;
     if (r.statusCode == 200) {
       final body = jsonDecode(r.body) as Map<String, dynamic>;
-      serverCount = (body['like_count'] as num?)?.toInt() ?? 0;
+      setState(() {
+        _likeCount = (body['like_count'] as num?)?.toInt() ?? 0;
+        _liked = (body['liked_by_me'] == true);
+      });
     }
-    if (!mounted) return;
-    setState(() {
-      _likeCount = serverCount;
-      _liked = prefs.getBool('$_kLikedPrefix${widget.postId}') ?? false;
-    });
   }
 
   Future<void> _toggleLike() async {
@@ -51,19 +53,19 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     final endpoint = nextLiked ? 'like' : 'unlike';
     final r = await http.post(
       Uri.parse('https://api2.dansmagazin.net/discover/news/${widget.postId}/$endpoint'),
+      headers: _authHeaders(),
     );
-    var nextCount = _likeCount;
+    if (!mounted) return;
     if (r.statusCode == 200) {
       final body = jsonDecode(r.body) as Map<String, dynamic>;
-      nextCount = (body['like_count'] as num?)?.toInt() ?? _likeCount;
+      setState(() {
+        _liked = (body['liked_by_me'] == true);
+        _likeCount = (body['like_count'] as num?)?.toInt() ?? _likeCount;
+      });
+      return;
     }
-    if (!mounted) return;
-    setState(() {
-      _liked = nextLiked;
-      _likeCount = nextCount;
-    });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('$_kLikedPrefix${widget.postId}', nextLiked);
+    // başarısızsa mevcut durumu tekrar çek
+    await _loadLikeState();
   }
 
   Future<_NewsDetail> _fetchDetail() async {
@@ -177,7 +179,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   String _normalizeWpHtml(String html) {
     var out = html;
 
-    // Resimleri ekran genişliğine zorla, taşmayı engelle.
     out = out.replaceAllMapped(RegExp(r'<img([^>]*)>', caseSensitive: false), (m) {
       final attrs = m.group(1) ?? '';
       final clean = attrs
@@ -186,7 +187,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       return '<img$clean style="max-width:100%;height:auto;display:block;border-radius:10px;" />';
     });
 
-    // iframe videoları da taşmasın.
     out = out.replaceAllMapped(RegExp(r'<iframe([^>]*)>', caseSensitive: false), (m) {
       final attrs = m.group(1) ?? '';
       final clean = attrs
@@ -195,7 +195,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       return '<iframe$clean style="width:100%;max-width:100%;aspect-ratio:16/9;border:0;border-radius:10px;"></iframe>';
     });
 
-    // Çok uzun satırların taşmasını engelle.
     return '<div style="word-break:break-word;overflow-wrap:anywhere;">$out</div>';
   }
 }

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'friend_profile_screen.dart';
+
 class FriendsScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -69,33 +71,46 @@ class _FriendsScreenState extends State<FriendsScreen> {
             itemCount: items.length,
             itemBuilder: (_, i) {
               final f = items[i];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF121826),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: Color(0xFFE53935),
-                      child: Icon(Icons.person, color: Colors.white),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(f.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                          if (f.email.isNotEmpty)
-                            Text(f.email, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                        ],
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => FriendProfileScreen(
+                        sessionToken: widget.sessionToken,
+                        friendAccountId: f.accountId,
                       ),
                     ),
-                    const Icon(Icons.chevron_right, color: Colors.white54),
-                  ],
+                  );
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF121826),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: Color(0xFFE53935),
+                        child: Icon(Icons.person, color: Colors.white),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(f.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                            if (f.email.isNotEmpty)
+                              Text(f.email, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.white54),
+                    ],
+                  ),
                 ),
               );
             },

@@ -214,11 +214,12 @@ class _RootScreenState extends State<RootScreen> {
     }
 
     final pages = [
-      const DiscoverScreen(),
+      DiscoverScreen(sessionToken: _sessionToken),
       EventsScreen(sessionToken: _sessionToken),
       const PhotosScreen(),
       MessagesScreen(
         isLoggedIn: _isLoggedIn,
+        sessionToken: _sessionToken,
         onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 3),
       ),
       ProfileScreen(
