@@ -27,6 +27,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     _future = _fetchDiscover();
   }
 
+  Future<void> _refreshDiscover() async {
+    final future = _fetchDiscover();
+    setState(() => _future = future);
+    await future;
+  }
+
   Future<_DiscoverData> _fetchDiscover() async {
     final resp = await http.get(Uri.parse(_discoverUrl));
     if (resp.statusCode != 200) {
@@ -41,15 +47,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     return ScreenShell(
       title: 'Haberler',
       icon: Icons.article,
-      subtitle: 'Dansmagazin haberleri (en yeni en üstte).',
+      subtitle: '',
+      onRefresh: _refreshDiscover,
       content: [
-        _SectionTitle(
-          title: 'Tüm Haberler',
-          trailing: TextButton(
-            onPressed: () => setState(() => _future = _fetchDiscover()),
-            child: const Text('Yenile'),
-          ),
-        ),
+        _SectionTitle(title: 'Tüm Haberler'),
         FutureBuilder<_DiscoverData>(
           future: _future,
           builder: (context, snapshot) {
@@ -163,9 +164,8 @@ class _NewsList extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   final String title;
-  final Widget? trailing;
 
-  const _SectionTitle({required this.title, this.trailing});
+  const _SectionTitle({required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -177,8 +177,6 @@ class _SectionTitle extends StatelessWidget {
             title,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
-          const Spacer(),
-          if (trailing != null) trailing!,
         ],
       ),
     );

@@ -84,10 +84,13 @@ class _EventsScreenState extends State<EventsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
               child: Row(
                 children: [
-                  const Icon(Icons.event, color: Color(0xFFE53935)),
-                  const SizedBox(width: 10),
                   const Expanded(
-                    child: Text('Etkinlikler', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'Etkinlikler',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                    ),
                   ),
                   if (_canCreateEvent)
                     TextButton.icon(

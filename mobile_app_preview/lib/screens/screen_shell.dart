@@ -5,6 +5,7 @@ class ScreenShell extends StatelessWidget {
   final IconData icon;
   final String subtitle;
   final List<Widget> content;
+  final Future<void> Function()? onRefresh;
 
   const ScreenShell({
     super.key,
@@ -12,10 +13,60 @@ class ScreenShell extends StatelessWidget {
     required this.icon,
     required this.subtitle,
     required this.content,
+    this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
+    final scroll = CustomScrollView(
+      physics: onRefresh != null ? const AlwaysScrollableScrollPhysics() : null,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (subtitle.trim().isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.75),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: SizedBox(height: subtitle.trim().isNotEmpty ? 14 : 8),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(content),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+      ],
+    );
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -25,48 +76,9 @@ class ScreenShell extends StatelessWidget {
         ),
       ),
       child: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-                child: Row(
-                  children: [
-                    Icon(icon, color: const Color(0xFFE53935)),
-                    const SizedBox(width: 10),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.75),
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 14)),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate(content),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-          ],
-        ),
+        child: onRefresh != null
+            ? RefreshIndicator(onRefresh: onRefresh!, child: scroll)
+            : scroll,
       ),
     );
   }
