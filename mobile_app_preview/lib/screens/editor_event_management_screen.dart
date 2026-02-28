@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class EditorEventManagementScreen extends StatelessWidget {
   final String sessionToken;
@@ -255,10 +256,18 @@ class TicketScanScreen extends StatefulWidget {
 
 class _TicketScanScreenState extends State<TicketScanScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
-  final _qrCtrl = TextEditingController();
+  final MobileScannerController _scannerController = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    facing: CameraFacing.back,
+    torchEnabled: false,
+  );
+
   bool _loading = false;
   String _result = '';
+  Color _resultColor = Colors.white;
   List<Map<String, dynamic>> _used = const [];
+  String _lastToken = '';
+  DateTime _lastScanAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -268,29 +277,66 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
 
   @override
   void dispose() {
-    _qrCtrl.dispose();
+    _scannerController.dispose();
     super.dispose();
   }
 
-  Future<void> _scan() async {
-    final token = _qrCtrl.text.trim();
-    if (token.isEmpty) {
-      setState(() => _result = 'QR token girin.');
+  Future<void> _scanToken(String token) async {
+    final qrToken = token.trim();
+    if (qrToken.isEmpty) {
       return;
     }
+
+    final now = DateTime.now();
+    if (_lastToken == qrToken && now.difference(_lastScanAt).inMilliseconds < 1500) {
+      return;
+    }
+    _lastToken = qrToken;
+    _lastScanAt = now;
+
     setState(() => _loading = true);
     try {
       final req = http.MultipartRequest('POST', Uri.parse('$_base/events/${widget.submissionId}/tickets/scan'))
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
-        ..fields['qr_token'] = token;
+        ..fields['qr_token'] = qrToken;
       final res = await req.send();
       final body = await res.stream.bytesToString();
-      final map = jsonDecode(body) as Map<String, dynamic>;
-      final msg = (map['message'] ?? map['detail'] ?? 'İşlem tamamlandı').toString();
-      setState(() => _result = msg);
+      Map<String, dynamic> map = {};
+      if (body.isNotEmpty) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          map = decoded;
+        }
+      }
+      final state = (map['state'] ?? '').toString();
+      final msg = (map['message'] ?? map['detail'] ?? '').toString();
+      if (res.statusCode == 200 && state == 'accepted') {
+        setState(() {
+          _result = msg.isNotEmpty ? msg : 'Bilet geçerli.';
+          _resultColor = Colors.greenAccent;
+        });
+      } else if (res.statusCode == 200 && state == 'already_used') {
+        setState(() {
+          _result = msg.isNotEmpty ? msg : 'Bilet daha önce kullanılmış.';
+          _resultColor = Colors.amberAccent;
+        });
+      } else if (res.statusCode == 404) {
+        setState(() {
+          _result = 'Geçersiz QR.';
+          _resultColor = Colors.redAccent;
+        });
+      } else {
+        setState(() {
+          _result = msg.isNotEmpty ? msg : 'Geçersiz QR.';
+          _resultColor = Colors.redAccent;
+        });
+      }
       await _loadUsed();
-    } catch (e) {
-      setState(() => _result = 'Hata: $e');
+    } catch (_) {
+      setState(() {
+        _result = 'Geçersiz QR.';
+        _resultColor = Colors.redAccent;
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -308,6 +354,20 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
     setState(() => _used = items);
   }
 
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_loading) return;
+    String token = '';
+    for (final code in capture.barcodes) {
+      final raw = (code.rawValue ?? '').trim();
+      if (raw.isNotEmpty) {
+        token = raw;
+        break;
+      }
+    }
+    if (token.isEmpty) return;
+    await _scanToken(token);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -315,23 +375,41 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            controller: _qrCtrl,
-            decoration: const InputDecoration(labelText: 'QR Token'),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white24),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: MobileScanner(
+                controller: _scannerController,
+                onDetect: _onDetect,
+              ),
+            ),
           ),
           const SizedBox(height: 10),
-          ElevatedButton(
-            onPressed: _loading ? null : _scan,
-            child: Text(_loading ? 'Kontrol ediliyor...' : 'QR Kontrol Et'),
+          const Text(
+            'QR kodu kameraya gösterin. Tarama otomatik yapılır.',
+            style: TextStyle(color: Colors.white70),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           OutlinedButton(
             onPressed: _loading ? null : _loadUsed,
             child: const Text('Kullanılmış Biletleri Yenile'),
           ),
           if (_result.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(_result, style: const TextStyle(fontWeight: FontWeight.w700)),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _resultColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _resultColor.withOpacity(0.4)),
+              ),
+              child: Text(_result, style: TextStyle(fontWeight: FontWeight.w700, color: _resultColor)),
+            ),
           ],
           const SizedBox(height: 14),
           const Text('Kullanılmış Biletler', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),

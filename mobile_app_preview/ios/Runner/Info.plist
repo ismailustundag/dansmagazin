@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Bilet QR kodlarını okutmak için kamera erişimi gerekir.</string>
 </dict>
 </plist>
