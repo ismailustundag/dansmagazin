@@ -49,7 +49,7 @@ class EditorEventManagementScreen extends StatelessWidget {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => TicketScanScreen(sessionToken: sessionToken),
+                  builder: (_) => TicketScanEventListScreen(sessionToken: sessionToken),
                 ),
               );
             },
@@ -107,10 +107,147 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
-class TicketScanScreen extends StatefulWidget {
+class TicketScanEventListScreen extends StatefulWidget {
   final String sessionToken;
 
-  const TicketScanScreen({super.key, required this.sessionToken});
+  const TicketScanEventListScreen({super.key, required this.sessionToken});
+
+  @override
+  State<TicketScanEventListScreen> createState() => _TicketScanEventListScreenState();
+}
+
+class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
+  static const String _base = 'https://api2.dansmagazin.net';
+  late Future<List<_ScannableEvent>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetch();
+  }
+
+  Future<List<_ScannableEvent>> _fetch() async {
+    final res = await http.get(
+      Uri.parse('$_base/events/tickets/scannable-events'),
+      headers: {'Authorization': 'Bearer ${widget.sessionToken}'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Etkinlikler alınamadı (${res.statusCode})');
+    }
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    return (map['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(_ScannableEvent.fromJson)
+        .toList();
+  }
+
+  Future<void> _refresh() async {
+    final f = _fetch();
+    setState(() => _future = f);
+    await f;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Bilet Kontrol Et')),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: FutureBuilder<List<_ScannableEvent>>(
+          future: _future,
+          builder: (_, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snap.hasError) {
+              return ListView(
+                children: [
+                  const SizedBox(height: 60),
+                  Center(
+                    child: TextButton(
+                      onPressed: _refresh,
+                      child: const Text('Etkinlik listesi alınamadı, tekrar dene'),
+                    ),
+                  ),
+                ],
+              );
+            }
+            final items = snap.data ?? [];
+            if (items.isEmpty) {
+              return ListView(
+                children: const [
+                  SizedBox(height: 60),
+                  Center(child: Text('Bu kullanıcıya atanmış bilet kontrol yetkisi yok.')),
+                ],
+              );
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              itemBuilder: (_, i) {
+                final e = items[i];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: _ActionCard(
+                    title: e.eventName,
+                    subtitle: e.venue.isNotEmpty ? e.venue : (e.eventDate.isNotEmpty ? e.eventDate : 'Etkinlik #${e.submissionId}'),
+                    icon: Icons.event_available,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TicketScanScreen(
+                            sessionToken: widget.sessionToken,
+                            submissionId: e.submissionId,
+                            eventName: e.eventName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ScannableEvent {
+  final int submissionId;
+  final String eventName;
+  final String eventDate;
+  final String venue;
+
+  _ScannableEvent({
+    required this.submissionId,
+    required this.eventName,
+    required this.eventDate,
+    required this.venue,
+  });
+
+  factory _ScannableEvent.fromJson(Map<String, dynamic> json) {
+    return _ScannableEvent(
+      submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
+      eventName: (json['event_name'] ?? '').toString(),
+      eventDate: (json['event_date'] ?? '').toString(),
+      venue: (json['venue'] ?? '').toString(),
+    );
+  }
+}
+
+class TicketScanScreen extends StatefulWidget {
+  final String sessionToken;
+  final int submissionId;
+  final String eventName;
+
+  const TicketScanScreen({
+    super.key,
+    required this.sessionToken,
+    required this.submissionId,
+    required this.eventName,
+  });
 
   @override
   State<TicketScanScreen> createState() => _TicketScanScreenState();
@@ -118,25 +255,24 @@ class TicketScanScreen extends StatefulWidget {
 
 class _TicketScanScreenState extends State<TicketScanScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
-  final _submissionCtrl = TextEditingController();
   final _qrCtrl = TextEditingController();
   bool _loading = false;
   String _result = '';
   List<Map<String, dynamic>> _used = const [];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUsed();
+  }
+
+  @override
   void dispose() {
-    _submissionCtrl.dispose();
     _qrCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _scan() async {
-    final sid = int.tryParse(_submissionCtrl.text.trim());
-    if (sid == null || sid <= 0) {
-      setState(() => _result = 'Geçerli etkinlik id girin.');
-      return;
-    }
     final token = _qrCtrl.text.trim();
     if (token.isEmpty) {
       setState(() => _result = 'QR token girin.');
@@ -144,7 +280,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
     }
     setState(() => _loading = true);
     try {
-      final req = http.MultipartRequest('POST', Uri.parse('$_base/events/$sid/tickets/scan'))
+      final req = http.MultipartRequest('POST', Uri.parse('$_base/events/${widget.submissionId}/tickets/scan'))
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['qr_token'] = token;
       final res = await req.send();
@@ -161,10 +297,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   }
 
   Future<void> _loadUsed() async {
-    final sid = int.tryParse(_submissionCtrl.text.trim());
-    if (sid == null || sid <= 0) return;
     final res = await http.get(
-      Uri.parse('$_base/events/$sid/tickets/used?limit=100'),
+      Uri.parse('$_base/events/${widget.submissionId}/tickets/used?limit=100'),
       headers: {'Authorization': 'Bearer ${widget.sessionToken}'},
     );
     if (res.statusCode != 200) return;
@@ -177,16 +311,10 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bilet Kontrol Et')),
+      appBar: AppBar(title: Text('Bilet Kontrol - ${widget.eventName}')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            controller: _submissionCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Etkinlik ID (submission_id)'),
-          ),
-          const SizedBox(height: 8),
           TextField(
             controller: _qrCtrl,
             decoration: const InputDecoration(labelText: 'QR Token'),
