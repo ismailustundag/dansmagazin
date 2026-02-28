@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-import '../services/auth_api.dart';
 import 'event_detail_screen.dart';
 
 class EventsScreen extends StatefulWidget {
@@ -25,27 +24,11 @@ class EventsScreen extends StatefulWidget {
 class _EventsScreenState extends State<EventsScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   late Future<List<_EventItem>> _future;
-  late bool _canCreateEvent;
 
   @override
   void initState() {
     super.initState();
-    _canCreateEvent = widget.canCreateEvent;
     _future = _fetchEvents();
-    _refreshPermissionFromBackend();
-  }
-
-  Future<void> _refreshPermissionFromBackend() async {
-    final t = widget.sessionToken.trim();
-    if (t.isEmpty) return;
-    try {
-      final me = await AuthApi.me(t);
-      if (!mounted) return;
-      setState(() => _canCreateEvent = me.canCreateMobileEvent);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _canCreateEvent = false);
-    }
   }
 
   Future<List<_EventItem>> _fetchEvents() async {
@@ -55,16 +38,6 @@ class _EventsScreenState extends State<EventsScreen> {
     return (body['items'] as List<dynamic>? ?? [])
         .map((e) => _EventItem.fromJson(e as Map<String, dynamic>))
         .toList();
-  }
-
-  Future<void> _openCreateDialog() async {
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
-      builder: (_) => _CreateEventSheet(sessionToken: widget.sessionToken),
-    );
-    if (ok == true) setState(() => _future = _fetchEvents());
   }
 
   @override
@@ -92,15 +65,6 @@ class _EventsScreenState extends State<EventsScreen> {
                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  if (_canCreateEvent)
-                    TextButton.icon(
-                      onPressed: _openCreateDialog,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Etkinlik Oluştur'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFFE53935),
-                      ),
-                    ),
                 ],
               ),
             ),

@@ -249,6 +249,7 @@ class _RootScreenState extends State<RootScreen> {
         accountId: _accountId,
         wpUserId: _wpUserId,
         wpRoles: _wpRoles,
+        canCreateMobileEvent: _canCreateMobileEvent,
         onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 4),
         onLogoutTap: () {
           _logout();

@@ -6,6 +6,7 @@ import 'messages_inbox_screen.dart';
 import 'placeholder_detail_screen.dart';
 import 'screen_shell.dart';
 import 'tickets_screen.dart';
+import 'editor_event_management_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final bool isLoggedIn;
@@ -15,6 +16,7 @@ class ProfileScreen extends StatelessWidget {
   final int accountId;
   final int? wpUserId;
   final List<String> wpRoles;
+  final bool canCreateMobileEvent;
   final VoidCallback onLoginTap;
   final VoidCallback onLogoutTap;
 
@@ -27,6 +29,7 @@ class ProfileScreen extends StatelessWidget {
     required this.accountId,
     required this.wpUserId,
     required this.wpRoles,
+    required this.canCreateMobileEvent,
     required this.onLoginTap,
     required this.onLogoutTap,
   });
@@ -115,6 +118,17 @@ class ProfileScreen extends StatelessWidget {
             );
           },
         ),
+        if (canCreateMobileEvent || wpRoles.contains('administrator') || wpRoles.contains('editor'))
+          PreviewCard(
+            title: 'Etkinlik Yönetimi',
+            subtitle: 'Etkinlik oluştur, yönet ve bilet kontrol et',
+            icon: Icons.event_note,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EditorEventManagementScreen(sessionToken: sessionToken),
+              ),
+            ),
+          ),
         PreviewCard(
           title: 'Ayarlar',
           subtitle: 'Bildirim, gizlilik, dil',
