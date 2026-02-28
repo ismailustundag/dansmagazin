@@ -5,6 +5,7 @@ import 'friends_screen.dart';
 import 'messages_inbox_screen.dart';
 import 'placeholder_detail_screen.dart';
 import 'screen_shell.dart';
+import 'tickets_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final bool isLoggedIn;
@@ -58,10 +59,8 @@ class ProfileScreen extends StatelessWidget {
           icon: Icons.confirmation_num,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => const PlaceholderDetailScreen(
-                title: 'Biletlerim',
-                description: 'Satın aldığınız biletler bu ekranda listelenecek.',
-                icon: Icons.confirmation_num,
+              builder: (_) => TicketsScreen(
+                sessionToken: sessionToken,
               ),
             ),
           ),
