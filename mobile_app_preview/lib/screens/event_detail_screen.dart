@@ -285,7 +285,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : Text(
-                        'BILET SATIN AL  ₺${widget.entryFee.toStringAsFixed(0)}',
+                        'BILET SATIN AL',
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                       ),
               ),
