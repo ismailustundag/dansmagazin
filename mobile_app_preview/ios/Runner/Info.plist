@@ -47,5 +47,9 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Bilet QR kodlarını okutmak için kamera erişimi gerekir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Etkinlik kapak fotoğrafı seçebilmek için galeri erişimi gerekir.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Seçilen fotoğrafları uygulamada kullanabilmek için izin gerekir.</string>
 </dict>
 </plist>

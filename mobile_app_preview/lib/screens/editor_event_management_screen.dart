@@ -726,45 +726,35 @@ class _EditManagedEventSheet extends StatefulWidget {
 
 class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   static const String _base = 'https://api2.dansmagazin.net';
-  late final TextEditingController _nameCtrl;
   late final TextEditingController _descCtrl;
   late final TextEditingController _dateCtrl;
   late final TextEditingController _venueCtrl;
   late final TextEditingController _orgCtrl;
   late final TextEditingController _programCtrl;
-  late final TextEditingController _feeCtrl;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.item.name);
     _descCtrl = TextEditingController(text: widget.item.description);
     _dateCtrl = TextEditingController(text: widget.item.eventDate);
     _venueCtrl = TextEditingController(text: widget.item.venue);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
     _programCtrl = TextEditingController(text: widget.item.programText);
-    _feeCtrl = TextEditingController(text: widget.item.entryFee);
   }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
     _descCtrl.dispose();
     _dateCtrl.dispose();
     _venueCtrl.dispose();
     _orgCtrl.dispose();
     _programCtrl.dispose();
-    _feeCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    if (_nameCtrl.text.trim().length < 2) {
-      setState(() => _error = 'Etkinlik adı en az 2 karakter olmalı.');
-      return;
-    }
     setState(() {
       _saving = true;
       _error = null;
@@ -775,13 +765,11 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         Uri.parse('$_base/events/manage/items/${widget.item.submissionId}/update'),
       )
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
-        ..fields['event_name'] = _nameCtrl.text.trim()
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['event_date'] = _dateCtrl.text.trim()
         ..fields['venue'] = _venueCtrl.text.trim()
         ..fields['organizer_name'] = _orgCtrl.text.trim()
-        ..fields['program_text'] = _programCtrl.text.trim()
-        ..fields['entry_fee'] = _feeCtrl.text.trim();
+        ..fields['program_text'] = _programCtrl.text.trim();
       final res = await req.send();
       final body = await res.stream.bytesToString();
       if (res.statusCode != 200) {
@@ -808,8 +796,13 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
             children: [
               Row(
                 children: [
-                  const Expanded(
-                    child: Text('Etkinliği Düzenle', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Expanded(
+                    child: Text(
+                      widget.item.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
                   ),
                   TextButton(
                     onPressed: _saving ? null : () => Navigator.of(context).pop(false),
@@ -818,13 +811,11 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                 ],
               ),
               const SizedBox(height: 10),
-              _txt(_nameCtrl, 'Etkinlik Adı'),
               _txt(_descCtrl, 'Detaylar', maxLines: 3),
               _txt(_programCtrl, 'Program', maxLines: 3),
               _txt(_venueCtrl, 'Konum / Mekan'),
               _txt(_orgCtrl, 'Organizatör'),
               _txt(_dateCtrl, 'Etkinlik Tarihi'),
-              _txt(_feeCtrl, 'Bilet Ücreti (TL)'),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Text(_error!, style: const TextStyle(color: Colors.redAccent)),
@@ -979,10 +970,22 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               Row(
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () async {
-                      final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-                      if (x != null) setState(() => _image = x);
-                    },
+                    onPressed: _sending
+                        ? null
+                        : () async {
+                            try {
+                              final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                              if (x != null && mounted) {
+                                setState(() => _image = x);
+                              }
+                            } catch (e) {
+                              if (!mounted) return;
+                              setState(() => _error = 'Fotoğraf seçilemedi: $e');
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(120, 42),
+                    ),
                     icon: const Icon(Icons.image),
                     label: const Text('Kapak Seç'),
                   ),
