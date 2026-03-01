@@ -36,11 +36,13 @@ class EditorEventManagementScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _ActionCard(
             title: 'Etkinliği Yönet',
-            subtitle: 'Etkinlik detaylarını panelden düzenleyin.',
+            subtitle: 'Kendi etkinliklerini görüntüle ve düzenle.',
             icon: Icons.edit_calendar_outlined,
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Etkinlik düzenleme paneli bir sonraki adımda eklenecek.')),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ManageEventsScreen(sessionToken: sessionToken),
+                ),
               );
             },
           ),
@@ -486,6 +488,373 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
               );
             }),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class ManageEventsScreen extends StatefulWidget {
+  final String sessionToken;
+
+  const ManageEventsScreen({super.key, required this.sessionToken});
+
+  @override
+  State<ManageEventsScreen> createState() => _ManageEventsScreenState();
+}
+
+class _ManageEventsScreenState extends State<ManageEventsScreen> {
+  static const String _base = 'https://api2.dansmagazin.net';
+  late Future<List<_ManagedEventItem>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetch();
+  }
+
+  Future<List<_ManagedEventItem>> _fetch() async {
+    final res = await http.get(
+      Uri.parse('$_base/events/manage/items'),
+      headers: {'Authorization': 'Bearer ${widget.sessionToken}'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Etkinlik listesi alınamadı (${res.statusCode})');
+    }
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    return (map['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(_ManagedEventItem.fromJson)
+        .toList();
+  }
+
+  Future<void> _refresh() async {
+    final f = _fetch();
+    setState(() => _future = f);
+    await f;
+  }
+
+  Future<void> _openEdit(_ManagedEventItem item) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      builder: (_) => _EditManagedEventSheet(
+        sessionToken: widget.sessionToken,
+        item: item,
+      ),
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Etkinliği Yönet')),
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<List<_ManagedEventItem>>(
+            future: _future,
+            builder: (_, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return ListView(
+                  children: [
+                    const SizedBox(height: 60),
+                    Center(
+                      child: TextButton(
+                        onPressed: _refresh,
+                        child: const Text('Etkinlikler alınamadı, tekrar dene'),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              final items = snap.data ?? [];
+              if (items.isEmpty) {
+                return ListView(
+                  children: const [
+                    SizedBox(height: 60),
+                    Center(child: Text('Düzenleyebileceğiniz etkinlik bulunamadı.')),
+                  ],
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                itemBuilder: (_, i) {
+                  final e = items[i];
+                  final status = e.status.trim().isEmpty ? '-' : e.status;
+                  return InkWell(
+                    onTap: () => _openEdit(e),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF121826),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        children: [
+                          if (e.coverUrl.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                e.coverUrl,
+                                width: 72,
+                                height: 54,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 72,
+                                  height: 54,
+                                  color: const Color(0xFF1F2937),
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              width: 72,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1F2937),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.image_not_supported_outlined, color: Colors.white54),
+                            ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  e.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  e.eventDate.isEmpty ? 'Tarih yok' : e.eventDate,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Durum: $status',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, color: Colors.white54),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManagedEventItem {
+  final int submissionId;
+  final String name;
+  final String description;
+  final String eventDate;
+  final String venue;
+  final String organizerName;
+  final String programText;
+  final String entryFee;
+  final String coverUrl;
+  final String status;
+
+  _ManagedEventItem({
+    required this.submissionId,
+    required this.name,
+    required this.description,
+    required this.eventDate,
+    required this.venue,
+    required this.organizerName,
+    required this.programText,
+    required this.entryFee,
+    required this.coverUrl,
+    required this.status,
+  });
+
+  factory _ManagedEventItem.fromJson(Map<String, dynamic> json) {
+    return _ManagedEventItem(
+      submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      eventDate: (json['event_date'] ?? '').toString(),
+      venue: (json['venue'] ?? '').toString(),
+      organizerName: (json['organizer_name'] ?? '').toString(),
+      programText: (json['program_text'] ?? '').toString(),
+      entryFee: (json['entry_fee'] ?? '0').toString(),
+      coverUrl: (json['cover_url'] ?? '').toString(),
+      status: (json['status'] ?? '').toString(),
+    );
+  }
+}
+
+class _EditManagedEventSheet extends StatefulWidget {
+  final String sessionToken;
+  final _ManagedEventItem item;
+
+  const _EditManagedEventSheet({
+    required this.sessionToken,
+    required this.item,
+  });
+
+  @override
+  State<_EditManagedEventSheet> createState() => _EditManagedEventSheetState();
+}
+
+class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
+  static const String _base = 'https://api2.dansmagazin.net';
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _descCtrl;
+  late final TextEditingController _dateCtrl;
+  late final TextEditingController _venueCtrl;
+  late final TextEditingController _orgCtrl;
+  late final TextEditingController _programCtrl;
+  late final TextEditingController _feeCtrl;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.item.name);
+    _descCtrl = TextEditingController(text: widget.item.description);
+    _dateCtrl = TextEditingController(text: widget.item.eventDate);
+    _venueCtrl = TextEditingController(text: widget.item.venue);
+    _orgCtrl = TextEditingController(text: widget.item.organizerName);
+    _programCtrl = TextEditingController(text: widget.item.programText);
+    _feeCtrl = TextEditingController(text: widget.item.entryFee);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _descCtrl.dispose();
+    _dateCtrl.dispose();
+    _venueCtrl.dispose();
+    _orgCtrl.dispose();
+    _programCtrl.dispose();
+    _feeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_nameCtrl.text.trim().length < 2) {
+      setState(() => _error = 'Etkinlik adı en az 2 karakter olmalı.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final req = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_base/events/manage/items/${widget.item.submissionId}/update'),
+      )
+        ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
+        ..fields['event_name'] = _nameCtrl.text.trim()
+        ..fields['description'] = _descCtrl.text.trim()
+        ..fields['event_date'] = _dateCtrl.text.trim()
+        ..fields['venue'] = _venueCtrl.text.trim()
+        ..fields['organizer_name'] = _orgCtrl.text.trim()
+        ..fields['program_text'] = _programCtrl.text.trim()
+        ..fields['entry_fee'] = _feeCtrl.text.trim();
+      final res = await req.send();
+      final body = await res.stream.bytesToString();
+      if (res.statusCode != 200) {
+        setState(() => _error = 'Kaydetme başarısız: ${res.statusCode} $body');
+        return;
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      setState(() => _error = 'Hata: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('Etkinliği Düzenle', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  ),
+                  TextButton(
+                    onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+                    child: const Text('Kapat'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _txt(_nameCtrl, 'Etkinlik Adı'),
+              _txt(_descCtrl, 'Detaylar', maxLines: 3),
+              _txt(_programCtrl, 'Program', maxLines: 3),
+              _txt(_venueCtrl, 'Konum / Mekan'),
+              _txt(_orgCtrl, 'Organizatör'),
+              _txt(_dateCtrl, 'Etkinlik Tarihi'),
+              _txt(_feeCtrl, 'Bilet Ücreti (TL)'),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              ],
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(_saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _txt(TextEditingController c, String label, {int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: c,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: const Color(0xFF111827),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
     );
