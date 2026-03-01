@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/event_social_api.dart';
 import 'friends_screen.dart';
 import 'messages_inbox_screen.dart';
+import 'my_photos_screen.dart';
 import 'placeholder_detail_screen.dart';
 import 'screen_shell.dart';
 import 'tickets_screen.dart';
@@ -70,14 +71,12 @@ class ProfileScreen extends StatelessWidget {
         ),
         PreviewCard(
           title: 'Fotoğraflarım',
-          subtitle: 'Eşleşen ve satın aldığınız fotoğraflar',
+          subtitle: 'Favorilediğiniz ve kaydettiğiniz fotoğraflar',
           icon: Icons.photo_library,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => const PlaceholderDetailScreen(
-                title: 'Fotoğraflarım',
-                description: 'Kullanıcıya ait fotoğraflar bu ekranda olacak.',
-                icon: Icons.photo_library,
+              builder: (_) => MyPhotosScreen(
+                accountId: accountId,
               ),
             ),
           ),

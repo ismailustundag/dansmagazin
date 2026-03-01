@@ -19,22 +19,49 @@ class PhotosScreen extends StatefulWidget {
 
 class _PhotosScreenState extends State<PhotosScreen> {
   static const String _albumsUrl = 'https://api2.dansmagazin.net/photos';
+  static const String _publicAlbumBaseUrl = 'https://dansmagazin.net/e/';
+  static const String _fallbackInstallUrl = 'https://dansmagazin.net';
 
   late Future<List<_Album>> _albumsFuture;
-  int _tab = 0; // 0: Tum albumler, 1: Son yuklenenler, 2: Favoriler
+  int _tab = 0; // 0: Tum albumler, 1: Favoriler
   List<_FavoritePhoto> _favorites = [];
+  Set<String> _likedAlbumSlugs = <String>{};
 
   @override
   void initState() {
     super.initState();
     _albumsFuture = _fetchAlbums();
     _loadFavorites();
+    _loadLikedAlbums();
   }
 
   Future<void> _loadFavorites() async {
     final loaded = await _FavoriteStore.load(widget.accountId);
     if (!mounted) return;
     setState(() => _favorites = loaded);
+  }
+
+  Future<void> _loadLikedAlbums() async {
+    final loaded = await _AlbumLikeStore.load(widget.accountId);
+    if (!mounted) return;
+    setState(() => _likedAlbumSlugs = loaded);
+  }
+
+  Future<void> _toggleAlbumLike(String slug) async {
+    final liked = _likedAlbumSlugs.contains(slug);
+    if (liked) {
+      await _AlbumLikeStore.remove(widget.accountId, slug);
+    } else {
+      await _AlbumLikeStore.add(widget.accountId, slug);
+    }
+    await _loadLikedAlbums();
+  }
+
+  Future<void> _shareAlbum(_Album album) async {
+    final albumUrl = '$_publicAlbumBaseUrl${album.slug}';
+    await Share.share(
+      'Dansmagazin albümü: ${album.name}\n$albumUrl\n\nUygulama yoksa buradan indirebilirsiniz:\n$_fallbackInstallUrl',
+    );
   }
 
   Future<List<_Album>> _fetchAlbums() async {
@@ -78,15 +105,14 @@ class _PhotosScreenState extends State<PhotosScreen> {
     return ScreenShell(
       title: 'Fotoğraflar',
       icon: Icons.photo_library,
-      subtitle: 'Albüm bazlı liste. En yeni albümler üstte gösterilir.',
+      subtitle: 'Fotoğraflarınızı görüntüleyebilir, paylaşabilir, indirebilir ve sonrası için favorileyebilirsiniz.',
       content: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             _tabChip(0, 'Tüm Albümler'),
-            _tabChip(1, 'Son Yüklenenler'),
-            _tabChip(2, 'Favoriler'),
+            _tabChip(1, 'Favoriler'),
           ],
         ),
         const SizedBox(height: 12),
@@ -107,7 +133,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             }
 
             final albums = snapshot.data ?? const <_Album>[];
-            if (_tab == 2) {
+            if (_tab == 1) {
               return _FavoriteGrid(
                 photos: _favorites,
                 accountId: widget.accountId,
@@ -118,7 +144,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
               );
             }
 
-            final list = _tab == 1 ? albums.take(20).toList() : albums;
+            final list = albums;
             if (list.isEmpty) {
               return const _InfoCard(text: 'Albüm bulunamadı.');
             }
@@ -130,6 +156,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _AlbumCard(
                         album: album,
+                        liked: _likedAlbumSlugs.contains(album.slug),
+                        onLikeTap: () => _toggleAlbumLike(album.slug),
+                        onShareTap: () => _shareAlbum(album),
                         onTap: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute(
@@ -176,6 +205,7 @@ class AlbumPhotosScreen extends StatefulWidget {
 class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   late Future<List<_Photo>> _photosFuture;
   List<_FavoritePhoto> _favorites = [];
+  bool _showFavoritesOnly = false;
 
   @override
   void initState() {
@@ -263,6 +293,22 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F172A),
         title: Text(widget.album.name),
+        actions: [
+          TextButton.icon(
+            onPressed: () => setState(() => _showFavoritesOnly = !_showFavoritesOnly),
+            icon: Icon(
+              _showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
+              color: _showFavoritesOnly ? Colors.redAccent : Colors.white,
+            ),
+            label: Text(
+              'Favorilerim',
+              style: TextStyle(
+                color: _showFavoritesOnly ? Colors.redAccent : Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -282,10 +328,15 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           }
 
           final photos = snapshot.data ?? const <_Photo>[];
-          if (photos.isEmpty) {
+          final shown = _showFavoritesOnly
+              ? photos.where((p) => _isFavorite(p.url)).toList()
+              : photos;
+          if (shown.isEmpty) {
             return Center(
               child: Text(
-                'Bu albümde fotoğraf yok.',
+                _showFavoritesOnly
+                    ? 'Bu albümde favori fotoğraf yok.'
+                    : 'Bu albümde fotoğraf yok.',
                 style: TextStyle(color: Colors.white.withOpacity(0.8)),
               ),
             );
@@ -299,16 +350,16 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
               crossAxisSpacing: 8,
               childAspectRatio: 0.8,
             ),
-            itemCount: photos.length,
+            itemCount: shown.length,
             itemBuilder: (context, i) {
-              final p = photos[i];
+              final p = shown[i];
               final fav = _isFavorite(p.url);
               return Stack(
                 fit: StackFit.expand,
                 children: [
                   Positioned.fill(
                     child: GestureDetector(
-                      onTap: () => _openViewer(photos, i),
+                      onTap: () => _openViewer(shown, i),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: Image.network(
@@ -406,6 +457,13 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     await _loadFavorites();
   }
 
+  Future<void> _download(String url) async {
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('İndirme açılamadı')));
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -468,6 +526,14 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                       label: const Text('Paylaş'),
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _download(photo.url),
+                      icon: const Icon(Icons.download),
+                      label: const Text('İndir'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -480,9 +546,18 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
 
 class _AlbumCard extends StatelessWidget {
   final _Album album;
+  final bool liked;
+  final VoidCallback onLikeTap;
+  final VoidCallback onShareTap;
   final VoidCallback onTap;
 
-  const _AlbumCard({required this.album, required this.onTap});
+  const _AlbumCard({
+    required this.album,
+    required this.liked,
+    required this.onLikeTap,
+    required this.onShareTap,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -525,6 +600,32 @@ class _AlbumCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onLikeTap,
+                      icon: Icon(
+                        liked ? Icons.favorite : Icons.favorite_border,
+                        color: liked ? Colors.redAccent : Colors.white,
+                        size: 18,
+                      ),
+                      label: Text(liked ? 'Beğenildi' : 'Beğen'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onShareTap,
+                      icon: const Icon(Icons.share, size: 18),
+                      label: const Text('Paylaş'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -739,6 +840,30 @@ class _FavoriteStore {
     current.removeWhere((p) => p.url == url);
     final rows = current.map((p) => jsonEncode(p.toJson())).toList();
     await prefs.setStringList(_key(accountId), rows);
+  }
+}
+
+class _AlbumLikeStore {
+  static String _key(int accountId) => 'liked_albums_v1_user_$accountId';
+
+  static Future<Set<String>> load(int accountId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final rows = prefs.getStringList(_key(accountId)) ?? const <String>[];
+    return rows.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+  }
+
+  static Future<void> add(int accountId, String slug) async {
+    final prefs = await SharedPreferences.getInstance();
+    final set = await load(accountId);
+    set.add(slug);
+    await prefs.setStringList(_key(accountId), set.toList()..sort());
+  }
+
+  static Future<void> remove(int accountId, String slug) async {
+    final prefs = await SharedPreferences.getInstance();
+    final set = await load(accountId);
+    set.remove(slug);
+    await prefs.setStringList(_key(accountId), set.toList()..sort());
   }
 }
 
