@@ -21,9 +21,20 @@ class DansMagazinApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Dansmagazin',
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: media.textScaler.clamp(minScaleFactor: 0.92, maxScaleFactor: 1.0),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       theme: ThemeData(
+        useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF080B14),
+        visualDensity: VisualDensity.compact,
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFFE53935),
           secondary: Color(0xFFFF5A5F),

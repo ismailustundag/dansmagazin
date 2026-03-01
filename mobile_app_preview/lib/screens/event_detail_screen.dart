@@ -208,7 +208,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         title: const Text('Etkinlik Detay'),
       ),
       body: SafeArea(
-        top: false,
         child: ListView(
           padding: const EdgeInsets.all(12),
           children: [
@@ -217,9 +216,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               borderRadius: BorderRadius.circular(10),
               child: Image.network(
                 widget.cover,
-                height: 220,
+                height: 190,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(height: 220, color: const Color(0xFF1F2937)),
+                errorBuilder: (_, __, ___) => Container(height: 190, color: const Color(0xFF1F2937)),
               ),
             ),
           Container(
@@ -255,15 +254,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : Text(
-                      _joined ? 'KATILIMI GERI CEK' : 'ETKINLIGE KATILACAGIM',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      _joined ? 'Katılımı Geri Çek' : 'Etkinliğe Katılacağım',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                     ),
             ),
           ),
           const SizedBox(height: 12),
           if (buyUrl.isNotEmpty)
             SizedBox(
-              height: 56,
+              height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE21C2A),
@@ -286,9 +285,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         height: 24,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : Text(
-                        'BILET SATIN AL',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                    : const Text(
+                        'Bilet Satın Al',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       ),
               ),
             ),
@@ -345,13 +344,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              _tabBtn(0, 'Detaylar'),
-              const SizedBox(width: 8),
-              _tabBtn(1, 'Program'),
-              const SizedBox(width: 8),
-              _tabBtn(2, 'Konum'),
+              SizedBox(width: 110, child: _tabBtn(0, 'Detaylar')),
+              SizedBox(width: 110, child: _tabBtn(1, 'Program')),
+              SizedBox(width: 110, child: _tabBtn(2, 'Konum')),
             ],
           ),
           const SizedBox(height: 12),
@@ -380,7 +379,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         children: [
           Icon(icon, size: 18, color: Colors.white70),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 16))),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
         ],
       ),
     );
@@ -388,17 +387,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Widget _tabBtn(int val, String title) {
     final active = _tab == val;
-    return Expanded(
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: active ? const Color(0xFF1C2436) : const Color(0xFF0F172A),
-          side: BorderSide(color: active ? const Color(0xFFE53935) : Colors.white12),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        onPressed: () => setState(() => _tab = val),
-        child: Text(title),
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: active ? const Color(0xFF1C2436) : const Color(0xFF0F172A),
+        side: BorderSide(color: active ? const Color(0xFFE53935) : Colors.white12),
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
+      onPressed: () => setState(() => _tab = val),
+      child: Text(title),
     );
   }
 }

@@ -23,7 +23,7 @@ class ScreenShell extends StatelessWidget {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
             child: Row(
               children: [
                 Expanded(
@@ -32,7 +32,7 @@ class ScreenShell extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -49,7 +49,7 @@ class ScreenShell extends StatelessWidget {
                 subtitle,
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.75),
-                  fontSize: 14,
+                  fontSize: 13,
                 ),
               ),
             ),
@@ -105,7 +105,7 @@ class PreviewCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
@@ -116,9 +116,9 @@ class PreviewCard extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              radius: 20,
+              radius: 18,
               backgroundColor: const Color(0xFFE53935),
-              child: Icon(icon, color: Colors.white),
+              child: Icon(icon, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -127,12 +127,12 @@ class PreviewCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.7)),
+                    style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
                   ),
                 ],
               ),

@@ -45,6 +45,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isRegister = false;
   bool _rememberMe = true;
+  bool _obscurePassword = true;
+  bool _obscurePasswordAgain = true;
   bool _loading = false;
   String? _error;
 
@@ -128,23 +130,35 @@ class _AuthScreenState extends State<AuthScreen> {
             padding: const EdgeInsets.all(20),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
-              child: Card(
-                color: const Color(0xFF121826),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Colors.white12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Form(
+                child: Card(
+                  color: const Color(0xFF121826),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    side: const BorderSide(color: Colors.white12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              'assets/icons/app_icon_source.png',
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         const Text(
                           'Dansmagazin',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -175,7 +189,11 @@ class _AuthScreenState extends State<AuthScreen> {
                         _field(
                           _passwordCtrl,
                           label: 'Şifre',
-                          obscureText: true,
+                          obscureText: _obscurePassword,
+                          suffixIcon: IconButton(
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                          ),
                           validator: (v) => (v ?? '').length < 6 ? 'Şifre en az 6 karakter olmalı' : null,
                         ),
                         if (_isRegister) ...[
@@ -183,7 +201,11 @@ class _AuthScreenState extends State<AuthScreen> {
                           _field(
                             _passwordAgainCtrl,
                             label: 'Şifre Tekrar',
-                            obscureText: true,
+                            obscureText: _obscurePasswordAgain,
+                            suffixIcon: IconButton(
+                              onPressed: () => setState(() => _obscurePasswordAgain = !_obscurePasswordAgain),
+                              icon: Icon(_obscurePasswordAgain ? Icons.visibility_off : Icons.visibility),
+                            ),
                             validator: (v) => v != _passwordCtrl.text ? 'Şifreler eşleşmiyor' : null,
                           ),
                         ],
@@ -195,32 +217,48 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           const SizedBox(height: 8),
                         ],
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          value: _rememberMe,
-                          onChanged: (v) => setState(() => _rememberMe = v ?? true),
-                          title: const Text('Beni hatırla'),
-                          controlAffinity: ListTileControlAffinity.leading,
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: _rememberMe,
+                              onChanged: (v) => setState(() => _rememberMe = v ?? true),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            const Text('Beni hatırla'),
+                            const Spacer(),
+                            if (!_isRegister)
+                              TextButton(
+                                onPressed: _loading ? null : _openForgotPassword,
+                                child: const Text('Şifremi Unuttum'),
+                              ),
+                          ],
                         ),
-                        ElevatedButton(
-                          onPressed: _loading ? null : _submit,
-                          child: _loading
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Text(_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          height: 52,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE53935),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: _loading ? null : _submit,
+                            child: _loading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : Text(
+                                    _isRegister ? 'Kayıt Ol' : 'Giriş Yap',
+                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                                  ),
+                          ),
                         ),
                         TextButton(
                           onPressed: _loading ? null : () => setState(() => _isRegister = !_isRegister),
                           child: Text(_isRegister ? 'Hesabım var, giriş yap' : 'Hesabın yok mu? Kayıt ol'),
                         ),
-                        if (!_isRegister)
-                          TextButton(
-                            onPressed: _loading ? null : _openForgotPassword,
-                            child: const Text('Şifremi Unuttum'),
-                          ),
                         if (widget.allowGuest) ...[
                           const SizedBox(height: 4),
                           OutlinedButton(
@@ -252,6 +290,7 @@ class _AuthScreenState extends State<AuthScreen> {
     String? Function(String?)? validator,
     bool obscureText = false,
     TextInputType? keyboardType,
+    Widget? suffixIcon,
   }) {
     return TextFormField(
       controller: controller,
@@ -263,6 +302,7 @@ class _AuthScreenState extends State<AuthScreen> {
         border: const OutlineInputBorder(),
         filled: true,
         fillColor: const Color(0xFF0F172A),
+        suffixIcon: suffixIcon,
       ),
     );
   }

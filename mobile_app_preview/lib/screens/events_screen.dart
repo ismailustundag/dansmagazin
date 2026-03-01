@@ -62,7 +62,7 @@ class _EventsScreenState extends State<EventsScreen> {
                       'Etkinlikler',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
@@ -199,7 +199,7 @@ class _EventCard extends StatelessWidget {
           children: [
             if (item.cover.isNotEmpty)
               SizedBox(
-                height: 170,
+                height: 150,
                 width: double.infinity,
                 child: Image.network(
                   item.cover,
@@ -209,7 +209,7 @@ class _EventCard extends StatelessWidget {
               ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(item.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              child: Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ],
         ),
