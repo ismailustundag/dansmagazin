@@ -15,9 +15,11 @@ class EditorEventManagementScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Etkinlik Yönetimi')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           _ActionCard(
             title: 'Etkinlik Oluştur',
             subtitle: 'Yeni etkinliği onaya gönder.',
@@ -55,7 +57,8 @@ class EditorEventManagementScreen extends StatelessWidget {
               );
             },
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -152,11 +155,13 @@ class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Bilet Kontrol Et')),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<_ScannableEvent>>(
-          future: _future,
-          builder: (_, snap) {
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<List<_ScannableEvent>>(
+            future: _future,
+            builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -208,7 +213,8 @@ class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
                 );
               },
             );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -372,9 +378,11 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Bilet Kontrol - ${widget.eventName}')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
@@ -437,7 +445,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
                 ),
               );
             }),
-        ],
+          ],
+        ),
       ),
     );
   }

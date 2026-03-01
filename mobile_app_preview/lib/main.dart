@@ -259,40 +259,43 @@ class _RootScreenState extends State<RootScreen> {
 
     return Scaffold(
       body: pages[_index],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFFE53935),
-        unselectedItemColor: Colors.white70,
-        backgroundColor: const Color(0xFF0F172A),
-        onTap: _onNavTap,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.article_outlined),
-            activeIcon: Icon(Icons.article),
-            label: 'Haberler',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.event_outlined),
-            activeIcon: Icon(Icons.event),
-            label: 'Etkinlikler',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.photo_library_outlined),
-            activeIcon: Icon(Icons.photo_library),
-            label: 'Fotoğraflar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.storefront_outlined),
-            activeIcon: Icon(Icons.storefront),
-            label: 'Mağaza',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          currentIndex: _index,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: const Color(0xFFE53935),
+          unselectedItemColor: Colors.white70,
+          backgroundColor: const Color(0xFF0F172A),
+          onTap: _onNavTap,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.article_outlined),
+              activeIcon: Icon(Icons.article),
+              label: 'Haberler',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.event_outlined),
+              activeIcon: Icon(Icons.event),
+              label: 'Etkinlikler',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.photo_library_outlined),
+              activeIcon: Icon(Icons.photo_library),
+              label: 'Fotoğraflar',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.storefront_outlined),
+              activeIcon: Icon(Icons.storefront),
+              label: 'Mağaza',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profil',
+            ),
+          ],
+        ),
       ),
     );
   }

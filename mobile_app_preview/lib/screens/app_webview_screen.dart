@@ -89,19 +89,22 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          AnimatedOpacity(
-            duration: const Duration(milliseconds: 180),
-            opacity: _progress < 1 ? 1 : 0,
-            child: LinearProgressIndicator(
-              value: _progress < 1 ? _progress : null,
-              minHeight: 2,
-              backgroundColor: Colors.transparent,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: _progress < 1 ? 1 : 0,
+              child: LinearProgressIndicator(
+                value: _progress < 1 ? _progress : null,
+                minHeight: 2,
+                backgroundColor: Colors.transparent,
+              ),
             ),
-          ),
-          Expanded(child: WebViewWidget(controller: _controller)),
-        ],
+            Expanded(child: WebViewWidget(controller: _controller)),
+          ],
+        ),
       ),
     );
   }

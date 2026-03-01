@@ -207,9 +207,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         backgroundColor: const Color(0xFF0B1020),
         title: const Text('Etkinlik Detay'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
           if (widget.cover.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
@@ -365,7 +367,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               style: TextStyle(color: Colors.white.withOpacity(0.92), height: 1.4),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

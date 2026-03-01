@@ -49,11 +49,13 @@ class _TicketsScreenState extends State<TicketsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Biletlerim')),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<_TicketItem>>(
-          future: _future,
-          builder: (context, snapshot) {
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<List<_TicketItem>>(
+            future: _future,
+            builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -135,7 +137,8 @@ class _TicketsScreenState extends State<TicketsScreen> {
                 );
               },
             );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -151,12 +154,14 @@ class TicketQrScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(ticket.eventName)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               Text(
                 ticket.isUsed ? 'Bu bilet kullanıldı' : 'Etkinlik Giriş Bileti',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
@@ -185,7 +190,8 @@ class TicketQrScreen extends StatelessWidget {
                   'Kullanım: ${ticket.usedAt}',
                   style: const TextStyle(color: Color(0xFFF59E0B)),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -224,4 +230,3 @@ class _TicketItem {
     );
   }
 }
-

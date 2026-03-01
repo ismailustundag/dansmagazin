@@ -48,9 +48,11 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
         backgroundColor: const Color(0xFF0B1020),
         title: const Text('Mesajlarım'),
       ),
-      body: FutureBuilder<List<_InboxItem>>(
-        future: _future,
-        builder: (context, snapshot) {
+      body: SafeArea(
+        top: false,
+        child: FutureBuilder<List<_InboxItem>>(
+          future: _future,
+          builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -116,7 +118,8 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
               );
             },
           );
-        },
+          },
+        ),
       ),
     );
   }

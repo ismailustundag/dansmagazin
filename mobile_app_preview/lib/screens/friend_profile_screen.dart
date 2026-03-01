@@ -45,9 +45,11 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(backgroundColor: const Color(0xFF0B1020), title: const Text('Arkadaş Profili')),
-      body: FutureBuilder<_FriendProfile>(
-        future: _future,
-        builder: (context, snapshot) {
+      body: SafeArea(
+        top: false,
+        child: FutureBuilder<_FriendProfile>(
+          future: _future,
+          builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -114,7 +116,8 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
               ),
             ],
           );
-        },
+          },
+        ),
       ),
     );
   }

@@ -41,13 +41,15 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: const Color(0xFF0F172A),
         title: const Text('Giriş Yap'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               const Text(
                 'Mesajlar ve Profil için giriş gerekli.',
                 style: TextStyle(fontSize: 15),
@@ -86,11 +88,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: _submit,
                 child: const Text('Giriş Yap'),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
-

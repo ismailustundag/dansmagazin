@@ -264,9 +264,11 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
         backgroundColor: const Color(0xFF0F172A),
         title: Text(widget.album.name),
       ),
-      body: FutureBuilder<List<_Photo>>(
-        future: _photosFuture,
-        builder: (context, snapshot) {
+      body: SafeArea(
+        top: false,
+        child: FutureBuilder<List<_Photo>>(
+          future: _photosFuture,
+          builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -340,7 +342,8 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
               );
             },
           );
-        },
+          },
+        ),
       ),
     );
   }
@@ -419,54 +422,57 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
         backgroundColor: Colors.black,
         title: Text('${_index + 1}/${widget.photos.length}'),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: widget.photos.length,
-              onPageChanged: (v) => setState(() => _index = v),
-              itemBuilder: (context, i) {
-                final p = widget.photos[i];
-                return InteractiveViewer(
-                  child: Center(
-                    child: Image.network(
-                      p.url,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: widget.photos.length,
+                onPageChanged: (v) => setState(() => _index = v),
+                itemBuilder: (context, i) {
+                  final p = widget.photos[i];
+                  return InteractiveViewer(
+                    child: Center(
+                      child: Image.network(
+                        p.url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Container(
+              color: const Color(0xFF0B1020),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _toggleFavorite(photo),
+                      icon: Icon(
+                        fav ? Icons.favorite : Icons.favorite_border,
+                        color: fav ? Colors.redAccent : Colors.white,
+                      ),
+                      label: Text(fav ? 'Beğenildi' : 'Beğen'),
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-          Container(
-            color: const Color(0xFF0B1020),
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _toggleFavorite(photo),
-                    icon: Icon(
-                      fav ? Icons.favorite : Icons.favorite_border,
-                      color: fav ? Colors.redAccent : Colors.white,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => Share.share(photo.url),
+                      icon: const Icon(Icons.share),
+                      label: const Text('Paylaş'),
                     ),
-                    label: Text(fav ? 'Beğenildi' : 'Beğen'),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => Share.share(photo.url),
-                    icon: const Icon(Icons.share),
-                    label: const Text('Paylaş'),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -804,54 +810,57 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
         backgroundColor: Colors.black,
         title: Text('${_index + 1}/${widget.photos.length}'),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: widget.photos.length,
-              onPageChanged: (v) => setState(() => _index = v),
-              itemBuilder: (context, i) {
-                final p = widget.photos[i];
-                return InteractiveViewer(
-                  child: Center(
-                    child: Image.network(
-                      p.url,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: widget.photos.length,
+                onPageChanged: (v) => setState(() => _index = v),
+                itemBuilder: (context, i) {
+                  final p = widget.photos[i];
+                  return InteractiveViewer(
+                    child: Center(
+                      child: Image.network(
+                        p.url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Container(
+              color: const Color(0xFF0B1020),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _toggleFavorite(photo),
+                      icon: Icon(
+                        fav ? Icons.favorite : Icons.favorite_border,
+                        color: fav ? Colors.redAccent : Colors.white,
+                      ),
+                      label: Text(fav ? 'Beğenildi' : 'Beğen'),
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-          Container(
-            color: const Color(0xFF0B1020),
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _toggleFavorite(photo),
-                    icon: Icon(
-                      fav ? Icons.favorite : Icons.favorite_border,
-                      color: fav ? Colors.redAccent : Colors.white,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _download(photo.url),
+                      icon: const Icon(Icons.download),
+                      label: const Text('İndir'),
                     ),
-                    label: Text(fav ? 'Beğenildi' : 'Beğen'),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _download(photo.url),
-                    icon: const Icon(Icons.download),
-                    label: const Text('İndir'),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

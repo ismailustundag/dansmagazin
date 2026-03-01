@@ -73,9 +73,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
         backgroundColor: const Color(0xFF0B1020),
         title: const Text('Arkadaşlarım'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
           FutureBuilder<List<FriendRequestItem>>(
             future: _incomingFuture,
             builder: (context, snapshot) {
@@ -187,7 +189,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
               );
             },
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

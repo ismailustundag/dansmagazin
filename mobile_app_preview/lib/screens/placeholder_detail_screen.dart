@@ -16,12 +16,14 @@ class PlaceholderDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               Icon(icon, size: 56, color: const Color(0xFFE53935)),
               const SizedBox(height: 16),
               Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
@@ -31,7 +33,8 @@ class PlaceholderDetailScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white.withOpacity(0.8)),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

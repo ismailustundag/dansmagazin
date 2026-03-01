@@ -86,9 +86,11 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
         backgroundColor: const Color(0xFF0F172A),
         title: const Text('Haber'),
       ),
-      body: FutureBuilder<_NewsDetail>(
-        future: _future,
-        builder: (context, snapshot) {
+      body: SafeArea(
+        top: false,
+        child: FutureBuilder<_NewsDetail>(
+          future: _future,
+          builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -171,7 +173,8 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
               ),
             ],
           );
-        },
+          },
+        ),
       ),
     );
   }
