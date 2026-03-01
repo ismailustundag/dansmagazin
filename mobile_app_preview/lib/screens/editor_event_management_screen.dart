@@ -269,6 +269,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   );
 
   bool _loading = false;
+  bool _scannerOpen = false;
   String _result = '';
   Color _resultColor = Colors.white;
   List<Map<String, dynamic>> _used = const [];
@@ -361,7 +362,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_loading) return;
+    if (_loading || !_scannerOpen) return;
     String token = '';
     for (final code in capture.barcodes) {
       final raw = (code.rawValue ?? '').trim();
@@ -371,7 +372,19 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
       }
     }
     if (token.isEmpty) return;
+    setState(() => _scannerOpen = false);
+    await _scannerController.stop();
     await _scanToken(token);
+  }
+
+  Future<void> _openScanner() async {
+    setState(() => _scannerOpen = true);
+    await _scannerController.start();
+  }
+
+  Future<void> _closeScanner() async {
+    setState(() => _scannerOpen = false);
+    await _scannerController.stop();
   }
 
   @override
@@ -389,17 +402,44 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
               border: Border.all(color: Colors.white24),
             ),
             clipBehavior: Clip.antiAlias,
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: MobileScanner(
-                controller: _scannerController,
-                onDetect: _onDetect,
-              ),
-            ),
+            child: _scannerOpen
+                ? AspectRatio(
+                    aspectRatio: 1,
+                    child: MobileScanner(
+                      controller: _scannerController,
+                      onDetect: _onDetect,
+                    ),
+                  )
+                : AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      color: const Color(0xFF0F172A),
+                      alignment: Alignment.center,
+                      child: SizedBox(
+                        width: 180,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: _loading ? null : _openScanner,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: const Text('QR Tara'),
+                        ),
+                      ),
+                    ),
+                  ),
           ),
+          if (_scannerOpen) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _loading ? null : _closeScanner,
+              icon: const Icon(Icons.close),
+              label: const Text('Taramayı Kapat'),
+            ),
+          ],
           const SizedBox(height: 10),
-          const Text(
-            'QR kodu kameraya gösterin. Tarama otomatik yapılır.',
+          Text(
+            _scannerOpen
+                ? 'QR kodu kameraya gösterin. Okutunca tarayıcı kapanır.'
+                : 'Bilet doğrulamak için QR Tara butonuna basın.',
             style: TextStyle(color: Colors.white70),
           ),
           const SizedBox(height: 10),
