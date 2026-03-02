@@ -4,8 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_api.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
-import 'screens/events_screen.dart';
-import 'screens/store_screen.dart';
+import 'screens/events_store_hub_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/social_screen.dart';
@@ -66,7 +65,7 @@ class _RootScreenState extends State<RootScreen> {
   static const _kAppRole = 'auth.app_role';
   static const _kCanCreateMobileEvent = 'auth.can_create_mobile_event';
 
-  int _index = 1;
+  int _index = 0;
   bool _bootDone = false;
   bool _isLoggedIn = false;
   bool _guestMode = false;
@@ -172,7 +171,7 @@ class _RootScreenState extends State<RootScreen> {
         _wpRoles = const [];
         _appRole = 'customer';
         _canCreateMobileEvent = false;
-        _index = 1;
+        _index = 0;
       });
       return;
     }
@@ -217,13 +216,13 @@ class _RootScreenState extends State<RootScreen> {
       _wpRoles = const [];
       _appRole = 'customer';
       _canCreateMobileEvent = false;
-      _index = 1;
+      _index = 0;
       _guestMode = false;
     });
   }
 
   void _onNavTap(int i) {
-    if ((i == 0 || i == 4 || i == 5) && !_isLoggedIn) {
+    if ((i == 3 || i == 4) && !_isLoggedIn) {
       _openAuth(allowGuest: false, targetIndex: i);
       return;
     }
@@ -247,14 +246,13 @@ class _RootScreenState extends State<RootScreen> {
     }
 
     final pages = [
-      SocialScreen(sessionToken: _sessionToken),
       DiscoverScreen(sessionToken: _sessionToken),
-      EventsScreen(
+      PhotosScreen(accountId: _accountId),
+      EventsStoreHubScreen(
         sessionToken: _sessionToken,
         canCreateEvent: _canCreateMobileEvent,
       ),
-      PhotosScreen(accountId: _accountId),
-      const StoreScreen(),
+      SocialScreen(sessionToken: _sessionToken),
       ProfileScreen(
         isLoggedIn: _isLoggedIn,
         userName: _userName,
@@ -264,7 +262,7 @@ class _RootScreenState extends State<RootScreen> {
         wpUserId: _wpUserId,
         wpRoles: _wpRoles,
         canCreateMobileEvent: _canCreateMobileEvent,
-        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 5),
+        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 4),
         onLogoutTap: () {
           _logout();
         },
@@ -284,19 +282,9 @@ class _RootScreenState extends State<RootScreen> {
           onTap: _onNavTap,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.groups_outlined),
-              activeIcon: Icon(Icons.groups),
-              label: 'Sosyal',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.article_outlined),
               activeIcon: Icon(Icons.article),
               label: 'Haberler',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.event_outlined),
-              activeIcon: Icon(Icons.event),
-              label: 'Etkinlikler',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.photo_library_outlined),
@@ -304,9 +292,14 @@ class _RootScreenState extends State<RootScreen> {
               label: 'Fotoğraflar',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.storefront_outlined),
-              activeIcon: Icon(Icons.storefront),
-              label: 'Mağaza',
+              icon: Icon(Icons.circle),
+              activeIcon: Icon(Icons.circle),
+              label: 'DM',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.groups_outlined),
+              activeIcon: Icon(Icons.groups),
+              label: 'Sosyal',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -314,6 +307,36 @@ class _RootScreenState extends State<RootScreen> {
               label: 'Profil',
             ),
           ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: GestureDetector(
+        onTap: () => _onNavTap(2),
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFFE53935),
+            border: Border.all(color: Colors.white24),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 12,
+                offset: Offset(0, 5),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Text(
+              'DM',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 22,
+              ),
+            ),
+          ),
         ),
       ),
     );

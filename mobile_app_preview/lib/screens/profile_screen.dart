@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'my_photos_screen.dart';
-import 'placeholder_detail_screen.dart';
 import 'screen_shell.dart';
 import 'tickets_screen.dart';
 import 'editor_event_management_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final bool isLoggedIn;
@@ -91,15 +91,11 @@ class ProfileScreen extends StatelessWidget {
           ),
         PreviewCard(
           title: 'Ayarlar',
-          subtitle: 'Bildirim, gizlilik, dil',
+          subtitle: 'Bildirim, dil ve profil fotoğrafı',
           icon: Icons.settings,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => const PlaceholderDetailScreen(
-                title: 'Ayarlar',
-                description: 'Hesap ve uygulama ayarları bu ekranda yönetilecek.',
-                icon: Icons.settings,
-              ),
+              builder: (_) => const SettingsScreen(),
             ),
           ),
         ),
