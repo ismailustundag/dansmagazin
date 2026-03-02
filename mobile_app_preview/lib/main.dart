@@ -8,6 +8,7 @@ import 'screens/events_screen.dart';
 import 'screens/store_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/social_screen.dart';
 
 void main() {
   runApp(const DansMagazinApp());
@@ -65,7 +66,7 @@ class _RootScreenState extends State<RootScreen> {
   static const _kAppRole = 'auth.app_role';
   static const _kCanCreateMobileEvent = 'auth.can_create_mobile_event';
 
-  int _index = 0;
+  int _index = 1;
   bool _bootDone = false;
   bool _isLoggedIn = false;
   bool _guestMode = false;
@@ -171,6 +172,7 @@ class _RootScreenState extends State<RootScreen> {
         _wpRoles = const [];
         _appRole = 'customer';
         _canCreateMobileEvent = false;
+        _index = 1;
       });
       return;
     }
@@ -215,13 +217,13 @@ class _RootScreenState extends State<RootScreen> {
       _wpRoles = const [];
       _appRole = 'customer';
       _canCreateMobileEvent = false;
-      _index = 0;
+      _index = 1;
       _guestMode = false;
     });
   }
 
   void _onNavTap(int i) {
-    if ((i == 3 || i == 4) && !_isLoggedIn) {
+    if ((i == 0 || i == 4 || i == 5) && !_isLoggedIn) {
       _openAuth(allowGuest: false, targetIndex: i);
       return;
     }
@@ -245,6 +247,7 @@ class _RootScreenState extends State<RootScreen> {
     }
 
     final pages = [
+      SocialScreen(sessionToken: _sessionToken),
       DiscoverScreen(sessionToken: _sessionToken),
       EventsScreen(
         sessionToken: _sessionToken,
@@ -261,7 +264,7 @@ class _RootScreenState extends State<RootScreen> {
         wpUserId: _wpUserId,
         wpRoles: _wpRoles,
         canCreateMobileEvent: _canCreateMobileEvent,
-        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 4),
+        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 5),
         onLogoutTap: () {
           _logout();
         },
@@ -280,6 +283,11 @@ class _RootScreenState extends State<RootScreen> {
           backgroundColor: const Color(0xFF0F172A),
           onTap: _onNavTap,
           items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.groups_outlined),
+              activeIcon: Icon(Icons.groups),
+              label: 'Sosyal',
+            ),
             BottomNavigationBarItem(
               icon: Icon(Icons.article_outlined),
               activeIcon: Icon(Icons.article),

@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../services/event_social_api.dart';
-import 'friends_screen.dart';
-import 'messages_inbox_screen.dart';
 import 'my_photos_screen.dart';
 import 'placeholder_detail_screen.dart';
 import 'screen_shell.dart';
@@ -80,42 +77,6 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ),
-        ),
-        PreviewCard(
-          title: 'Mesajlarım',
-          subtitle: 'Arkadaşlarınla yaptığın konuşmalar',
-          icon: Icons.mark_chat_unread,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => MessagesInboxScreen(
-                sessionToken: sessionToken,
-              ),
-            ),
-          ),
-        ),
-        FutureBuilder<List<FriendRequestItem>>(
-          future: EventSocialApi.friendRequests(
-            sessionToken: sessionToken,
-            direction: 'incoming',
-          ),
-          builder: (context, snapshot) {
-            final count = snapshot.data?.length ?? 0;
-            final subtitle = count > 0
-                ? 'Bekleyen istek: $count'
-                : 'Eklediğin arkadaşlar ve sosyal ağın';
-            return PreviewCard(
-              title: count > 0 ? 'Arkadaşlarım ($count)' : 'Arkadaşlarım',
-              subtitle: subtitle,
-              icon: Icons.groups,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => FriendsScreen(
-                    sessionToken: sessionToken,
-                  ),
-                ),
-              ),
-            );
-          },
         ),
         if (canCreateMobileEvent || wpRoles.contains('administrator') || wpRoles.contains('editor'))
           PreviewCard(
