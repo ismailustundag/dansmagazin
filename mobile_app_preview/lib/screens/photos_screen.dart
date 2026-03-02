@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/i18n.dart';
 import 'screen_shell.dart';
 
 class PhotosScreen extends StatefulWidget {
@@ -112,16 +113,18 @@ class _PhotosScreenState extends State<PhotosScreen> {
   @override
   Widget build(BuildContext context) {
     return ScreenShell(
-      title: 'Fotoğraflar',
+      title: I18n.t('photos'),
       icon: Icons.photo_library,
-      subtitle: 'Fotoğraflarınızı görüntüleyebilir, paylaşabilir, indirebilir ve sonrası için favorileyebilirsiniz.',
+      subtitle: I18n.isEnglish
+          ? 'You can view, share, download and favorite your photos.'
+          : 'Fotoğraflarınızı görüntüleyebilir, paylaşabilir, indirebilir ve sonrası için favorileyebilirsiniz.',
       content: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            _tabChip(0, 'Tüm Albümler'),
-            _tabChip(1, 'Favoriler'),
+            _tabChip(0, I18n.isEnglish ? 'All Albums' : 'Tüm Albümler'),
+            _tabChip(1, I18n.isEnglish ? 'Favorites' : 'Favoriler'),
           ],
         ),
         const SizedBox(height: 12),
@@ -136,7 +139,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             }
             if (snapshot.hasError) {
               return _ErrorCard(
-                text: 'Fotoğraf albümleri yüklenemedi.',
+                text: I18n.isEnglish ? 'Photo albums could not be loaded.' : 'Fotoğraf albümleri yüklenemedi.',
                 onRetry: _refresh,
               );
             }
@@ -155,7 +158,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
             final list = albums;
             if (list.isEmpty) {
-              return const _InfoCard(text: 'Albüm bulunamadı.');
+              return _InfoCard(text: I18n.isEnglish ? 'No albums found.' : 'Albüm bulunamadı.');
             }
 
             return Column(

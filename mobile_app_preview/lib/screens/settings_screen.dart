@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_settings.dart';
+import '../services/i18n.dart';
 import '../services/profile_api.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -107,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _saveRemote(username: u);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Kullanıcı adı güncellendi')),
+      SnackBar(content: Text(I18n.t('username_updated'))),
     );
   }
 
@@ -129,12 +130,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } on TimeoutException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Galeri yanıt vermedi, tekrar deneyin.')),
+        SnackBar(content: Text(I18n.t('gallery_timeout'))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fotoğraf seçilemedi: $e')),
+        SnackBar(content: Text('${I18n.t('photo_pick_failed')}: $e')),
       );
     }
   }
@@ -162,11 +163,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = I18n.t;
     return Scaffold(
       backgroundColor: const Color(0xFF080B14),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F172A),
-        title: const Text('Ayarlar'),
+        title: Text(t('settings')),
       ),
       body: SafeArea(
         top: false,
@@ -190,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Profil Fotoğrafı', style: TextStyle(fontWeight: FontWeight.w700)),
+                              Text(t('profile_photo'), style: const TextStyle(fontWeight: FontWeight.w700)),
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 8,
@@ -199,13 +201,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ElevatedButton.icon(
                                     onPressed: _pickAvatar,
                                     icon: const Icon(Icons.photo_camera, size: 18),
-                                    label: const Text('Seç'),
+                                    label: Text(t('select')),
                                   ),
                                   if (_avatarPath.isNotEmpty)
                                     OutlinedButton.icon(
                                       onPressed: _clearAvatar,
                                       icon: const Icon(Icons.delete_outline, size: 18),
-                                      label: const Text('Kaldır'),
+                                      label: Text(t('remove')),
                                     ),
                                 ],
                               ),
@@ -226,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Kullanıcı Adı', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('username'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                         if (_email.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(_email, style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12)),
@@ -245,7 +247,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           alignment: Alignment.centerRight,
                           child: ElevatedButton(
                             onPressed: _saving ? null : _saveUsername,
-                            child: const Text('Kaydet'),
+                            child: Text(t('save')),
                           ),
                         ),
                       ],
@@ -261,13 +263,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Bildirimler', style: TextStyle(fontWeight: FontWeight.w700)),
-                              SizedBox(height: 2),
-                              Text('Uygulama bildirimleri', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                              Text(t('notifications'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 2),
+                              Text(t('app_notifications'), style: const TextStyle(fontSize: 12, color: Colors.white70)),
                             ],
                           ),
                         ),
@@ -292,7 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Dil', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('language'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: _language,

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+import '../services/i18n.dart';
 import 'event_detail_screen.dart';
 
 class EventsScreen extends StatefulWidget {
@@ -58,9 +59,9 @@ class _EventsScreenState extends State<EventsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Etkinlikler',
+                      I18n.isEnglish ? 'Events' : 'Etkinlikler',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
@@ -81,12 +82,12 @@ class _EventsScreenState extends State<EventsScreen> {
                     return Center(
                       child: TextButton(
                         onPressed: () => setState(() => _future = _fetchEvents()),
-                        child: const Text('Etkinlikler yüklenemedi, tekrar dene'),
+                        child: Text(I18n.isEnglish ? 'Failed to load events, try again' : 'Etkinlikler yüklenemedi, tekrar dene'),
                       ),
                     );
                   }
                   final items = snapshot.data ?? [];
-                  if (items.isEmpty) return const Center(child: Text('Henüz onaylanmış etkinlik yok.'));
+                  if (items.isEmpty) return Center(child: Text(I18n.isEnglish ? 'No approved events yet.' : 'Henüz onaylanmış etkinlik yok.'));
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: items.length,

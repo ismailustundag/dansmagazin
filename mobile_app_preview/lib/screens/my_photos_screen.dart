@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/i18n.dart';
+
 class MyPhotosScreen extends StatefulWidget {
   final int accountId;
 
@@ -36,18 +38,19 @@ class _MyPhotosScreenState extends State<MyPhotosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = I18n.t;
     return Scaffold(
       backgroundColor: const Color(0xFF080B14),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F172A),
-        title: const Text('Fotoğraflarım'),
+        title: Text(t('my_photos')),
       ),
       body: SafeArea(
         top: false,
         child: _photos.isEmpty
             ? Center(
                 child: Text(
-                  'Henüz favori fotoğraf yok.',
+                  t('no_favorite_photo'),
                   style: TextStyle(color: Colors.white.withOpacity(0.8)),
                 ),
               )
@@ -100,7 +103,7 @@ class _MyPhotosScreenState extends State<MyPhotosScreen> {
                               color: Colors.black54,
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: const Icon(Icons.favorite, color: Colors.redAccent, size: 18),
+                            child: const Icon(Icons.star, color: Colors.amber, size: 18),
                           ),
                         ),
                       ),
@@ -161,7 +164,7 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
   Future<void> _download(String url) async {
     final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('İndirme açılamadı')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(I18n.t('cannot_open_download'))));
     }
   }
 
@@ -173,6 +176,7 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = I18n.t;
     final photo = widget.photos[_index];
     final fav = _isFavorite(photo.url);
     return Scaffold(
@@ -213,10 +217,10 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () => _toggleFavorite(photo),
                       icon: Icon(
-                        fav ? Icons.favorite : Icons.favorite_border,
-                        color: fav ? Colors.redAccent : Colors.white,
+                        fav ? Icons.star : Icons.star_border,
+                        color: fav ? Colors.amber : Colors.white,
                       ),
-                      label: Text(fav ? 'Beğenildi' : 'Beğen'),
+                      label: Text(fav ? t('saved') : t('favorite')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -224,7 +228,7 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () => Share.share(photo.url),
                       icon: const Icon(Icons.share),
-                      label: const Text('Paylaş'),
+                      label: Text(t('share')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -232,7 +236,7 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () => _download(photo.url),
                       icon: const Icon(Icons.download),
-                      label: const Text('İndir'),
+                      label: Text(t('download')),
                     ),
                   ),
                 ],

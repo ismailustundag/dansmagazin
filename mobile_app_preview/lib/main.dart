@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/auth_api.dart';
 import 'services/app_settings.dart';
+import 'services/i18n.dart';
 import 'services/notifications_api.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
@@ -82,7 +83,6 @@ class _RootScreenState extends State<RootScreen> {
   List<String> _wpRoles = const [];
   String _appRole = 'customer';
   bool _canCreateMobileEvent = false;
-  String _language = AppSettings.language.value;
   int _notificationCount = 0;
   Timer? _notifTimer;
 
@@ -95,7 +95,7 @@ class _RootScreenState extends State<RootScreen> {
 
   void _onLanguageChanged() {
     if (!mounted) return;
-    setState(() => _language = AppSettings.language.value);
+    setState(() {});
   }
 
   @override
@@ -384,19 +384,7 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   String _tr(String key) {
-    final en = _language == 'en';
-    switch (key) {
-      case 'news':
-        return en ? 'News' : 'Haberler';
-      case 'photos':
-        return en ? 'Photos' : 'Fotoğraflar';
-      case 'social':
-        return en ? 'Social' : 'Sosyal';
-      case 'profile':
-        return en ? 'Profile' : 'Profil';
-      default:
-        return key;
-    }
+    return I18n.t(key);
   }
 
   Widget _socialNavIcon({required bool active}) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/i18n.dart';
 import 'my_photos_screen.dart';
 import 'screen_shell.dart';
 import 'tickets_screen.dart';
@@ -35,15 +36,16 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = I18n.t;
     if (!isLoggedIn) {
       return ScreenShell(
-        title: 'Profil',
+        title: t('profile'),
         icon: Icons.person,
-        subtitle: 'Kişisel alanınıza erişmek için giriş yapın.',
+        subtitle: t('profile_subtitle_guest'),
         content: [
           PreviewCard(
-            title: 'Giriş Yap',
-            subtitle: 'Biletler, mesajlar ve satın alınan fotoğraflar',
+            title: t('login'),
+            subtitle: t('login_subtitle'),
             icon: Icons.login,
             onTap: onLoginTap,
           ),
@@ -51,13 +53,13 @@ class ProfileScreen extends StatelessWidget {
       );
     }
     return ScreenShell(
-      title: 'Profil',
+      title: t('profile'),
       icon: Icons.person,
       subtitle: '$userName • $userEmail${wpRoles.isNotEmpty ? ' • ${wpRoles.join(",")}' : ''}',
       content: [
         PreviewCard(
-          title: 'Biletlerim',
-          subtitle: 'Katıldığınız etkinlik biletleri',
+          title: t('my_tickets'),
+          subtitle: t('my_tickets_subtitle'),
           icon: Icons.confirmation_num,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
@@ -68,8 +70,8 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
         PreviewCard(
-          title: 'Fotoğraflarım',
-          subtitle: 'Favorilediğiniz ve kaydettiğiniz fotoğraflar',
+          title: t('my_photos'),
+          subtitle: t('my_photos_subtitle'),
           icon: Icons.photo_library,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
@@ -81,8 +83,8 @@ class ProfileScreen extends StatelessWidget {
         ),
         if (canCreateMobileEvent || wpRoles.contains('administrator') || wpRoles.contains('editor'))
           PreviewCard(
-            title: 'Etkinlik Yönetimi',
-            subtitle: 'Etkinlik oluştur, yönet ve bilet kontrol et',
+            title: t('event_management'),
+            subtitle: t('event_management_subtitle'),
             icon: Icons.event_note,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -91,8 +93,8 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
         PreviewCard(
-          title: 'Bildirimler',
-          subtitle: 'Arkadaşlık istekleri ve okunmamış mesajlar',
+          title: t('notifications'),
+          subtitle: t('notifications_subtitle'),
           icon: Icons.notifications,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
@@ -101,8 +103,8 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
         PreviewCard(
-          title: 'Ayarlar',
-          subtitle: 'Bildirim, dil ve profil fotoğrafı',
+          title: t('settings'),
+          subtitle: t('settings_subtitle'),
           icon: Icons.settings,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -111,8 +113,8 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
         PreviewCard(
-          title: 'Çıkış Yap',
-          subtitle: 'Bu cihazdaki oturumu kapat',
+          title: t('logout'),
+          subtitle: t('logout_subtitle'),
           icon: Icons.logout,
           onTap: onLogoutTap,
         ),

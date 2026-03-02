@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../services/event_social_api.dart';
+import '../services/i18n.dart';
 import 'chat_thread_screen.dart';
 import 'friend_profile_screen.dart';
 import 'screen_shell.dart';
@@ -133,10 +134,11 @@ class _SocialScreenState extends State<SocialScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = I18n.t;
     return ScreenShell(
-      title: 'Sosyal',
+      title: t('social'),
       icon: Icons.groups,
-      subtitle: 'Arkadaşlarınla bağlantıda kal ve mesajlaş.',
+      subtitle: t('social_subtitle'),
       onRefresh: _refresh,
       content: [
         FutureBuilder<List<FriendRequestItem>>(
@@ -155,7 +157,7 @@ class _SocialScreenState extends State<SocialScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    reqs.isEmpty ? 'Gelen İstekler' : 'Gelen İstekler (${reqs.length})',
+                    reqs.isEmpty ? t('incoming_requests') : '${t('incoming_requests')} (${reqs.length})',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
@@ -166,7 +168,7 @@ class _SocialScreenState extends State<SocialScreen> {
                     )
                   else if (reqs.isEmpty)
                     Text(
-                      'Bekleyen arkadaşlık isteği yok.',
+                      t('no_pending_friend_request'),
                       style: TextStyle(color: Colors.white.withOpacity(0.75)),
                     )
                   else
@@ -177,17 +179,17 @@ class _SocialScreenState extends State<SocialScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                r.peerName.isNotEmpty ? r.peerName : 'Kullanıcı',
+                                r.peerName.isNotEmpty ? r.peerName : t('user'),
                                 style: const TextStyle(fontWeight: FontWeight.w600),
                               ),
                             ),
                             TextButton(
                               onPressed: () => _reject(r.requestId),
-                              child: const Text('Reddet'),
+                              child: Text(t('reject')),
                             ),
                             ElevatedButton(
                               onPressed: () => _accept(r.requestId),
-                              child: const Text('Kabul Et'),
+                              child: Text(t('accept')),
                             ),
                           ],
                         ),
@@ -211,7 +213,7 @@ class _SocialScreenState extends State<SocialScreen> {
               children: [
                 const Icon(Icons.mark_chat_unread, color: Colors.redAccent, size: 18),
                 const SizedBox(width: 8),
-                Text('Okunmamış mesaj: $_unreadTotal', style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text('${t('unread_message')}: $_unreadTotal', style: const TextStyle(fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -229,106 +231,125 @@ class _SocialScreenState extends State<SocialScreen> {
             }
             final items = snapshot.data ?? const <_FriendItem>[];
             if (items.isEmpty) {
-              return const _SocialInfoCard(text: 'Henüz arkadaş eklenmemiş.');
+              return _SocialInfoCard(text: t('no_friends_yet'));
             }
             return Column(
               children: items
                   .map(
-                    (f) => Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: f.unreadCount > 0 ? const Color(0xFF1D1520) : const Color(0xFF121826),
+                    (f) => Material(
+                      color: Colors.transparent,
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: f.unreadCount > 0 ? Colors.redAccent : Colors.white12),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _FriendAvatar(item: f),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        f.name.isNotEmpty ? f.name : 'Kullanıcı',
-                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                      ),
-                                    ),
-                                    if (f.unreadCount > 0)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.redAccent,
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          f.unreadCount > 99 ? '99+' : '${f.unreadCount}',
-                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                if (f.email.isNotEmpty)
-                                  Text(
-                                    f.email,
-                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                  ),
-                                if (f.lastMessageAt.isNotEmpty)
-                                  Text(
-                                    'Son mesaj: ${f.lastMessageAt}',
-                                    style: TextStyle(
-                                      color: f.unreadCount > 0 ? Colors.redAccent : Colors.white70,
-                                      fontSize: 12,
-                                      fontWeight: f.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
-                                    ),
-                                  ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => FriendProfileScreen(
-                                              sessionToken: widget.sessionToken,
-                                              friendAccountId: f.accountId,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.person, size: 16),
-                                      label: const Text('Profil'),
-                                    ),
-                                    ElevatedButton.icon(
-                                      onPressed: () async {
-                                        await Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => ChatThreadScreen(
-                                              sessionToken: widget.sessionToken,
-                                              peerAccountId: f.accountId,
-                                              peerName: f.name.isNotEmpty ? f.name : 'Kullanıcı',
-                                            ),
-                                          ),
-                                        );
-                                        if (!mounted) return;
-                                        await _refresh();
-                                      },
-                                      icon: const Icon(Icons.chat_bubble, size: 16),
-                                      label: const Text('Mesaj Gönder'),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatThreadScreen(
+                                sessionToken: widget.sessionToken,
+                                peerAccountId: f.accountId,
+                                peerName: f.name.isNotEmpty ? f.name : t('user'),
+                              ),
                             ),
+                          );
+                          if (!mounted) return;
+                          await _refresh();
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: f.unreadCount > 0 ? const Color(0xFF1D1520) : const Color(0xFF121826),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: f.unreadCount > 0 ? Colors.redAccent : Colors.white12),
                           ),
-                        ],
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _FriendAvatar(item: f),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            f.name.isNotEmpty ? f.name : t('user'),
+                                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                        if (f.unreadCount > 0)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.redAccent,
+                                              borderRadius: BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              f.unreadCount > 99 ? '99+' : '${f.unreadCount}',
+                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    if (f.email.isNotEmpty)
+                                      Text(
+                                        f.email,
+                                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                      ),
+                                    if (f.lastMessageAt.isNotEmpty)
+                                      Text(
+                                        '${t('last_message')}: ${f.lastMessageAt}',
+                                        style: TextStyle(
+                                          color: f.unreadCount > 0 ? Colors.redAccent : Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: f.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+                                        ),
+                                      ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) => FriendProfileScreen(
+                                                  sessionToken: widget.sessionToken,
+                                                  friendAccountId: f.accountId,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(Icons.person, size: 16),
+                                          label: Text(t('profile')),
+                                        ),
+                                        ElevatedButton.icon(
+                                          onPressed: () async {
+                                            await Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) => ChatThreadScreen(
+                                                  sessionToken: widget.sessionToken,
+                                                  peerAccountId: f.accountId,
+                                                  peerName: f.name.isNotEmpty ? f.name : t('user'),
+                                                ),
+                                              ),
+                                            );
+                                            if (!mounted) return;
+                                            await _refresh();
+                                          },
+                                          icon: const Icon(Icons.chat_bubble, size: 16),
+                                          label: Text(t('send_message')),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   )
@@ -405,13 +426,13 @@ class _SocialErrorCard extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'Sosyal liste yüklenemedi.',
+              I18n.t('social_list_error'),
               style: TextStyle(color: Colors.white.withOpacity(0.85)),
             ),
           ),
           TextButton(
             onPressed: () => onRetry(),
-            child: const Text('Tekrar Dene'),
+            child: Text(I18n.t('retry')),
           ),
         ],
       ),

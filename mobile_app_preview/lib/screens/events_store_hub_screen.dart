@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/i18n.dart';
 import 'events_screen.dart';
 import 'store_screen.dart';
 
@@ -22,10 +23,10 @@ class EventsStoreHubScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: const Color(0xFF0F172A),
           title: const Text('Dansmagazin'),
-          bottom: const TabBar(
+          bottom: TabBar(
             tabs: [
-              Tab(icon: Icon(Icons.event), text: 'Etkinlikler'),
-              Tab(icon: Icon(Icons.storefront), text: 'Mağaza'),
+              Tab(icon: const Icon(Icons.event), text: I18n.isEnglish ? 'Events' : 'Etkinlikler'),
+              Tab(icon: const Icon(Icons.storefront), text: I18n.isEnglish ? 'Store' : 'Mağaza'),
             ],
           ),
         ),

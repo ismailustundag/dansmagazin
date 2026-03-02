@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/i18n.dart';
 import 'news_detail_screen.dart';
 import 'screen_shell.dart';
 
@@ -45,12 +46,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   Widget build(BuildContext context) {
     return ScreenShell(
-      title: 'Haberler',
+      title: I18n.t('news'),
       icon: Icons.article,
       subtitle: '',
       onRefresh: _refreshDiscover,
       content: [
-        _SectionTitle(title: 'Tüm Haberler'),
+        _SectionTitle(title: I18n.isEnglish ? 'All News' : 'Tüm Haberler'),
         FutureBuilder<_DiscoverData>(
           future: _future,
           builder: (context, snapshot) {
@@ -62,7 +63,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             }
             if (snapshot.hasError) {
               return _ErrorCard(
-                text: 'Haberler alınamadı. Lütfen tekrar deneyin.',
+                text: I18n.isEnglish ? 'News could not be loaded. Please try again.' : 'Haberler alınamadı. Lütfen tekrar deneyin.',
                 onRetry: () => setState(() => _future = _fetchDiscover()),
               );
             }
@@ -135,7 +136,7 @@ class _NewsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const _InfoCard(text: 'Henüz haber bulunamadı.');
+      return _InfoCard(text: I18n.isEnglish ? 'No news found yet.' : 'Henüz haber bulunamadı.');
     }
     return Column(
       children: items
