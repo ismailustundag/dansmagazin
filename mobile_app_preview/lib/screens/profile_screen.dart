@@ -5,6 +5,7 @@ import 'screen_shell.dart';
 import 'tickets_screen.dart';
 import 'editor_event_management_screen.dart';
 import 'settings_screen.dart';
+import 'notifications_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final bool isLoggedIn;
@@ -89,6 +90,16 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ),
+        PreviewCard(
+          title: 'Bildirimler',
+          subtitle: 'Arkadaşlık istekleri ve okunmamış mesajlar',
+          icon: Icons.notifications,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => NotificationsScreen(sessionToken: sessionToken),
+            ),
+          ),
+        ),
         PreviewCard(
           title: 'Ayarlar',
           subtitle: 'Bildirim, dil ve profil fotoğrafı',

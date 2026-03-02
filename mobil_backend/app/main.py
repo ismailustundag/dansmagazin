@@ -2,14 +2,14 @@ from fastapi import FastAPI
 
 from app.schemas import MobileMenuResponse
 from app.routers.discover import init_news_reaction_table, router as discover_router
-from app.routers.auth import router as auth_router
+from app.routers.auth import ensure_default_friendships_for_all_users, router as auth_router
 from app.routers.events import (
     admin_router as admin_events_router,
     init_event_submission_tables,
     router as events_router,
 )
 from app.routers.photos import init_photo_reaction_tables, router as photos_router
-from app.routers.messages import router as messages_router
+from app.routers.messages import init_message_read_state_table, router as messages_router
 from app.routers.profile import init_profile_settings_table, router as profile_router
 
 app = FastAPI(title="Mobil Backend")
@@ -21,6 +21,8 @@ def on_startup():
     init_news_reaction_table()
     init_photo_reaction_tables()
     init_profile_settings_table()
+    init_message_read_state_table()
+    ensure_default_friendships_for_all_users()
 
 
 @app.get("/health")

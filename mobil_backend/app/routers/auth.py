@@ -1,15 +1,19 @@
 import base64
 import hashlib
 import hmac
+import json
 import os
 import secrets
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -20,6 +24,15 @@ WOO_BASE_URL = os.getenv("WOO_BASE_URL", WP_BASE_URL).rstrip("/")
 WOO_CONSUMER_KEY = os.getenv("WOO_CONSUMER_KEY", "").strip()
 WOO_CONSUMER_SECRET = os.getenv("WOO_CONSUMER_SECRET", "").strip()
 WP_JWT_TOKEN_URL = os.getenv("WP_JWT_TOKEN_URL", f"{WP_BASE_URL}/wp-json/jwt-auth/v1/token").strip()
+WP_MOBILE_SSO_URL = os.getenv("WP_MOBILE_SSO_URL", f"{WP_BASE_URL}/?mobile_sso=1").strip()
+WP_MOBILE_SSO_SECRET = os.getenv("WP_MOBILE_SSO_SECRET", "").strip()
+WOO_SSO_RATE_LIMIT_WINDOW_SEC = int(os.getenv("WOO_SSO_RATE_LIMIT_WINDOW_SEC", "60"))
+WOO_SSO_RATE_LIMIT_MAX_PER_WINDOW = int(os.getenv("WOO_SSO_RATE_LIMIT_MAX_PER_WINDOW", "20"))
+DEFAULT_SYSTEM_FRIEND_EMAIL = os.getenv("DEFAULT_SYSTEM_FRIEND_EMAIL", "info@dansmagazin.net").strip().lower()
+DEFAULT_SYSTEM_FRIEND_NAME = os.getenv("DEFAULT_SYSTEM_FRIEND_NAME", "Dansmagazin").strip()
+
+_WOO_SSO_RATE_LOCK = threading.Lock()
+_WOO_SSO_RATE_BUCKETS: dict[str, list[float]] = {}
 
 
 class LoginRequest(BaseModel):
@@ -43,6 +56,8 @@ class SessionResponse(BaseModel):
     name: str
     wp_user_id: Optional[int] = None
     wp_roles: list[str] = []
+    app_role: str = "customer"
+    can_create_mobile_event: bool = False
 
 
 class MeResponse(BaseModel):
@@ -51,6 +66,13 @@ class MeResponse(BaseModel):
     name: str
     wp_user_id: Optional[int] = None
     wp_roles: list[str] = []
+    app_role: str = "customer"
+    can_create_mobile_event: bool = False
+
+
+class CheckoutLinkResponse(BaseModel):
+    url: str
+    expires_at: str
 
 
 def _db_conn():
@@ -140,9 +162,11 @@ async def _woo_create_customer(email: str, password: str, name: str) -> Dict[str
 
 
 def _role_from_wp_roles(wp_roles: list[str]) -> str:
-    roles = {str(x).strip().lower() for x in (wp_roles or [])}
+    roles = {str(r).strip().lower() for r in (wp_roles or []) if str(r).strip()}
     if "administrator" in roles:
         return "super_admin"
+    if "editor" in roles or "shop_manager" in roles:
+        return "editor"
     return "customer"
 
 
@@ -150,21 +174,37 @@ def _upsert_local_account(conn, email: str, name: str, role: str, raw_password: 
     c = conn.cursor()
     c.execute("SELECT id FROM accounts WHERE LOWER(email)=LOWER(%s) LIMIT 1", (email,))
     row = c.fetchone()
+    role_norm = (role or "customer").strip().lower()
+    can_create = 1 if role_norm in {"editor", "super_admin"} else 0
     if row:
         aid = int(row["id"])
         c.execute(
-            "UPDATE accounts SET name=COALESCE(NULLIF(%s,''), name), role=COALESCE(NULLIF(%s,''), role), is_active=1 WHERE id=%s",
-            (name.strip(), role.strip(), aid),
+            """
+            UPDATE accounts
+            SET name=COALESCE(NULLIF(%s,''), name),
+                role=CASE WHEN role='super_admin' THEN role ELSE COALESCE(NULLIF(%s,''), role) END,
+                is_active=1,
+                can_create_mobile_event=CASE WHEN role='super_admin' THEN 1 ELSE %s END
+            WHERE id=%s
+            """,
+            (name.strip(), role_norm, can_create, aid),
         )
         return aid
 
     c.execute(
         """
-        INSERT INTO accounts (email, password_hash, role, is_active, photo_credit, name, created_at)
-        VALUES (%s,%s,%s,1,0,%s,%s)
+        INSERT INTO accounts (email, password_hash, role, is_active, photo_credit, name, created_at, can_create_mobile_event)
+        VALUES (%s,%s,%s,1,0,%s,%s,%s)
         RETURNING id
         """,
-        (email.strip().lower(), _hash_password(raw_password), role, name.strip(), datetime.now(timezone.utc).isoformat(timespec="seconds")),
+        (
+            email.strip().lower(),
+            _hash_password(raw_password),
+            role_norm,
+            name.strip(),
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            can_create,
+        ),
     )
     return int(c.fetchone()["id"])
 
@@ -189,6 +229,93 @@ def _upsert_identity_map(conn, wp_user_id: Optional[int], app_account_id: int, s
     )
 
 
+def _ensure_default_system_friendship(conn, account_id: int):
+    if not DEFAULT_SYSTEM_FRIEND_EMAIL:
+        return
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM accounts WHERE LOWER(email)=LOWER(%s) LIMIT 1", (DEFAULT_SYSTEM_FRIEND_EMAIL,))
+    row = cur.fetchone()
+    if row:
+        support_id = int(row["id"])
+    else:
+        cur.execute(
+            """
+            INSERT INTO accounts (email, password_hash, role, is_active, photo_credit, name, created_at, can_create_mobile_event)
+            VALUES (%s,%s,'customer',1,0,%s,%s,0)
+            RETURNING id
+            """,
+            (
+                DEFAULT_SYSTEM_FRIEND_EMAIL,
+                _hash_password(secrets.token_urlsafe(24)),
+                DEFAULT_SYSTEM_FRIEND_NAME or "Dansmagazin",
+                datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            ),
+        )
+        support_id = int(cur.fetchone()["id"])
+
+    aid = int(account_id)
+    if support_id == aid:
+        return
+    user_a, user_b = (support_id, aid) if support_id < aid else (aid, support_id)
+    cur.execute(
+        """
+        INSERT INTO mobile_friendships (user_a_id, user_b_id, created_at)
+        VALUES (%s, %s, NOW()::text)
+        ON CONFLICT (user_a_id, user_b_id) DO NOTHING
+        """,
+        (user_a, user_b),
+    )
+
+
+def ensure_default_friendships_for_all_users():
+    """
+    Tüm mevcut/aktif kullanıcıları info@dansmagazin.net hesabıyla arkadaş yapar.
+    Startup'ta bir kez çağrılır.
+    """
+    if not DEFAULT_SYSTEM_FRIEND_EMAIL:
+        return
+    conn = _db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM accounts WHERE LOWER(email)=LOWER(%s) LIMIT 1", (DEFAULT_SYSTEM_FRIEND_EMAIL,))
+        row = cur.fetchone()
+        if row:
+            support_id = int(row["id"])
+        else:
+            cur.execute(
+                """
+                INSERT INTO accounts (email, password_hash, role, is_active, photo_credit, name, created_at, can_create_mobile_event)
+                VALUES (%s,%s,'customer',1,0,%s,%s,0)
+                RETURNING id
+                """,
+                (
+                    DEFAULT_SYSTEM_FRIEND_EMAIL,
+                    _hash_password(secrets.token_urlsafe(24)),
+                    DEFAULT_SYSTEM_FRIEND_NAME or "Dansmagazin",
+                    datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                ),
+            )
+            support_id = int(cur.fetchone()["id"])
+        cur.execute(
+            """
+            INSERT INTO mobile_friendships (user_a_id, user_b_id, created_at)
+            SELECT
+                LEAST(a.id, %s) AS user_a_id,
+                GREATEST(a.id, %s) AS user_b_id,
+                NOW()::text
+            FROM accounts a
+            WHERE a.id <> %s AND COALESCE(a.is_active,1)=1
+            ON CONFLICT (user_a_id, user_b_id) DO NOTHING
+            """,
+            (support_id, support_id, support_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
 def _create_session(conn, account_id: int, remember_me: bool) -> tuple[str, str]:
     token = secrets.token_urlsafe(32)
     expires_at = _session_expiry(remember_me)
@@ -207,12 +334,37 @@ def _get_session(conn, token: str) -> Optional[Dict[str, Any]]:
         SELECT s.account_id, s.expires_at, a.email, COALESCE(a.name,'') AS name
         FROM sessions s
         JOIN accounts a ON a.id=s.account_id
-        WHERE s.session_token=%s
+        WHERE s.session_token=%s AND COALESCE(a.is_active,1)=1
         LIMIT 1
         """,
         (token,),
     )
     return c.fetchone()
+
+
+def _get_account_permissions(conn, account_id: int) -> tuple[str, bool]:
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT COALESCE(role,'customer') AS role
+        FROM accounts
+        WHERE id=%s
+        LIMIT 1
+        """,
+        (int(account_id),),
+    )
+    row = c.fetchone() or {}
+    role = str(row.get("role") or "customer").strip().lower() or "customer"
+    # Tek kaynak politikasi: etkinlik olusturma yetkisi yalnızca WP role map'ten gelir.
+    can_create = role in {"editor", "super_admin"}
+    return role, can_create
+
+
+def _is_account_active(conn, account_id: int) -> bool:
+    c = conn.cursor()
+    c.execute("SELECT COALESCE(is_active,1) AS is_active FROM accounts WHERE id=%s LIMIT 1", (int(account_id),))
+    row = c.fetchone()
+    return bool(row and int(row.get("is_active") or 0) == 1)
 
 
 def _find_wp_by_account(conn, account_id: int) -> tuple[Optional[int], list[str]]:
@@ -221,6 +373,88 @@ def _find_wp_by_account(conn, account_id: int) -> tuple[Optional[int], list[str]
     row = c.fetchone()
     wp_user_id = int(row["wp_user_id"]) if row and row.get("wp_user_id") is not None else None
     return wp_user_id, []
+
+
+def _require_bearer_token(authorization: Optional[str]) -> str:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token gerekli")
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Token boş")
+    return token
+
+
+def _normalize_checkout_target(target_url: str) -> str:
+    raw = (target_url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="target_url zorunlu")
+
+    parsed = urlparse(raw)
+    if parsed.scheme and parsed.netloc:
+        target = raw
+    elif raw.startswith("/"):
+        target = f"{WP_BASE_URL}{raw}"
+    else:
+        target = f"{WP_BASE_URL}/{raw.lstrip('/')}"
+    p = urlparse(target)
+    if p.scheme not in {"http", "https"} or not p.netloc:
+        raise HTTPException(status_code=400, detail="Geçersiz target_url")
+
+    wp_host = (urlparse(WP_BASE_URL).hostname or "").lower()
+    t_host = (p.hostname or "").lower()
+    allowed_hosts = set()
+    if wp_host:
+        allowed_hosts.add(wp_host)
+        if wp_host.startswith("www."):
+            allowed_hosts.add(wp_host[4:])
+        else:
+            allowed_hosts.add(f"www.{wp_host}")
+    if allowed_hosts and t_host not in allowed_hosts:
+        raise HTTPException(status_code=400, detail="target_url yalnızca WordPress domaininde olmalı")
+
+    # App WebView icin WordPress tarafina "minimal layout" sinyali.
+    # WP theme/mu-plugin bu parametreyi okuyup header/footer gizleyebilir.
+    q = dict(parse_qsl(p.query, keep_blank_values=True))
+    q["app"] = "1"
+    target = urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+    return target
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("utf-8").rstrip("=")
+
+
+def _sign_mobile_sso_payload(payload: Dict[str, Any]) -> str:
+    if not WP_MOBILE_SSO_SECRET:
+        raise HTTPException(status_code=503, detail="WP_MOBILE_SSO_SECRET eksik")
+    body = _b64url(json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8"))
+    sig = hmac.new(WP_MOBILE_SSO_SECRET.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).digest()
+    return f"{body}.{_b64url(sig)}"
+
+
+def _build_mobile_sso_url(sso_token: str) -> str:
+    base = WP_MOBILE_SSO_URL or f"{WP_BASE_URL}/?mobile_sso=1"
+    p = urlparse(base)
+    q = dict(parse_qsl(p.query, keep_blank_values=True))
+    q["sso"] = sso_token
+    return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+
+
+def _enforce_woo_sso_rate_limit(account_id: int, request: Request):
+    if WOO_SSO_RATE_LIMIT_WINDOW_SEC <= 0 or WOO_SSO_RATE_LIMIT_MAX_PER_WINDOW <= 0:
+        return
+    fwd = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    client_ip = fwd or (request.client.host if request.client else "unknown")
+    key = f"{int(account_id)}|{client_ip}"
+    now = time.time()
+    cutoff = now - WOO_SSO_RATE_LIMIT_WINDOW_SEC
+    with _WOO_SSO_RATE_LOCK:
+        arr = _WOO_SSO_RATE_BUCKETS.get(key, [])
+        arr = [x for x in arr if x >= cutoff]
+        if len(arr) >= WOO_SSO_RATE_LIMIT_MAX_PER_WINDOW:
+            raise HTTPException(status_code=429, detail="Çok sık bilet yönlendirme isteği. Lütfen biraz sonra tekrar deneyin.")
+        arr.append(now)
+        _WOO_SSO_RATE_BUCKETS[key] = arr
 
 
 @router.post("/login", response_model=SessionResponse)
@@ -255,8 +489,13 @@ async def login(payload: LoginRequest):
     conn = _db_conn()
     try:
         account_id = _upsert_local_account(conn, wp_email, wp_name, role, payload.password)
+        if not _is_account_active(conn, account_id):
+            conn.rollback()
+            raise HTTPException(status_code=403, detail="Hesap pasif. Lütfen yöneticiyle iletişime geçin.")
         _upsert_identity_map(conn, wp_user_id, account_id, "wp_jwt_login", 100, "live_login")
+        _ensure_default_system_friendship(conn, account_id)
         session_token, expires_at = _create_session(conn, account_id, payload.remember_me)
+        app_role, can_create_mobile_event = _get_account_permissions(conn, account_id)
         conn.commit()
         return SessionResponse(
             session_token=session_token,
@@ -266,6 +505,8 @@ async def login(payload: LoginRequest):
             name=wp_name,
             wp_user_id=wp_user_id,
             wp_roles=wp_roles,
+            app_role=app_role,
+            can_create_mobile_event=can_create_mobile_event,
         )
     except HTTPException:
         conn.rollback()
@@ -299,11 +540,7 @@ async def register(payload: RegisterRequest):
 
 @router.get("/me", response_model=MeResponse)
 def me(authorization: Optional[str] = Header(default=None)):
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token gerekli")
-    token = authorization.split(" ", 1)[1].strip()
-    if not token:
-        raise HTTPException(status_code=401, detail="Token boş")
+    token = _require_bearer_token(authorization)
 
     conn = _db_conn()
     try:
@@ -312,12 +549,57 @@ def me(authorization: Optional[str] = Header(default=None)):
             raise HTTPException(status_code=401, detail="Geçersiz oturum")
 
         wp_user_id, wp_roles = _find_wp_by_account(conn, int(s["account_id"]))
+        app_role, can_create_mobile_event = _get_account_permissions(conn, int(s["account_id"]))
         return MeResponse(
             account_id=int(s["account_id"]),
             email=(s.get("email") or "").strip().lower(),
             name=(s.get("name") or "").strip(),
             wp_user_id=wp_user_id,
             wp_roles=wp_roles,
+            app_role=app_role,
+            can_create_mobile_event=can_create_mobile_event,
+        )
+    finally:
+        conn.close()
+
+
+@router.get("/woo-auto-login-url", response_model=CheckoutLinkResponse)
+def woo_auto_login_url(
+    target_url: str,
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+):
+    token = _require_bearer_token(authorization)
+    redirect_url = _normalize_checkout_target(target_url)
+
+    conn = _db_conn()
+    try:
+        s = _get_session(conn, token)
+        if not s:
+            raise HTTPException(status_code=401, detail="Geçersiz oturum")
+        account_id = int(s["account_id"])
+        wp_user_id, _ = _find_wp_by_account(conn, account_id)
+        if not wp_user_id:
+            raise HTTPException(status_code=409, detail="Kullanıcı WordPress hesabıyla eşleşmiyor")
+        _enforce_woo_sso_rate_limit(account_id, request)
+
+        now = int(datetime.now(timezone.utc).timestamp())
+        exp = now + (5 * 60)
+        payload = {
+            "iss": "api2.dansmagazin.net",
+            "typ": "mobile_wp_sso",
+            "account_id": account_id,
+            "wp_user_id": int(wp_user_id),
+            "email": (s.get("email") or "").strip().lower(),
+            "iat": now,
+            "exp": exp,
+            "nonce": secrets.token_urlsafe(12),
+            "redirect": redirect_url,
+        }
+        sso_token = _sign_mobile_sso_payload(payload)
+        return CheckoutLinkResponse(
+            url=_build_mobile_sso_url(sso_token),
+            expires_at=datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(timespec="seconds"),
         )
     finally:
         conn.close()

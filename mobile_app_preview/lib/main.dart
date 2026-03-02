@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/auth_api.dart';
 import 'services/app_settings.dart';
+import 'services/notifications_api.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/events_store_hub_screen.dart';
@@ -80,6 +83,8 @@ class _RootScreenState extends State<RootScreen> {
   String _appRole = 'customer';
   bool _canCreateMobileEvent = false;
   String _language = AppSettings.language.value;
+  int _notificationCount = 0;
+  Timer? _notifTimer;
 
   @override
   void initState() {
@@ -96,6 +101,7 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void dispose() {
     AppSettings.language.removeListener(_onLanguageChanged);
+    _notifTimer?.cancel();
     super.dispose();
   }
 
@@ -122,6 +128,7 @@ class _RootScreenState extends State<RootScreen> {
           _userEmail = me.email;
           _bootDone = true;
         });
+        _startNotificationsPolling();
         return;
       } catch (_) {
         // invalid/expired token: fall through to logged-out mode
@@ -139,7 +146,9 @@ class _RootScreenState extends State<RootScreen> {
       _userName = '';
       _userEmail = '';
       _bootDone = true;
+      _notificationCount = 0;
     });
+    _stopNotificationsPolling();
   }
 
   Future<void> _persist({
@@ -187,7 +196,9 @@ class _RootScreenState extends State<RootScreen> {
         _appRole = 'customer';
         _canCreateMobileEvent = false;
         _index = 0;
+        _notificationCount = 0;
       });
+      _stopNotificationsPolling();
       return;
     }
     await _persist(
@@ -216,6 +227,7 @@ class _RootScreenState extends State<RootScreen> {
       _canCreateMobileEvent = result.canCreateMobileEvent;
       if (targetIndex != null) _index = targetIndex;
     });
+    _startNotificationsPolling();
   }
 
   Future<void> _logout() async {
@@ -233,7 +245,9 @@ class _RootScreenState extends State<RootScreen> {
       _canCreateMobileEvent = false;
       _index = 0;
       _guestMode = false;
+      _notificationCount = 0;
     });
+    _stopNotificationsPolling();
   }
 
   void _onNavTap(int i) {
@@ -242,6 +256,36 @@ class _RootScreenState extends State<RootScreen> {
       return;
     }
     setState(() => _index = i);
+  }
+
+  void _stopNotificationsPolling() {
+    _notifTimer?.cancel();
+    _notifTimer = null;
+  }
+
+  void _startNotificationsPolling() {
+    _stopNotificationsPolling();
+    _refreshNotificationCount();
+    _notifTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _refreshNotificationCount();
+    });
+  }
+
+  Future<void> _refreshNotificationCount() async {
+    final token = _sessionToken.trim();
+    if (!_isLoggedIn || token.isEmpty) {
+      if (mounted && _notificationCount != 0) {
+        setState(() => _notificationCount = 0);
+      }
+      return;
+    }
+    try {
+      final s = await NotificationsApi.fetchSummary(token);
+      if (!mounted) return;
+      if (_notificationCount != s.totalCount) {
+        setState(() => _notificationCount = s.totalCount);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -317,8 +361,8 @@ class _RootScreenState extends State<RootScreen> {
               label: _tr('social'),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
+              icon: _profileNavIcon(active: false),
+              activeIcon: _profileNavIcon(active: true),
               label: _tr('profile'),
             ),
           ],
@@ -375,5 +419,34 @@ class _RootScreenState extends State<RootScreen> {
       default:
         return key;
     }
+  }
+
+  Widget _profileNavIcon({required bool active}) {
+    final hasNotification = _notificationCount > 0;
+    final iconColor = hasNotification ? Colors.redAccent : (active ? const Color(0xFFE53935) : Colors.white70);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(active ? Icons.person : Icons.person_outline, color: iconColor),
+        if (hasNotification)
+          Positioned(
+            right: -8,
+            top: -6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.redAccent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 18),
+              child: Text(
+                _notificationCount > 99 ? '99+' : _notificationCount.toString(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }

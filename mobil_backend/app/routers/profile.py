@@ -5,6 +5,7 @@ import psycopg2
 import psycopg2.extras
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
+from app.routers.messages import unread_messages_count
 
 router = APIRouter(prefix="/profile", tags=["Profil"])
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
@@ -519,3 +520,30 @@ def update_profile_settings(
     finally:
         conn.close()
     return profile_settings(authorization=authorization)
+
+
+@router.get("/notifications", summary="Bildirim özeti")
+def profile_notifications(authorization: Optional[str] = Header(default=None)):
+    conn = _db_conn()
+    try:
+        account_id = _require_account_id(conn, authorization)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COUNT(*) AS cnt
+            FROM mobile_friend_requests
+            WHERE target_id=%s AND status='pending'
+            """,
+            (int(account_id),),
+        )
+        incoming_friend_requests = int((cur.fetchone() or {}).get("cnt") or 0)
+        unread_messages = int(unread_messages_count(conn, account_id))
+        total_count = int(incoming_friend_requests + unread_messages)
+        return {
+            "account_id": int(account_id),
+            "total_count": total_count,
+            "incoming_friend_requests_count": incoming_friend_requests,
+            "unread_messages_count": unread_messages,
+        }
+    finally:
+        conn.close()
