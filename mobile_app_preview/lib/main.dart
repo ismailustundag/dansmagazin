@@ -327,13 +327,13 @@ class _RootScreenState extends State<RootScreen> {
               ),
             ],
           ),
-          child: const Center(
-            child: Text(
-              'DM',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 22,
+          child: Center(
+            child: ClipOval(
+              child: Image.asset(
+                'assets/icons/app_icon_source.png',
+                width: 54,
+                height: 54,
+                fit: BoxFit.cover,
               ),
             ),
           ),

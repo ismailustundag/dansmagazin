@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/event_social_api.dart';
 import 'chat_thread_screen.dart';
 import 'friend_profile_screen.dart';
 import 'screen_shell.dart';
@@ -19,11 +20,13 @@ class SocialScreen extends StatefulWidget {
 class _SocialScreenState extends State<SocialScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   late Future<List<_FriendItem>> _future;
+  late Future<List<FriendRequestItem>> _incomingFuture;
 
   @override
   void initState() {
     super.initState();
     _future = _fetchFriends();
+    _incomingFuture = _fetchIncoming();
   }
 
   Future<List<_FriendItem>> _fetchFriends() async {
@@ -43,8 +46,39 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _fetchFriends());
+    setState(() {
+      _future = _fetchFriends();
+      _incomingFuture = _fetchIncoming();
+    });
     await _future;
+  }
+
+  Future<List<FriendRequestItem>> _fetchIncoming() {
+    return EventSocialApi.friendRequests(
+      sessionToken: widget.sessionToken,
+      direction: 'incoming',
+    );
+  }
+
+  Future<void> _accept(int requestId) async {
+    await EventSocialApi.acceptFriendRequest(
+      sessionToken: widget.sessionToken,
+      requestId: requestId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _future = _fetchFriends();
+      _incomingFuture = _fetchIncoming();
+    });
+  }
+
+  Future<void> _reject(int requestId) async {
+    await EventSocialApi.rejectFriendRequest(
+      sessionToken: widget.sessionToken,
+      requestId: requestId,
+    );
+    if (!mounted) return;
+    setState(() => _incomingFuture = _fetchIncoming());
   }
 
   @override
@@ -55,6 +89,65 @@ class _SocialScreenState extends State<SocialScreen> {
       subtitle: 'Arkadaşlarınla bağlantıda kal ve mesajlaş.',
       onRefresh: _refresh,
       content: [
+        FutureBuilder<List<FriendRequestItem>>(
+          future: _incomingFuture,
+          builder: (context, snapshot) {
+            final reqs = snapshot.data ?? const <FriendRequestItem>[];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121826),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    reqs.isEmpty ? 'Gelen İstekler' : 'Gelen İstekler (${reqs.length})',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (reqs.isEmpty)
+                    Text(
+                      'Bekleyen arkadaşlık isteği yok.',
+                      style: TextStyle(color: Colors.white.withOpacity(0.75)),
+                    )
+                  else
+                    ...reqs.map(
+                      (r) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                r.peerName.isNotEmpty ? r.peerName : 'Kullanıcı',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => _reject(r.requestId),
+                              child: const Text('Reddet'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => _accept(r.requestId),
+                              child: const Text('Kabul Et'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
         FutureBuilder<List<_FriendItem>>(
           future: _future,
           builder: (context, snapshot) {
