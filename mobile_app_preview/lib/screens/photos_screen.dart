@@ -341,13 +341,13 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           TextButton.icon(
             onPressed: () => setState(() => _showFavoritesOnly = !_showFavoritesOnly),
             icon: Icon(
-              _showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
-              color: _showFavoritesOnly ? Colors.redAccent : Colors.white,
+              _showFavoritesOnly ? Icons.star : Icons.star_border,
+              color: _showFavoritesOnly ? const Color(0xFFFFC107) : Colors.white,
             ),
             label: Text(
               'Favorilerim',
               style: TextStyle(
-                color: _showFavoritesOnly ? Colors.redAccent : Colors.white,
+                color: _showFavoritesOnly ? const Color(0xFFFFC107) : Colors.white,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -416,48 +416,47 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                   ),
                   Positioned(
                     top: 6,
+                    left: 6,
+                    child: InkWell(
+                      onTap: () => _togglePhotoLike(p),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              p.likedByMe ? Icons.favorite : Icons.favorite_border,
+                              color: p.likedByMe ? Colors.redAccent : Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text('${p.likeCount}', style: const TextStyle(fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
                     right: 6,
-                    child: Row(
-                      children: [
-                        InkWell(
-                          onTap: () => _togglePhotoLike(p),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  p.likedByMe ? Icons.favorite : Icons.favorite_border,
-                                  color: p.likedByMe ? Colors.redAccent : Colors.white,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 4),
-                                Text('${p.likeCount}', style: const TextStyle(fontSize: 11)),
-                              ],
-                            ),
-                          ),
+                    child: InkWell(
+                      onTap: () => _toggleFavorite(p),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: () => _toggleFavorite(p),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Icon(
-                              fav ? Icons.favorite : Icons.favorite_border,
-                              color: fav ? Colors.redAccent : Colors.white,
-                              size: 18,
-                            ),
-                          ),
+                        child: Icon(
+                          fav ? Icons.star : Icons.star_border,
+                          color: fav ? const Color(0xFFFFC107) : Colors.white,
+                          size: 18,
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
