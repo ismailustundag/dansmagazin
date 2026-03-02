@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../services/i18n.dart';
-import 'my_photos_screen.dart';
-import 'screen_shell.dart';
-import 'tickets_screen.dart';
+import '../services/profile_api.dart';
 import 'editor_event_management_screen.dart';
-import 'settings_screen.dart';
+import 'my_photos_screen.dart';
 import 'notifications_screen.dart';
+import 'screen_shell.dart';
+import 'settings_screen.dart';
+import 'tickets_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final bool isLoggedIn;
   final String userName;
   final String userEmail;
@@ -35,9 +36,37 @@ class ProfileScreen extends StatelessWidget {
   });
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _displayName = '';
+  String _avatarUrl = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _displayName = widget.userName;
+    _loadProfileVisuals();
+  }
+
+  Future<void> _loadProfileVisuals() async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty || !widget.isLoggedIn) return;
+    try {
+      final s = await ProfileApi.settings(token);
+      if (!mounted) return;
+      setState(() {
+        _displayName = s.username.trim().isEmpty ? widget.userName : s.username.trim();
+        _avatarUrl = s.avatarUrl.trim();
+      });
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = I18n.t;
-    if (!isLoggedIn) {
+    if (!widget.isLoggedIn) {
       return ScreenShell(
         title: t('profile'),
         icon: Icons.person,
@@ -47,16 +76,47 @@ class ProfileScreen extends StatelessWidget {
             title: t('login'),
             subtitle: t('login_subtitle'),
             icon: Icons.login,
-            onTap: onLoginTap,
+            onTap: widget.onLoginTap,
           ),
         ],
       );
     }
+
+    final greetingName = _displayName.trim().isEmpty ? widget.userName : _displayName;
+    final initials = greetingName.trim().isNotEmpty ? greetingName.trim().substring(0, 1).toUpperCase() : 'U';
+
     return ScreenShell(
       title: t('profile'),
       icon: Icons.person,
-      subtitle: '$userName • $userEmail${wpRoles.isNotEmpty ? ' • ${wpRoles.join(",")}' : ''}',
+      subtitle: widget.userEmail,
       content: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF121826),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            children: [
+              _avatarUrl.isNotEmpty
+                  ? CircleAvatar(radius: 28, backgroundImage: NetworkImage(_avatarUrl))
+                  : CircleAvatar(
+                      radius: 28,
+                      backgroundColor: const Color(0xFFE53935),
+                      child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Merhaba $greetingName',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
         PreviewCard(
           title: t('my_tickets'),
           subtitle: t('my_tickets_subtitle'),
@@ -64,7 +124,7 @@ class ProfileScreen extends StatelessWidget {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => TicketsScreen(
-                sessionToken: sessionToken,
+                sessionToken: widget.sessionToken,
               ),
             ),
           ),
@@ -76,19 +136,19 @@ class ProfileScreen extends StatelessWidget {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => MyPhotosScreen(
-                accountId: accountId,
+                accountId: widget.accountId,
               ),
             ),
           ),
         ),
-        if (canCreateMobileEvent || wpRoles.contains('administrator') || wpRoles.contains('editor'))
+        if (widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
           PreviewCard(
             title: t('event_management'),
             subtitle: t('event_management_subtitle'),
             icon: Icons.event_note,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => EditorEventManagementScreen(sessionToken: sessionToken),
+                builder: (_) => EditorEventManagementScreen(sessionToken: widget.sessionToken),
               ),
             ),
           ),
@@ -98,7 +158,7 @@ class ProfileScreen extends StatelessWidget {
           icon: Icons.notifications,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => NotificationsScreen(sessionToken: sessionToken),
+              builder: (_) => NotificationsScreen(sessionToken: widget.sessionToken),
             ),
           ),
         ),
@@ -106,17 +166,20 @@ class ProfileScreen extends StatelessWidget {
           title: t('settings'),
           subtitle: t('settings_subtitle'),
           icon: Icons.settings,
-            onTap: () => Navigator.of(context).push(
+          onTap: () async {
+            await Navigator.of(context).push(
               MaterialPageRoute(
-              builder: (_) => SettingsScreen(sessionToken: sessionToken),
+                builder: (_) => SettingsScreen(sessionToken: widget.sessionToken),
               ),
-            ),
-          ),
+            );
+            await _loadProfileVisuals();
+          },
+        ),
         PreviewCard(
           title: t('logout'),
           subtitle: t('logout_subtitle'),
           icon: Icons.logout,
-          onTap: onLogoutTap,
+          onTap: widget.onLogoutTap,
         ),
       ],
     );

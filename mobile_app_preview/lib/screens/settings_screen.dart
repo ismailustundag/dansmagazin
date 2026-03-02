@@ -26,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   String _language = 'tr';
   String _avatarPath = '';
+  String _avatarUrl = '';
   String _email = '';
   bool _loading = true;
   bool _saving = false;
@@ -50,6 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final remote = await ProfileApi.settings(widget.sessionToken);
         _notificationsEnabled = remote.notificationsEnabled;
         _language = remote.language == 'en' ? 'en' : 'tr';
+        _avatarUrl = remote.avatarUrl;
         _email = remote.email;
         _usernameCtrl.text = remote.username;
         await AppSettings.setLanguage(_language);
@@ -62,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _saveRemote({String? username, String? language, bool? notifications}) async {
+  Future<void> _saveRemote({String? username, String? language, bool? notifications, String? avatarUrl}) async {
     if (widget.sessionToken.trim().isEmpty) return;
     setState(() => _saving = true);
     try {
@@ -71,11 +73,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         username: username,
         language: language,
         notificationsEnabled: notifications,
+        avatarUrl: avatarUrl,
       );
       if (!mounted) return;
       setState(() {
         _notificationsEnabled = saved.notificationsEnabled;
         _language = saved.language == 'en' ? 'en' : 'tr';
+        _avatarUrl = saved.avatarUrl;
         _email = saved.email;
         if (username != null) _usernameCtrl.text = saved.username;
       });
@@ -127,6 +131,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setString(_kAvatarPath, img.path);
       if (!mounted) return;
       setState(() => _avatarPath = img.path);
+      if (widget.sessionToken.trim().isNotEmpty) {
+        final uploadedUrl = await ProfileApi.uploadAvatar(
+          sessionToken: widget.sessionToken,
+          filePath: img.path,
+        );
+        if (uploadedUrl.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _avatarUrl = uploadedUrl);
+          await _saveRemote(avatarUrl: uploadedUrl);
+        }
+      }
     } on TimeoutException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -144,7 +159,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kAvatarPath);
     if (!mounted) return;
-    setState(() => _avatarPath = '');
+    setState(() {
+      _avatarPath = '';
+      _avatarUrl = '';
+    });
+    await _saveRemote(avatarUrl: '');
   }
 
   Widget _avatar() {
@@ -153,6 +172,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (f.existsSync()) {
         return CircleAvatar(radius: 34, backgroundImage: FileImage(f));
       }
+    }
+    if (_avatarUrl.trim().isNotEmpty) {
+      return CircleAvatar(radius: 34, backgroundImage: NetworkImage(_avatarUrl.trim()));
     }
     return const CircleAvatar(
       radius: 34,

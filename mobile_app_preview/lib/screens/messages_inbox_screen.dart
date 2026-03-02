@@ -96,10 +96,12 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                   ),
                   child: Row(
                     children: [
-                      const CircleAvatar(
-                        backgroundColor: Color(0xFFE53935),
-                        child: Icon(Icons.chat_bubble, color: Colors.white),
-                      ),
+                      m.avatarUrl.trim().isNotEmpty
+                          ? CircleAvatar(backgroundImage: NetworkImage(m.avatarUrl.trim()))
+                          : const CircleAvatar(
+                              backgroundColor: Color(0xFFE53935),
+                              child: Icon(Icons.chat_bubble, color: Colors.white),
+                            ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -129,14 +131,16 @@ class _InboxItem {
   final int accountId;
   final String name;
   final String lastAt;
+  final String avatarUrl;
 
-  const _InboxItem({required this.accountId, required this.name, required this.lastAt});
+  const _InboxItem({required this.accountId, required this.name, required this.lastAt, required this.avatarUrl});
 
   factory _InboxItem.fromJson(Map<String, dynamic> json) {
     return _InboxItem(
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       lastAt: (json['last_at'] ?? '').toString(),
+      avatarUrl: (json['avatar_url'] ?? '').toString(),
     );
   }
 }
