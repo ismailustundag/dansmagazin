@@ -93,12 +93,12 @@ class ProfileScreen extends StatelessWidget {
           title: 'Ayarlar',
           subtitle: 'Bildirim, dil ve profil fotoğrafı',
           icon: Icons.settings,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const SettingsScreen(),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+              builder: (_) => SettingsScreen(sessionToken: sessionToken),
+              ),
             ),
           ),
-        ),
         PreviewCard(
           title: 'Çıkış Yap',
           subtitle: 'Bu cihazdaki oturumu kapat',

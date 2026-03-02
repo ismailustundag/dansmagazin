@@ -8,9 +8,9 @@ from app.routers.events import (
     init_event_submission_tables,
     router as events_router,
 )
-from app.routers.photos import router as photos_router
+from app.routers.photos import init_photo_reaction_tables, router as photos_router
 from app.routers.messages import router as messages_router
-from app.routers.profile import router as profile_router
+from app.routers.profile import init_profile_settings_table, router as profile_router
 
 app = FastAPI(title="Mobil Backend")
 
@@ -19,6 +19,8 @@ app = FastAPI(title="Mobil Backend")
 def on_startup():
     init_event_submission_tables()
     init_news_reaction_table()
+    init_photo_reaction_tables()
+    init_profile_settings_table()
 
 
 @app.get("/health")

@@ -10,8 +10,9 @@ import 'screen_shell.dart';
 
 class PhotosScreen extends StatefulWidget {
   final int accountId;
+  final String sessionToken;
 
-  const PhotosScreen({super.key, required this.accountId});
+  const PhotosScreen({super.key, required this.accountId, required this.sessionToken});
 
   @override
   State<PhotosScreen> createState() => _PhotosScreenState();
@@ -25,14 +26,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
   late Future<List<_Album>> _albumsFuture;
   int _tab = 0; // 0: Tum albumler, 1: Favoriler
   List<_FavoritePhoto> _favorites = [];
-  Set<String> _likedAlbumSlugs = <String>{};
 
   @override
   void initState() {
     super.initState();
     _albumsFuture = _fetchAlbums();
     _loadFavorites();
-    _loadLikedAlbums();
   }
 
   Future<void> _loadFavorites() async {
@@ -41,20 +40,25 @@ class _PhotosScreenState extends State<PhotosScreen> {
     setState(() => _favorites = loaded);
   }
 
-  Future<void> _loadLikedAlbums() async {
-    final loaded = await _AlbumLikeStore.load(widget.accountId);
-    if (!mounted) return;
-    setState(() => _likedAlbumSlugs = loaded);
-  }
-
-  Future<void> _toggleAlbumLike(String slug) async {
-    final liked = _likedAlbumSlugs.contains(slug);
-    if (liked) {
-      await _AlbumLikeStore.remove(widget.accountId, slug);
-    } else {
-      await _AlbumLikeStore.add(widget.accountId, slug);
+  Future<void> _toggleAlbumLike(_Album album) async {
+    final endpoint = album.likedByMe ? 'unlike' : 'like';
+    try {
+      final resp = await http.post(
+        Uri.parse('https://api2.dansmagazin.net/photos/albums/${album.slug}/$endpoint'),
+        headers: {
+          if (widget.sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${widget.sessionToken}',
+        },
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('Beğeni güncellenemedi');
+      }
+      await _refresh();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Albüm beğenisi güncellenemedi')),
+      );
     }
-    await _loadLikedAlbums();
   }
 
   Future<void> _shareAlbum(_Album album) async {
@@ -65,7 +69,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
   }
 
   Future<List<_Album>> _fetchAlbums() async {
-    final resp = await http.get(Uri.parse(_albumsUrl));
+    final resp = await http.get(
+      Uri.parse(_albumsUrl),
+      headers: {
+        if (widget.sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${widget.sessionToken}',
+      },
+    );
     if (resp.statusCode != 200) {
       throw Exception('Album endpoint hata: ${resp.statusCode}');
     }
@@ -156,13 +165,17 @@ class _PhotosScreenState extends State<PhotosScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _AlbumCard(
                         album: album,
-                        liked: _likedAlbumSlugs.contains(album.slug),
-                        onLikeTap: () => _toggleAlbumLike(album.slug),
+                        liked: album.likedByMe,
+                        onLikeTap: () => _toggleAlbumLike(album),
                         onShareTap: () => _shareAlbum(album),
                         onTap: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => AlbumPhotosScreen(album: album, accountId: widget.accountId),
+                              builder: (_) => AlbumPhotosScreen(
+                                album: album,
+                                accountId: widget.accountId,
+                                sessionToken: widget.sessionToken,
+                              ),
                             ),
                           );
                           await _loadFavorites();
@@ -195,8 +208,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
 class AlbumPhotosScreen extends StatefulWidget {
   final _Album album;
   final int accountId;
+  final String sessionToken;
 
-  const AlbumPhotosScreen({super.key, required this.album, required this.accountId});
+  const AlbumPhotosScreen({super.key, required this.album, required this.accountId, required this.sessionToken});
 
   @override
   State<AlbumPhotosScreen> createState() => _AlbumPhotosScreenState();
@@ -226,7 +240,12 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
 
   Future<List<_Photo>> _fetchPhotos() async {
     final url = 'https://api2.dansmagazin.net/photos/albums/${widget.album.slug}';
-    final resp = await http.get(Uri.parse(url));
+    final resp = await http.get(
+      Uri.parse(url),
+      headers: {
+        if (widget.sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${widget.sessionToken}',
+      },
+    );
     if (resp.statusCode != 200) {
       throw Exception('Albüm fotoğrafları alınamadı (${resp.statusCode})');
     }
@@ -251,6 +270,30 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
         .toList();
     out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return out;
+  }
+
+  Future<void> _togglePhotoLike(_Photo photo) async {
+    final endpoint = photo.likedByMe ? 'unlike' : 'like';
+    try {
+      final resp = await http.post(
+        Uri.parse('https://api2.dansmagazin.net/photos/items/${photo.id}/$endpoint'),
+        headers: {
+          if (widget.sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${widget.sessionToken}',
+        },
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('like failed');
+      }
+      if (!mounted) return;
+      setState(() {
+        _photosFuture = _fetchPhotos();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fotoğraf beğenisi güncellenemedi')),
+      );
+    }
   }
 
   Future<void> _toggleFavorite(_Photo photo) async {
@@ -280,6 +323,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           initialIndex: initialIndex,
           album: widget.album,
           accountId: widget.accountId,
+          sessionToken: widget.sessionToken,
         ),
       ),
     );
@@ -373,20 +417,47 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                   Positioned(
                     top: 6,
                     right: 6,
-                    child: InkWell(
-                      onTap: () => _toggleFavorite(p),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(20),
+                    child: Row(
+                      children: [
+                        InkWell(
+                          onTap: () => _togglePhotoLike(p),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  p.likedByMe ? Icons.favorite : Icons.favorite_border,
+                                  color: p.likedByMe ? Colors.redAccent : Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text('${p.likeCount}', style: const TextStyle(fontSize: 11)),
+                              ],
+                            ),
+                          ),
                         ),
-                        child: Icon(
-                          fav ? Icons.favorite : Icons.favorite_border,
-                          color: fav ? Colors.redAccent : Colors.white,
-                          size: 18,
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () => _toggleFavorite(p),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              fav ? Icons.favorite : Icons.favorite_border,
+                              color: fav ? Colors.redAccent : Colors.white,
+                              size: 18,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
@@ -405,12 +476,14 @@ class _PhotoViewerScreen extends StatefulWidget {
   final int initialIndex;
   final _Album album;
   final int accountId;
+  final String sessionToken;
 
   const _PhotoViewerScreen({
     required this.photos,
     required this.initialIndex,
     required this.album,
     required this.accountId,
+    required this.sessionToken,
   });
 
   @override
@@ -421,11 +494,13 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   late final PageController _controller;
   int _index = 0;
   List<_FavoritePhoto> _favorites = [];
+  late List<_Photo> _photos;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
+    _photos = List<_Photo>.from(widget.photos);
     _controller = PageController(initialPage: widget.initialIndex);
     _loadFavorites();
   }
@@ -464,6 +539,36 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     }
   }
 
+  Future<void> _togglePhotoLike(_Photo photo) async {
+    final endpoint = photo.likedByMe ? 'unlike' : 'like';
+    try {
+      final resp = await http.post(
+        Uri.parse('https://api2.dansmagazin.net/photos/items/${photo.id}/$endpoint'),
+        headers: {
+          if (widget.sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${widget.sessionToken}',
+        },
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('like failed');
+      }
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      final likeCount = (body['like_count'] as num?)?.toInt() ?? photo.likeCount;
+      final likedByMe = body['liked_by_me'] == true;
+      if (!mounted) return;
+      setState(() {
+        _photos[_index] = photo.copyWith(
+          likeCount: likeCount,
+          likedByMe: likedByMe,
+        );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fotoğraf beğenisi güncellenemedi')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -472,7 +577,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final photo = widget.photos[_index];
+    final photo = _photos[_index];
     final fav = _isFavorite(photo.url);
     return Scaffold(
       backgroundColor: Colors.black,
@@ -487,10 +592,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
             Expanded(
               child: PageView.builder(
                 controller: _controller,
-                itemCount: widget.photos.length,
+                itemCount: _photos.length,
                 onPageChanged: (v) => setState(() => _index = v),
                 itemBuilder: (context, i) {
-                  final p = widget.photos[i];
+                  final p = _photos[i];
                   return InteractiveViewer(
                     child: Center(
                       child: Image.network(
@@ -510,12 +615,23 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
+                      onPressed: () => _togglePhotoLike(photo),
+                      icon: Icon(
+                        photo.likedByMe ? Icons.favorite : Icons.favorite_border,
+                        color: photo.likedByMe ? Colors.redAccent : Colors.white,
+                      ),
+                      label: Text('Beğen (${photo.likeCount})'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
                       onPressed: () => _toggleFavorite(photo),
                       icon: Icon(
                         fav ? Icons.favorite : Icons.favorite_border,
                         color: fav ? Colors.redAccent : Colors.white,
                       ),
-                      label: Text(fav ? 'Beğenildi' : 'Beğen'),
+                      label: const Text('Favori'),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -614,7 +730,7 @@ class _AlbumCard extends StatelessWidget {
                         color: liked ? Colors.redAccent : Colors.white,
                         size: 18,
                       ),
-                      label: Text(liked ? 'Beğenildi' : 'Beğen'),
+                      label: Text('Beğen (${album.likeCount})'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -715,6 +831,8 @@ class _Album {
   final String coverUrl;
   final String createdAt;
   final int photoCount;
+  final int likeCount;
+  final bool likedByMe;
 
   const _Album({
     required this.slug,
@@ -722,6 +840,8 @@ class _Album {
     required this.coverUrl,
     required this.createdAt,
     required this.photoCount,
+    required this.likeCount,
+    required this.likedByMe,
   });
 
   factory _Album.fromJson(Map<String, dynamic> json) {
@@ -741,19 +861,27 @@ class _Album {
         (json['created_at'] ?? json['date'] ?? json['latest_uploaded_at'] ?? '').toString(),
       ),
       photoCount: (json['photo_count'] as num?)?.toInt() ?? 0,
+      likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+      likedByMe: json['liked_by_me'] == true,
     );
   }
 }
 
 class _Photo {
+  final int id;
   final String url;
   final String thumbUrl;
   final String createdAt;
+  final int likeCount;
+  final bool likedByMe;
 
   const _Photo({
+    required this.id,
     required this.url,
     required this.thumbUrl,
     required this.createdAt,
+    required this.likeCount,
+    required this.likedByMe,
   });
 
   factory _Photo.fromJson(Map<String, dynamic> json) {
@@ -764,9 +892,30 @@ class _Photo {
       json['thumb_url'] ?? json['thumbnail_url'] ?? json['preview_url'] ?? url,
     );
     return _Photo(
+      id: (json['id'] as num?)?.toInt() ?? 0,
       url: url,
       thumbUrl: thumb,
       createdAt: _fmtDate((json['created_at'] ?? json['date'] ?? '').toString()),
+      likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+      likedByMe: json['liked_by_me'] == true,
+    );
+  }
+
+  _Photo copyWith({
+    int? id,
+    String? url,
+    String? thumbUrl,
+    String? createdAt,
+    int? likeCount,
+    bool? likedByMe,
+  }) {
+    return _Photo(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      thumbUrl: thumbUrl ?? this.thumbUrl,
+      createdAt: createdAt ?? this.createdAt,
+      likeCount: likeCount ?? this.likeCount,
+      likedByMe: likedByMe ?? this.likedByMe,
     );
   }
 }

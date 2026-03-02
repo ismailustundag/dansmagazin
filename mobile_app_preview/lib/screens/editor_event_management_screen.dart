@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -974,10 +975,20 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                         ? null
                         : () async {
                             try {
-                              final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                              final x = await _picker
+                                  .pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 85,
+                                    requestFullMetadata: false,
+                                    maxWidth: 1440,
+                                  )
+                                  .timeout(const Duration(seconds: 25));
                               if (x != null && mounted) {
                                 setState(() => _image = x);
                               }
+                            } on TimeoutException {
+                              if (!mounted) return;
+                              setState(() => _error = 'Galeri yanıt vermedi, tekrar deneyin.');
                             } catch (e) {
                               if (!mounted) return;
                               setState(() => _error = 'Fotoğraf seçilemedi: $e');

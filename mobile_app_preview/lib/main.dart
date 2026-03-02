@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/auth_api.dart';
+import 'services/app_settings.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/events_store_hub_screen.dart';
@@ -10,7 +11,8 @@ import 'screens/profile_screen.dart';
 import 'screens/social_screen.dart';
 
 void main() {
-  runApp(const DansMagazinApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  AppSettings.load().whenComplete(() => runApp(const DansMagazinApp()));
 }
 
 class DansMagazinApp extends StatelessWidget {
@@ -77,11 +79,24 @@ class _RootScreenState extends State<RootScreen> {
   List<String> _wpRoles = const [];
   String _appRole = 'customer';
   bool _canCreateMobileEvent = false;
+  String _language = AppSettings.language.value;
 
   @override
   void initState() {
     super.initState();
+    AppSettings.language.addListener(_onLanguageChanged);
     _restoreSession();
+  }
+
+  void _onLanguageChanged() {
+    if (!mounted) return;
+    setState(() => _language = AppSettings.language.value);
+  }
+
+  @override
+  void dispose() {
+    AppSettings.language.removeListener(_onLanguageChanged);
+    super.dispose();
   }
 
   Future<void> _restoreSession() async {
@@ -247,7 +262,7 @@ class _RootScreenState extends State<RootScreen> {
 
     final pages = [
       DiscoverScreen(sessionToken: _sessionToken),
-      PhotosScreen(accountId: _accountId),
+      PhotosScreen(accountId: _accountId, sessionToken: _sessionToken),
       EventsStoreHubScreen(
         sessionToken: _sessionToken,
         canCreateEvent: _canCreateMobileEvent,
@@ -280,16 +295,16 @@ class _RootScreenState extends State<RootScreen> {
           unselectedItemColor: Colors.white70,
           backgroundColor: const Color(0xFF0F172A),
           onTap: _onNavTap,
-          items: const [
+          items: [
             BottomNavigationBarItem(
               icon: Icon(Icons.article_outlined),
               activeIcon: Icon(Icons.article),
-              label: 'Haberler',
+              label: _tr('news'),
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.photo_library_outlined),
               activeIcon: Icon(Icons.photo_library),
-              label: 'Fotoğraflar',
+              label: _tr('photos'),
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.circle),
@@ -299,12 +314,12 @@ class _RootScreenState extends State<RootScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.groups_outlined),
               activeIcon: Icon(Icons.groups),
-              label: 'Sosyal',
+              label: _tr('social'),
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               activeIcon: Icon(Icons.person),
-              label: 'Profil',
+              label: _tr('profile'),
             ),
           ],
         ),
@@ -313,17 +328,21 @@ class _RootScreenState extends State<RootScreen> {
       floatingActionButton: GestureDetector(
         onTap: () => _onNavTap(2),
         child: Container(
-          width: 64,
-          height: 64,
+          width: 76,
+          height: 76,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: const Color(0xFFE53935),
-            border: Border.all(color: Colors.white24),
+            color: Colors.transparent,
             boxShadow: const [
               BoxShadow(
-                color: Colors.black54,
-                blurRadius: 12,
-                offset: Offset(0, 5),
+                color: Colors.black87,
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+              BoxShadow(
+                color: Colors.white24,
+                blurRadius: 6,
+                offset: Offset(0, -1),
               ),
             ],
           ),
@@ -331,8 +350,8 @@ class _RootScreenState extends State<RootScreen> {
             child: ClipOval(
               child: Image.asset(
                 'assets/icons/app_icon_source.png',
-                width: 54,
-                height: 54,
+                width: 72,
+                height: 72,
                 fit: BoxFit.cover,
               ),
             ),
@@ -340,5 +359,21 @@ class _RootScreenState extends State<RootScreen> {
         ),
       ),
     );
+  }
+
+  String _tr(String key) {
+    final en = _language == 'en';
+    switch (key) {
+      case 'news':
+        return en ? 'News' : 'Haberler';
+      case 'photos':
+        return en ? 'Photos' : 'Fotoğraflar';
+      case 'social':
+        return en ? 'Social' : 'Sosyal';
+      case 'profile':
+        return en ? 'Profile' : 'Profil';
+      default:
+        return key;
+    }
   }
 }
