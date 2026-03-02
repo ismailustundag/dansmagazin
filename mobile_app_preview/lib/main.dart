@@ -309,7 +309,7 @@ class _RootScreenState extends State<RootScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.circle),
               activeIcon: Icon(Icons.circle),
-              label: 'DM',
+              label: '',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.groups_outlined),

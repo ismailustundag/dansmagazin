@@ -612,48 +612,61 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
               color: const Color(0xFF0B1020),
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _togglePhotoLike(photo),
-                      icon: Icon(
-                        photo.likedByMe ? Icons.favorite : Icons.favorite_border,
-                        color: photo.likedByMe ? Colors.redAccent : Colors.white,
-                      ),
-                      label: Text('Beğen (${photo.likeCount})'),
-                    ),
+                  _iconAction(
+                    onTap: () => _togglePhotoLike(photo),
+                    tooltip: 'Beğen (${photo.likeCount})',
+                    icon: photo.likedByMe ? Icons.favorite : Icons.favorite_border,
+                    color: photo.likedByMe ? Colors.redAccent : Colors.white,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _toggleFavorite(photo),
-                      icon: Icon(
-                        fav ? Icons.favorite : Icons.favorite_border,
-                        color: fav ? Colors.redAccent : Colors.white,
-                      ),
-                      label: const Text('Favori'),
-                    ),
+                  _iconAction(
+                    onTap: () => _toggleFavorite(photo),
+                    tooltip: fav ? 'Favoriden Çıkar' : 'Favorile',
+                    icon: fav ? Icons.star : Icons.star_border,
+                    color: fav ? const Color(0xFFFFC107) : Colors.white,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => Share.share(photo.url),
-                      icon: const Icon(Icons.share),
-                      label: const Text('Paylaş'),
-                    ),
+                  _iconAction(
+                    onTap: () => Share.share(photo.url),
+                    tooltip: 'Paylaş',
+                    icon: Icons.share,
+                    color: Colors.white,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _download(photo.url),
-                      icon: const Icon(Icons.download),
-                      label: const Text('İndir'),
-                    ),
+                  _iconAction(
+                    onTap: () => _download(photo.url),
+                    tooltip: 'İndir',
+                    icon: Icons.download,
+                    color: Colors.white,
                   ),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _iconAction({
+    required VoidCallback onTap,
+    required String tooltip,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white10,
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Icon(icon, color: color, size: 22),
         ),
       ),
     );
