@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
+import '../services/notification_center.dart';
 import 'chat_thread_screen.dart';
 import 'friend_profile_screen.dart';
 import 'screen_shell.dart';
@@ -29,6 +30,7 @@ class _SocialScreenState extends State<SocialScreen> {
     super.initState();
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
+    NotificationCenter.refresh(widget.sessionToken);
   }
 
   Future<List<_FriendItem>> _fetchFriends() async {
@@ -102,6 +104,7 @@ class _SocialScreenState extends State<SocialScreen> {
       _incomingFuture = _fetchIncoming();
     });
     await _future;
+    await NotificationCenter.refresh(widget.sessionToken);
   }
 
   Future<List<FriendRequestItem>> _fetchIncoming() {
@@ -121,6 +124,7 @@ class _SocialScreenState extends State<SocialScreen> {
       _future = _fetchFriends();
       _incomingFuture = _fetchIncoming();
     });
+    await NotificationCenter.refresh(widget.sessionToken);
   }
 
   Future<void> _reject(int requestId) async {
@@ -130,6 +134,7 @@ class _SocialScreenState extends State<SocialScreen> {
     );
     if (!mounted) return;
     setState(() => _incomingFuture = _fetchIncoming());
+    await NotificationCenter.refresh(widget.sessionToken);
   }
 
   @override
@@ -252,6 +257,7 @@ class _SocialScreenState extends State<SocialScreen> {
                           );
                           if (!mounted) return;
                           await _refresh();
+                          await NotificationCenter.refresh(widget.sessionToken);
                         },
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 10),
@@ -338,6 +344,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                             );
                                             if (!mounted) return;
                                             await _refresh();
+                                            await NotificationCenter.refresh(widget.sessionToken);
                                           },
                                           icon: const Icon(Icons.chat_bubble, size: 16),
                                           label: Text(t('send_message')),

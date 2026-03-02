@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_api.dart';
 import 'services/app_settings.dart';
 import 'services/i18n.dart';
-import 'services/notifications_api.dart';
+import 'services/notification_center.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/events_store_hub_screen.dart';
@@ -90,6 +90,7 @@ class _RootScreenState extends State<RootScreen> {
   void initState() {
     super.initState();
     AppSettings.language.addListener(_onLanguageChanged);
+    NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
     _restoreSession();
   }
 
@@ -101,8 +102,17 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void dispose() {
     AppSettings.language.removeListener(_onLanguageChanged);
+    NotificationCenter.totalCount.removeListener(_onNotificationCountChanged);
     _notifTimer?.cancel();
     super.dispose();
+  }
+
+  void _onNotificationCountChanged() {
+    if (!mounted) return;
+    final next = NotificationCenter.totalCount.value;
+    if (_notificationCount != next) {
+      setState(() => _notificationCount = next);
+    }
   }
 
   Future<void> _restoreSession() async {
@@ -148,6 +158,7 @@ class _RootScreenState extends State<RootScreen> {
       _bootDone = true;
       _notificationCount = 0;
     });
+    NotificationCenter.clear();
     _stopNotificationsPolling();
   }
 
@@ -198,6 +209,7 @@ class _RootScreenState extends State<RootScreen> {
         _index = 0;
         _notificationCount = 0;
       });
+      NotificationCenter.clear();
       _stopNotificationsPolling();
       return;
     }
@@ -247,6 +259,7 @@ class _RootScreenState extends State<RootScreen> {
       _guestMode = false;
       _notificationCount = 0;
     });
+    NotificationCenter.clear();
     _stopNotificationsPolling();
   }
 
@@ -277,15 +290,10 @@ class _RootScreenState extends State<RootScreen> {
       if (mounted && _notificationCount != 0) {
         setState(() => _notificationCount = 0);
       }
+      NotificationCenter.clear();
       return;
     }
-    try {
-      final s = await NotificationsApi.fetchSummary(token);
-      if (!mounted) return;
-      if (_notificationCount != s.totalCount) {
-        setState(() => _notificationCount = s.totalCount);
-      }
-    } catch (_) {}
+    await NotificationCenter.refresh(token);
   }
 
   @override

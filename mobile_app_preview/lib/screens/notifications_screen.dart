@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../services/notification_center.dart';
 import '../services/notifications_api.dart';
 import 'messages_inbox_screen.dart';
 import 'social_screen.dart';
@@ -14,17 +17,64 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  late Future<NotificationSummary> _future;
+  NotificationSummary _summary = const NotificationSummary(
+    totalCount: 0,
+    incomingFriendRequestsCount: 0,
+    unreadMessagesCount: 0,
+  );
+  bool _loading = true;
+  String? _error;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _future = NotificationsApi.fetchSummary(widget.sessionToken);
+    NotificationCenter.summary.addListener(_onExternalSummary);
+    _summary = NotificationCenter.summary.value;
+    _loading = false;
+    _refresh();
+    _timer = Timer.periodic(const Duration(seconds: 8), (_) => _refresh(silent: true));
   }
 
-  Future<void> _refresh() async {
-    setState(() => _future = NotificationsApi.fetchSummary(widget.sessionToken));
-    await _future;
+  @override
+  void dispose() {
+    _timer?.cancel();
+    NotificationCenter.summary.removeListener(_onExternalSummary);
+    super.dispose();
+  }
+
+  void _onExternalSummary() {
+    if (!mounted) return;
+    setState(() {
+      _summary = NotificationCenter.summary.value;
+      _loading = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _refresh({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final s = await NotificationsApi.fetchSummary(widget.sessionToken);
+      if (!mounted) return;
+      NotificationCenter.setSummary(s);
+      setState(() {
+        _summary = s;
+        _loading = false;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   @override
@@ -37,73 +87,56 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: FutureBuilder<NotificationSummary>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: TextButton(
-                  onPressed: _refresh,
-                  child: const Text('Bildirimler yüklenemedi, tekrar dene'),
-                ),
-              );
-            }
-            final s = snapshot.data ??
-                const NotificationSummary(
-                  totalCount: 0,
-                  incomingFriendRequestsCount: 0,
-                  unreadMessagesCount: 0,
-                );
-            return ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                _card(
-                  title: 'Toplam Bildirim',
-                  value: s.totalCount.toString(),
-                  icon: Icons.notifications_active,
-                  color: s.totalCount > 0 ? Colors.redAccent : Colors.white70,
-                ),
-                const SizedBox(height: 10),
-                _card(
-                  title: 'Gelen Arkadaşlık İstekleri',
-                  value: s.incomingFriendRequestsCount.toString(),
-                  icon: Icons.group_add,
-                  color: s.incomingFriendRequestsCount > 0 ? Colors.orangeAccent : Colors.white70,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => SocialScreen(sessionToken: widget.sessionToken),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Center(
+                    child: TextButton(
+                      onPressed: _refresh,
+                      child: const Text('Bildirimler yüklenemedi, tekrar dene'),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(14),
+                    children: [
+                      _card(
+                        title: 'Toplam Bildirim',
+                        value: _summary.totalCount.toString(),
+                        icon: Icons.notifications_active,
+                        color: _summary.totalCount > 0 ? Colors.redAccent : Colors.white70,
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                _card(
-                  title: 'Okunmamış Mesajlar',
-                  value: s.unreadMessagesCount.toString(),
-                  icon: Icons.mark_chat_unread,
-                  color: s.unreadMessagesCount > 0 ? Colors.redAccent : Colors.white70,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => MessagesInboxScreen(sessionToken: widget.sessionToken),
+                      const SizedBox(height: 10),
+                      _card(
+                        title: 'Gelen Arkadaşlık İstekleri',
+                        value: _summary.incomingFriendRequestsCount.toString(),
+                        icon: Icons.group_add,
+                        color: _summary.incomingFriendRequestsCount > 0 ? Colors.orangeAccent : Colors.white70,
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => SocialScreen(sessionToken: widget.sessionToken),
+                            ),
+                          );
+                          await _refresh(silent: true);
+                        },
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  onPressed: _refresh,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Yenile'),
-                ),
-              ],
-            );
-          },
-        ),
+                      const SizedBox(height: 10),
+                      _card(
+                        title: 'Okunmamış Mesajlar',
+                        value: _summary.unreadMessagesCount.toString(),
+                        icon: Icons.mark_chat_unread,
+                        color: _summary.unreadMessagesCount > 0 ? Colors.redAccent : Colors.white70,
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MessagesInboxScreen(sessionToken: widget.sessionToken),
+                            ),
+                          );
+                          await _refresh(silent: true);
+                        },
+                      ),
+                    ],
+                  ),
       ),
     );
   }
@@ -145,4 +178,3 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 }
-
