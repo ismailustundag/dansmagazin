@@ -356,13 +356,13 @@ class _RootScreenState extends State<RootScreen> {
               label: '',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.groups_outlined),
-              activeIcon: Icon(Icons.groups),
+              icon: _socialNavIcon(active: false),
+              activeIcon: _socialNavIcon(active: true),
               label: _tr('social'),
             ),
             BottomNavigationBarItem(
-              icon: _profileNavIcon(active: false),
-              activeIcon: _profileNavIcon(active: true),
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
               label: _tr('profile'),
             ),
           ],
@@ -399,13 +399,13 @@ class _RootScreenState extends State<RootScreen> {
     }
   }
 
-  Widget _profileNavIcon({required bool active}) {
+  Widget _socialNavIcon({required bool active}) {
     final hasNotification = _notificationCount > 0;
     final iconColor = hasNotification ? Colors.redAccent : (active ? const Color(0xFFE53935) : Colors.white70);
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Icon(active ? Icons.person : Icons.person_outline, color: iconColor),
+        Icon(active ? Icons.groups : Icons.groups_outlined, color: iconColor),
         if (hasNotification)
           Positioned(
             right: -8,
