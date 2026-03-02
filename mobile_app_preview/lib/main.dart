@@ -371,34 +371,12 @@ class _RootScreenState extends State<RootScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: GestureDetector(
         onTap: () => _onNavTap(2),
-        child: Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.transparent,
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black87,
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-              BoxShadow(
-                color: Colors.white24,
-                blurRadius: 6,
-                offset: Offset(0, -1),
-              ),
-            ],
-          ),
-          child: Center(
-            child: ClipOval(
-              child: Image.asset(
-                'assets/icons/app_icon_source.png',
-                width: 72,
-                height: 72,
-                fit: BoxFit.cover,
-              ),
-            ),
+        child: SizedBox(
+          width: 92,
+          height: 92,
+          child: Image.asset(
+            'assets/icons/dm.png',
+            fit: BoxFit.contain,
           ),
         ),
       ),
