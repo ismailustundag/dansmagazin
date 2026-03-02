@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+import '../services/notification_center.dart';
 
 class ChatThreadScreen extends StatefulWidget {
   final String sessionToken;
@@ -23,17 +26,27 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
 
   final _msgCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   bool _sending = false;
-  late Future<_ThreadData> _future;
+  bool _loading = true;
+  String? _error;
+  int _meAccountId = 0;
+  List<_MsgItem> _items = const [];
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
-    _future = _fetchThread();
+    _refreshThread(scrollToBottom: true);
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _refreshThread(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
+    _scrollCtrl.dispose();
     _msgCtrl.dispose();
     super.dispose();
   }
@@ -53,6 +66,38 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         .map((e) => _MsgItem.fromJson(e as Map<String, dynamic>))
         .toList();
     return _ThreadData(meAccountId: meId, items: items);
+  }
+
+  Future<void> _refreshThread({bool silent = false, bool scrollToBottom = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final data = await _fetchThread();
+      if (!mounted) return;
+      setState(() {
+        _meAccountId = data.meAccountId;
+        _items = data.items;
+        _loading = false;
+        _error = null;
+      });
+      await NotificationCenter.refresh(widget.sessionToken);
+      if (scrollToBottom) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_scrollCtrl.hasClients) return;
+          _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _send() async {
@@ -81,7 +126,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       }
       _msgCtrl.clear();
       if (!mounted) return;
-      setState(() => _future = _fetchThread());
+      await _refreshThread(scrollToBottom: true);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -98,57 +143,49 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       body: Column(
         children: [
           Expanded(
-            child: FutureBuilder<_ThreadData>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: TextButton(
-                      onPressed: () => setState(() => _future = _fetchThread()),
-                      child: const Text('Mesajlar yüklenemedi, tekrar dene'),
-                    ),
-                  );
-                }
-                final data = snapshot.data!;
-                if (data.items.isEmpty) {
-                  return const Center(child: Text('Henüz mesaj yok.'));
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: data.items.length,
-                  itemBuilder: (_, i) {
-                    final m = data.items[i];
-                    final mine = m.senderAccountId == data.meAccountId;
-                    return Align(
-                      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        constraints: const BoxConstraints(maxWidth: 280),
-                        decoration: BoxDecoration(
-                          color: mine ? const Color(0xFFE53935) : const Color(0xFF1F2937),
-                          borderRadius: BorderRadius.circular(12),
+            child: _loading && _items.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null && _items.isEmpty
+                    ? Center(
+                        child: TextButton(
+                          onPressed: () => _refreshThread(),
+                          child: const Text('Mesajlar yüklenemedi, tekrar dene'),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(m.body),
-                            const SizedBox(height: 4),
-                            Text(
-                              m.createdAt,
-                              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                      )
+                    : _items.isEmpty
+                        ? const Center(child: Text('Henüz mesaj yok.'))
+                        : ListView.builder(
+                            controller: _scrollCtrl,
+                            padding: const EdgeInsets.all(12),
+                            itemCount: _items.length,
+                            itemBuilder: (_, i) {
+                              final m = _items[i];
+                              final mine = m.senderAccountId == _meAccountId;
+                              return Align(
+                                alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  constraints: const BoxConstraints(maxWidth: 280),
+                                  decoration: BoxDecoration(
+                                    color: mine ? const Color(0xFFE53935) : const Color(0xFF1F2937),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(m.body),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        m.createdAt,
+                                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
           ),
           SafeArea(
             top: false,
@@ -162,6 +199,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                       controller: _msgCtrl,
                       minLines: 1,
                       maxLines: 4,
+                      onSubmitted: (_) => _send(),
                       decoration: const InputDecoration(
                         hintText: 'Mesaj yaz...',
                         border: OutlineInputBorder(),
