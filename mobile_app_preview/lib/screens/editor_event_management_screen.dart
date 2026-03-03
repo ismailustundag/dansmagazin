@@ -266,6 +266,7 @@ class TicketScanScreen extends StatefulWidget {
 class _TicketScanScreenState extends State<TicketScanScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   final MobileScannerController _scannerController = MobileScannerController(
+    autoStart: false,
     detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
     torchEnabled: false,
@@ -391,12 +392,26 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
       _lastToken = '';
       _scannerArmedAt = DateTime.now().add(const Duration(milliseconds: 1300));
     });
-    await _scannerController.start();
+    try {
+      // MobileScanner widget'i cizildikten sonra start cagirmak Android'de daha stabil.
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+      if (!mounted || !_scannerOpen) return;
+      await _scannerController.start();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _scannerOpen = false;
+        _result = 'Kamera açılamadı. İzinleri kontrol edip tekrar dene.';
+        _resultColor = Colors.redAccent;
+      });
+    }
   }
 
   Future<void> _closeScanner() async {
     setState(() => _scannerOpen = false);
-    await _scannerController.stop();
+    try {
+      await _scannerController.stop();
+    } catch (_) {}
   }
 
   @override
@@ -409,7 +424,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
           padding: const EdgeInsets.all(16),
           children: [
           Container(
-            height: 250,
+            height: 220,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white24),
@@ -421,8 +436,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
                     alignment: Alignment.center,
                     padding: const EdgeInsets.all(12),
                     child: SizedBox(
-                      width: 210,
-                      height: 210,
+                      width: 180,
+                      height: 180,
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
