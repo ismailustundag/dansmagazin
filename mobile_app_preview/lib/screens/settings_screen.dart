@@ -164,15 +164,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         selectedPath = img.path;
       }
 
+      final path = selectedPath;
+      if (path == null || path.isEmpty) return;
+
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kAvatarPath, selectedPath);
+      await prefs.setString(_kAvatarPath, path);
       if (!mounted) return;
-      setState(() => _avatarPath = selectedPath!);
+      setState(() => _avatarPath = path);
 
       if (widget.sessionToken.trim().isNotEmpty) {
         final uploadedUrl = await ProfileApi.uploadAvatar(
           sessionToken: widget.sessionToken,
-          filePath: selectedPath,
+          filePath: path,
         );
         if (uploadedUrl.isNotEmpty) {
           if (!mounted) return;
