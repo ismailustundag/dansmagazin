@@ -244,7 +244,11 @@ class _TicketItem {
   String get statusLabel {
     if (isUsed) return 'Kullanıldı';
     final woo = wooOrderStatus.trim().toLowerCase();
-    if (woo == 'on-hold' || woo == 'pending' || woo == 'checkout-draft') {
+    if (woo.contains('hold') ||
+        woo == 'pending' ||
+        woo == 'checkout-draft' ||
+        woo == 'pending-payment' ||
+        woo == 'pending_payment') {
       return 'Ödeme Bekleniyor';
     }
     if (woo == 'failed' || woo == 'cancelled' || woo == 'refunded') {
@@ -260,7 +264,11 @@ class _TicketItem {
   Color get statusColor {
     if (isUsed) return const Color(0xFFF59E0B);
     final woo = wooOrderStatus.trim().toLowerCase();
-    if (woo == 'on-hold' || woo == 'pending' || woo == 'checkout-draft') {
+    if (woo.contains('hold') ||
+        woo == 'pending' ||
+        woo == 'checkout-draft' ||
+        woo == 'pending-payment' ||
+        woo == 'pending_payment') {
       return const Color(0xFFF59E0B);
     }
     if (woo == 'failed' || woo == 'cancelled' || woo == 'refunded') {

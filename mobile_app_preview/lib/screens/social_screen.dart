@@ -248,6 +248,88 @@ class _SocialScreenState extends State<SocialScreen> {
     }
   }
 
+  Future<void> _openFriendActions(_FriendItem f) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  f.name.isNotEmpty ? f.name : I18n.t('user'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FriendProfileScreen(
+                                sessionToken: widget.sessionToken,
+                                friendAccountId: f.accountId,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.person, size: 16),
+                        label: Text(I18n.t('profile')),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(ctx).pop();
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatThreadScreen(
+                                sessionToken: widget.sessionToken,
+                                peerAccountId: f.accountId,
+                                peerName: f.name.isNotEmpty ? f.name : I18n.t('user'),
+                              ),
+                            ),
+                          );
+                          if (!mounted) return;
+                          await _refresh();
+                          await NotificationCenter.refresh(widget.sessionToken);
+                        },
+                        icon: const Icon(Icons.chat_bubble, size: 16),
+                        label: Text(I18n.t('send_message')),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _removeFriend(f.accountId, f.name);
+                        },
+                        icon: const Icon(Icons.person_remove, size: 16),
+                        label: const Text('Çıkart'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
@@ -494,19 +576,10 @@ class _SocialScreenState extends State<SocialScreen> {
                                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                           ),
                                         ),
-                                        PopupMenuButton<String>(
-                                          onSelected: (v) {
-                                            if (v == 'remove') {
-                                              _removeFriend(f.accountId, f.name);
-                                            }
-                                          },
-                                          itemBuilder: (_) => const [
-                                            PopupMenuItem<String>(
-                                              value: 'remove',
-                                              child: Text('Arkadaşlıktan Çıkar'),
-                                            ),
-                                          ],
-                                          icon: const Icon(Icons.more_vert, color: Colors.white70),
+                                        IconButton(
+                                          tooltip: 'İşlemler',
+                                          onPressed: () => _openFriendActions(f),
+                                          icon: const Icon(Icons.more_horiz, color: Colors.white70),
                                         ),
                                         if (f.unreadCount > 0)
                                           Container(
@@ -536,50 +609,6 @@ class _SocialScreenState extends State<SocialScreen> {
                                           fontWeight: f.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
                                         ),
                                       ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: () {
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) => FriendProfileScreen(
-                                                  sessionToken: widget.sessionToken,
-                                                  friendAccountId: f.accountId,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          icon: const Icon(Icons.person, size: 16),
-                                          label: Text(t('profile')),
-                                        ),
-                                        ElevatedButton.icon(
-                                          onPressed: () async {
-                                            await Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) => ChatThreadScreen(
-                                                  sessionToken: widget.sessionToken,
-                                                  peerAccountId: f.accountId,
-                                                  peerName: f.name.isNotEmpty ? f.name : t('user'),
-                                                ),
-                                              ),
-                                            );
-                                            if (!mounted) return;
-                                            await _refresh();
-                                            await NotificationCenter.refresh(widget.sessionToken);
-                                          },
-                                          icon: const Icon(Icons.chat_bubble, size: 16),
-                                          label: Text(t('send_message')),
-                                        ),
-                                        OutlinedButton.icon(
-                                          onPressed: () => _removeFriend(f.accountId, f.name),
-                                          icon: const Icon(Icons.person_remove, size: 16),
-                                          label: const Text('Arkadaşlıktan Çıkart'),
-                                        ),
-                                      ],
-                                    ),
                                   ],
                                 ),
                               ),

@@ -266,7 +266,7 @@ class TicketScanScreen extends StatefulWidget {
 class _TicketScanScreenState extends State<TicketScanScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   final MobileScannerController _scannerController = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
+    detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
     torchEnabled: false,
   );
@@ -388,6 +388,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
     setState(() {
       _scannerOpen = true;
       _pendingToken = '';
+      _lastToken = '';
       _scannerArmedAt = DateTime.now().add(const Duration(milliseconds: 1300));
     });
     await _scannerController.start();
@@ -408,6 +409,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
           padding: const EdgeInsets.all(16),
           children: [
           Container(
+            height: 250,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white24),
@@ -419,8 +421,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
                     alignment: Alignment.center,
                     padding: const EdgeInsets.all(12),
                     child: SizedBox(
-                      width: 290,
-                      height: 290,
+                      width: 210,
+                      height: 210,
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -439,8 +441,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
                               ),
                               child: const Center(
                                 child: SizedBox(
-                                  width: 170,
-                                  height: 170,
+                                  width: 126,
+                                  height: 126,
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
                                       border: Border.fromBorderSide(
@@ -456,19 +458,16 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
                       ),
                     ),
                   )
-                : AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      color: const Color(0xFF0F172A),
-                      alignment: Alignment.center,
-                      child: SizedBox(
-                        width: 180,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: _loading ? null : _openScanner,
-                          icon: const Icon(Icons.qr_code_scanner),
-                          label: const Text('QR Tara'),
-                        ),
+                : Container(
+                    color: const Color(0xFF0F172A),
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      width: 180,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: _loading ? null : _openScanner,
+                        icon: const Icon(Icons.qr_code_scanner),
+                        label: const Text('QR Tara'),
                       ),
                     ),
                   ),

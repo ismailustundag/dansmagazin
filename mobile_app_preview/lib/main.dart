@@ -336,6 +336,8 @@ class _RootScreenState extends State<RootScreen> {
       ),
     ];
 
+    final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       body: pages[_index],
       bottomNavigationBar: SafeArea(
@@ -377,17 +379,19 @@ class _RootScreenState extends State<RootScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: GestureDetector(
-        onTap: () => _onNavTap(2),
-        child: SizedBox(
-          width: 92,
-          height: 92,
-          child: Image.asset(
-            'assets/icons/dm.png',
-            fit: BoxFit.contain,
-          ),
-        ),
-      ),
+      floatingActionButton: keyboardVisible
+          ? null
+          : GestureDetector(
+              onTap: () => _onNavTap(2),
+              child: SizedBox(
+                width: 92,
+                height: 92,
+                child: Image.asset(
+                  'assets/icons/dm.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
     );
   }
 

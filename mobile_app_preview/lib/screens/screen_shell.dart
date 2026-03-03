@@ -19,6 +19,7 @@ class ScreenShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scroll = CustomScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       physics: onRefresh != null ? const AlwaysScrollableScrollPhysics() : null,
       slivers: [
         SliverToBoxAdapter(
@@ -76,9 +77,13 @@ class ScreenShell extends StatelessWidget {
         ),
       ),
       child: SafeArea(
-        child: onRefresh != null
-            ? RefreshIndicator(onRefresh: onRefresh!, child: scroll)
-            : scroll,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: onRefresh != null
+              ? RefreshIndicator(onRefresh: onRefresh!, child: scroll)
+              : scroll,
+        ),
       ),
     );
   }
