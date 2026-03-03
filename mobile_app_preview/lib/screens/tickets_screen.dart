@@ -117,11 +117,16 @@ class _TicketsScreenState extends State<TicketsScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                t.isUsed ? 'Durum: Kullanıldı' : 'Durum: Aktif',
+                                'Durum: ${t.statusLabel}',
                                 style: TextStyle(
-                                  color: t.isUsed ? const Color(0xFFF59E0B) : const Color(0xFF22C55E),
+                                  color: t.statusColor,
                                 ),
                               ),
+                              if (t.wooOrderStatus.isNotEmpty)
+                                Text(
+                                  'Sipariş durumu: ${t.wooOrderStatus}',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
                               if (t.wooOrderId.isNotEmpty)
                                 Text(
                                   'Sipariş: #${t.wooOrderId}',
@@ -163,7 +168,7 @@ class TicketQrScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
               Text(
-                ticket.isUsed ? 'Bu bilet kullanıldı' : 'Etkinlik Giriş Bileti',
+                ticket.isUsed ? 'Bu bilet kullanıldı' : ticket.statusLabel,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 16),
@@ -205,6 +210,8 @@ class _TicketItem {
   final String eventName;
   final String qrToken;
   final String wooOrderId;
+  final String wooOrderStatus;
+  final String status;
   final String usedAt;
   final bool isUsed;
 
@@ -214,6 +221,8 @@ class _TicketItem {
     required this.eventName,
     required this.qrToken,
     required this.wooOrderId,
+    required this.wooOrderStatus,
+    required this.status,
     required this.usedAt,
     required this.isUsed,
   });
@@ -225,8 +234,42 @@ class _TicketItem {
       eventName: (json['event_name'] ?? '').toString(),
       qrToken: (json['qr_token'] ?? '').toString(),
       wooOrderId: (json['woo_order_id'] ?? '').toString(),
+      wooOrderStatus: (json['woo_order_status'] ?? '').toString(),
+      status: (json['status'] ?? '').toString(),
       usedAt: (json['used_at'] ?? '').toString(),
       isUsed: (json['is_used'] == true) || ((json['used_at'] ?? '').toString().trim().isNotEmpty),
     );
+  }
+
+  String get statusLabel {
+    if (isUsed) return 'Kullanıldı';
+    final woo = wooOrderStatus.trim().toLowerCase();
+    if (woo == 'on-hold' || woo == 'pending' || woo == 'checkout-draft') {
+      return 'Ödeme Bekleniyor';
+    }
+    if (woo == 'failed' || woo == 'cancelled' || woo == 'refunded') {
+      return 'İptal';
+    }
+    final s = status.trim().toLowerCase();
+    if (s == 'active') return 'Aktif';
+    if (s == 'payment_pending') return 'Ödeme Bekleniyor';
+    if (s == 'cancelled') return 'İptal';
+    return s.isEmpty ? 'Bilinmiyor' : s;
+  }
+
+  Color get statusColor {
+    if (isUsed) return const Color(0xFFF59E0B);
+    final woo = wooOrderStatus.trim().toLowerCase();
+    if (woo == 'on-hold' || woo == 'pending' || woo == 'checkout-draft') {
+      return const Color(0xFFF59E0B);
+    }
+    if (woo == 'failed' || woo == 'cancelled' || woo == 'refunded') {
+      return const Color(0xFFEF4444);
+    }
+    final s = status.trim().toLowerCase();
+    if (s == 'active') return const Color(0xFF22C55E);
+    if (s == 'payment_pending') return const Color(0xFFF59E0B);
+    if (s == 'cancelled') return const Color(0xFFEF4444);
+    return Colors.white70;
   }
 }

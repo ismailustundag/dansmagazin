@@ -24,6 +24,10 @@ class _SocialScreenState extends State<SocialScreen> {
   late Future<List<_FriendItem>> _future;
   late Future<List<FriendRequestItem>> _incomingFuture;
   int _unreadTotal = 0;
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<SocialUserItem> _searchItems = const [];
+  bool _searchLoading = false;
+  String _searchError = '';
 
   @override
   void initState() {
@@ -31,6 +35,12 @@ class _SocialScreenState extends State<SocialScreen> {
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
     NotificationCenter.refresh(widget.sessionToken);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<List<_FriendItem>> _fetchFriends() async {
@@ -104,6 +114,9 @@ class _SocialScreenState extends State<SocialScreen> {
       _incomingFuture = _fetchIncoming();
     });
     await _future;
+    if (_searchCtrl.text.trim().length >= 2) {
+      await _runSearch();
+    }
     await NotificationCenter.refresh(widget.sessionToken);
   }
 
@@ -135,6 +148,104 @@ class _SocialScreenState extends State<SocialScreen> {
     if (!mounted) return;
     setState(() => _incomingFuture = _fetchIncoming());
     await NotificationCenter.refresh(widget.sessionToken);
+  }
+
+  Future<void> _runSearch() async {
+    final q = _searchCtrl.text.trim();
+    if (q.length < 2) {
+      if (!mounted) return;
+      setState(() {
+        _searchItems = const [];
+        _searchError = '';
+      });
+      return;
+    }
+    setState(() {
+      _searchLoading = true;
+      _searchError = '';
+    });
+    try {
+      final items = await EventSocialApi.searchUsers(
+        sessionToken: widget.sessionToken,
+        query: q,
+      );
+      if (!mounted) return;
+      setState(() => _searchItems = items);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _searchError = e.toString());
+    } finally {
+      if (mounted) setState(() => _searchLoading = false);
+    }
+  }
+
+  Future<void> _sendFriendRequest(SocialUserItem user) async {
+    try {
+      await EventSocialApi.sendFriendRequestDirect(
+        sessionToken: widget.sessionToken,
+        targetAccountId: user.accountId,
+      );
+      await _runSearch();
+      if (!mounted) return;
+      setState(() => _incomingFuture = _fetchIncoming());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Arkadaşlık isteği gönderildi.')),
+      );
+      await NotificationCenter.refresh(widget.sessionToken);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> _cancelFriendRequest(int requestId) async {
+    try {
+      await EventSocialApi.cancelFriendRequest(
+        sessionToken: widget.sessionToken,
+        requestId: requestId,
+      );
+      await _runSearch();
+      if (!mounted) return;
+      setState(() => _incomingFuture = _fetchIncoming());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İstek geri çekildi.')),
+      );
+      await NotificationCenter.refresh(widget.sessionToken);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> _removeFriend(int friendAccountId, String friendName) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Arkadaşlıktan Çıkart'),
+        content: Text('${friendName.isEmpty ? 'Bu kullanıcıyı' : friendName} arkadaş listesinden kaldırmak istiyor musun?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Vazgeç')),
+          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Çıkart')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await EventSocialApi.removeFriend(
+        sessionToken: widget.sessionToken,
+        friendAccountId: friendAccountId,
+      );
+      if (!mounted) return;
+      setState(() => _future = _fetchFriends());
+      await _runSearch();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Arkadaş silindi.')),
+      );
+      await NotificationCenter.refresh(widget.sessionToken);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 
   @override
@@ -204,6 +315,105 @@ class _SocialScreenState extends State<SocialScreen> {
               ),
             );
           },
+        ),
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF121826),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Arkadaş Ekle',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _runSearch(),
+                      decoration: const InputDecoration(
+                        hintText: 'İsim veya e-posta ara',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _searchLoading ? null : _runSearch,
+                    child: Text(_searchLoading ? '...' : 'Ara'),
+                  ),
+                ],
+              ),
+              if (_searchError.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(_searchError, style: const TextStyle(color: Colors.redAccent)),
+              ],
+              if (_searchItems.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                ..._searchItems.map(
+                  (u) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: const Color(0xFF1F2937),
+                          backgroundImage: u.avatarUrl.trim().isNotEmpty ? NetworkImage(u.avatarUrl.trim()) : null,
+                          child: u.avatarUrl.trim().isNotEmpty
+                              ? null
+                              : Text(
+                                  (u.name.isNotEmpty ? u.name[0] : '?').toUpperCase(),
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(u.name.isNotEmpty ? u.name : t('user'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                              if (u.email.isNotEmpty) Text(u.email, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                            ],
+                          ),
+                        ),
+                        if (u.friendStatus == 'friend')
+                          const Text('Arkadaş', style: TextStyle(color: Colors.greenAccent))
+                        else if (u.friendStatus == 'pending_outgoing')
+                          OutlinedButton(
+                            onPressed: (u.friendRequestId ?? 0) > 0
+                                ? () => _cancelFriendRequest(u.friendRequestId!)
+                                : null,
+                            child: const Text('Geri Çek'),
+                          )
+                        else if (u.friendStatus == 'pending_incoming')
+                          const Text('Sana istek gönderdi', style: TextStyle(color: Colors.orangeAccent))
+                        else
+                          ElevatedButton(
+                            onPressed: () => _sendFriendRequest(u),
+                            child: const Text('Ekle'),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
         if (_unreadTotal > 0)
           Container(
@@ -284,6 +494,20 @@ class _SocialScreenState extends State<SocialScreen> {
                                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                           ),
                                         ),
+                                        PopupMenuButton<String>(
+                                          onSelected: (v) {
+                                            if (v == 'remove') {
+                                              _removeFriend(f.accountId, f.name);
+                                            }
+                                          },
+                                          itemBuilder: (_) => const [
+                                            PopupMenuItem<String>(
+                                              value: 'remove',
+                                              child: Text('Arkadaşlıktan Çıkar'),
+                                            ),
+                                          ],
+                                          icon: const Icon(Icons.more_vert, color: Colors.white70),
+                                        ),
                                         if (f.unreadCount > 0)
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -348,6 +572,11 @@ class _SocialScreenState extends State<SocialScreen> {
                                           },
                                           icon: const Icon(Icons.chat_bubble, size: 16),
                                           label: Text(t('send_message')),
+                                        ),
+                                        OutlinedButton.icon(
+                                          onPressed: () => _removeFriend(f.accountId, f.name),
+                                          icon: const Icon(Icons.person_remove, size: 16),
+                                          label: const Text('Arkadaşlıktan Çıkart'),
                                         ),
                                       ],
                                     ),

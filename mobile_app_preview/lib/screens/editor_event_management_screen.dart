@@ -278,6 +278,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   List<Map<String, dynamic>> _used = const [];
   String _lastToken = '';
   DateTime _lastScanAt = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _scannerArmedAt = DateTime.fromMillisecondsSinceEpoch(0);
+  String _pendingToken = '';
 
   @override
   void initState() {
@@ -365,7 +367,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_loading || !_scannerOpen) return;
+    if (_loading || !_scannerOpen || _pendingToken.isNotEmpty) return;
+    if (DateTime.now().isBefore(_scannerArmedAt)) return;
     String token = '';
     for (final code in capture.barcodes) {
       final raw = (code.rawValue ?? '').trim();
@@ -377,11 +380,16 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
     if (token.isEmpty) return;
     setState(() => _scannerOpen = false);
     await _scannerController.stop();
-    await _scanToken(token);
+    if (!mounted) return;
+    setState(() => _pendingToken = token);
   }
 
   Future<void> _openScanner() async {
-    setState(() => _scannerOpen = true);
+    setState(() {
+      _scannerOpen = true;
+      _pendingToken = '';
+      _scannerArmedAt = DateTime.now().add(const Duration(milliseconds: 1300));
+    });
     await _scannerController.start();
   }
 
@@ -406,11 +414,46 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
             ),
             clipBehavior: Clip.antiAlias,
             child: _scannerOpen
-                ? AspectRatio(
-                    aspectRatio: 1,
-                    child: MobileScanner(
-                      controller: _scannerController,
-                      onDetect: _onDetect,
+                ? Container(
+                    color: const Color(0xFF070B14),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 290,
+                      height: 290,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: MobileScanner(
+                              controller: _scannerController,
+                              onDetect: _onDetect,
+                            ),
+                          ),
+                          IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.white70, width: 2),
+                              ),
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 170,
+                                  height: 170,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      border: Border.fromBorderSide(
+                                        BorderSide(color: Color(0xFFE53935), width: 2.6),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : AspectRatio(
@@ -441,10 +484,61 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
           const SizedBox(height: 10),
           Text(
             _scannerOpen
-                ? 'QR kodu kameraya gösterin. Okutunca tarayıcı kapanır.'
+                ? 'QR kodunu kırmızı çerçevenin içine getir. Kamera açıldıktan sonra kısa bir bekleme var.'
                 : 'Bilet doğrulamak için QR Tara butonuna basın.',
             style: TextStyle(color: Colors.white70),
           ),
+          if (_pendingToken.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F2937),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('QR algılandı', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    _pendingToken.length > 40 ? '${_pendingToken.substring(0, 40)}...' : _pendingToken,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _loading
+                            ? null
+                            : () async {
+                                final t = _pendingToken;
+                                setState(() => _pendingToken = '');
+                                await Future<void>.delayed(const Duration(milliseconds: 350));
+                                await _scanToken(t);
+                              },
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('Doğrula'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _loading
+                            ? null
+                            : () async {
+                                setState(() => _pendingToken = '');
+                                await _openScanner();
+                              },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Yeniden Tara'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           OutlinedButton(
             onPressed: _loading ? null : _loadUsed,
@@ -453,13 +547,36 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
           if (_result.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: _resultColor.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _resultColor.withOpacity(0.4)),
               ),
-              child: Text(_result, style: TextStyle(fontWeight: FontWeight.w700, color: _resultColor)),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    _resultColor == Colors.greenAccent
+                        ? Icons.check_circle
+                        : (_resultColor == Colors.amberAccent ? Icons.warning_amber_rounded : Icons.cancel),
+                    color: _resultColor,
+                    size: 30,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _result,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: _resultColor,
+                        fontSize: 18,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 14),

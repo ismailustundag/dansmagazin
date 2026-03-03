@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -30,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _email = '';
   bool _loading = true;
   bool _saving = false;
+  bool _pickingAvatar = false;
 
   @override
   void initState() {
@@ -45,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    var avatar = prefs.getString(_kAvatarPath) ?? '';
+    final avatar = prefs.getString(_kAvatarPath) ?? '';
     try {
       if (widget.sessionToken.trim().isNotEmpty) {
         final remote = await ProfileApi.settings(widget.sessionToken);
@@ -116,25 +119,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<String?> _pickAvatarPathIOSSafe() async {
+    if (!Platform.isIOS) return null;
+
+    // iOS simulator ve bazi iOS surumlerinde PHPicker kitlenebildigi icin,
+    // once Files tabanli secim denenir.
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'],
+      allowMultiple: false,
+      withData: false,
+      withReadStream: false,
+      lockParentWindow: true,
+    );
+
+    if (result == null || result.files.isEmpty) return null;
+    return result.files.single.path;
+  }
+
   Future<void> _pickAvatar() async {
+    if (_pickingAvatar) return;
+    setState(() => _pickingAvatar = true);
+    FocusScope.of(context).unfocus();
+
     try {
-      final img = await _picker
-          .pickImage(
-            source: ImageSource.gallery,
-            imageQuality: 90,
-            requestFullMetadata: false,
-            maxWidth: 1440,
-          )
-          .timeout(const Duration(seconds: 25));
-      if (img == null) return;
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      String? selectedPath;
+
+      try {
+        selectedPath = await _pickAvatarPathIOSSafe();
+      } catch (_) {
+        selectedPath = null;
+      }
+
+      if (selectedPath == null || selectedPath.isEmpty) {
+        final img = await _picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 90,
+          requestFullMetadata: false,
+          maxWidth: 1440,
+        );
+        if (img == null) return;
+        selectedPath = img.path;
+      }
+
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kAvatarPath, img.path);
+      await prefs.setString(_kAvatarPath, selectedPath);
       if (!mounted) return;
-      setState(() => _avatarPath = img.path);
+      setState(() => _avatarPath = selectedPath!);
+
       if (widget.sessionToken.trim().isNotEmpty) {
         final uploadedUrl = await ProfileApi.uploadAvatar(
           sessionToken: widget.sessionToken,
-          filePath: img.path,
+          filePath: selectedPath,
         );
         if (uploadedUrl.isNotEmpty) {
           if (!mounted) return;
@@ -142,6 +180,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await _saveRemote(avatarUrl: uploadedUrl);
         }
       }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${I18n.t('photo_pick_failed')}: ${e.message ?? e.code}')),
+      );
     } on TimeoutException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,6 +195,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${I18n.t('photo_pick_failed')}: $e')),
       );
+    } finally {
+      if (mounted) setState(() => _pickingAvatar = false);
     }
   }
 
@@ -221,9 +266,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 runSpacing: 8,
                                 children: [
                                   ElevatedButton.icon(
-                                    onPressed: _pickAvatar,
+                                    onPressed: _pickingAvatar ? null : _pickAvatar,
                                     icon: const Icon(Icons.photo_camera, size: 18),
-                                    label: Text(t('select')),
+                                    label: Text(_pickingAvatar ? '...' : t('select')),
                                   ),
                                   if (_avatarPath.isNotEmpty)
                                     OutlinedButton.icon(

@@ -62,6 +62,38 @@ class FriendRequestItem {
   }
 }
 
+class SocialUserItem {
+  final int accountId;
+  final String name;
+  final String email;
+  final String avatarUrl;
+  final bool isFriend;
+  final String friendStatus;
+  final int? friendRequestId;
+
+  const SocialUserItem({
+    required this.accountId,
+    required this.name,
+    required this.email,
+    required this.avatarUrl,
+    required this.isFriend,
+    required this.friendStatus,
+    required this.friendRequestId,
+  });
+
+  factory SocialUserItem.fromJson(Map<String, dynamic> json) {
+    return SocialUserItem(
+      accountId: (json['account_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      avatarUrl: (json['avatar_url'] ?? '').toString(),
+      isFriend: json['is_friend'] == true,
+      friendStatus: (json['friend_status'] ?? 'none').toString(),
+      friendRequestId: (json['friend_request_id'] as num?)?.toInt(),
+    );
+  }
+}
+
 class EventSocialApi {
   static const String _base = 'https://api2.dansmagazin.net';
 
@@ -173,6 +205,71 @@ class EventSocialApi {
     );
     if (resp.statusCode != 200) {
       throw EventSocialApiException(_parseError(resp.body, fallback: 'İstek reddedilemedi'));
+    }
+  }
+
+  static Future<void> cancelFriendRequest({
+    required String sessionToken,
+    required int requestId,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/profile/friend-requests/$requestId/cancel'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'İstek geri çekilemedi'));
+    }
+  }
+
+  static Future<List<SocialUserItem>> searchUsers({
+    required String sessionToken,
+    required String query,
+    int limit = 20,
+  }) async {
+    final q = query.trim();
+    if (q.length < 2) return const [];
+    final resp = await http.get(
+      Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$limit'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Kullanıcı araması yapılamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(SocialUserItem.fromJson)
+        .toList();
+  }
+
+  static Future<Map<String, dynamic>> sendFriendRequestDirect({
+    required String sessionToken,
+    required int targetAccountId,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/friends/$targetAccountId/request'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Arkadaşlık isteği gönderilemedi'));
+    }
+    try {
+      final body = jsonDecode(resp.body);
+      if (body is Map<String, dynamic>) return body;
+    } catch (_) {}
+    return const {};
+  }
+
+  static Future<void> removeFriend({
+    required String sessionToken,
+    required int friendAccountId,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/profile/friends/$friendAccountId'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Arkadaş silinemedi'));
     }
   }
 

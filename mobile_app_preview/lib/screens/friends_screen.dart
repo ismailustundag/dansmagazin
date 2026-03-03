@@ -65,6 +65,43 @@ class _FriendsScreenState extends State<FriendsScreen> {
     setState(() => _incomingFuture = _fetchIncoming());
   }
 
+  Future<void> _removeFriend(_FriendItem friend) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Arkadaşlıktan Çıkart'),
+        content: Text('${friend.name.isEmpty ? 'Bu kullanıcıyı' : friend.name} arkadaşlıktan çıkartılsın mı?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Çıkart'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await EventSocialApi.removeFriend(
+        sessionToken: widget.sessionToken,
+        friendAccountId: friend.accountId,
+      );
+      if (!mounted) return;
+      setState(() => _future = _fetchFriends());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Arkadaşlıktan çıkartıldı.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -143,46 +180,59 @@ class _FriendsScreenState extends State<FriendsScreen> {
               }
               return Column(
                 children: items.map((f) {
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => FriendProfileScreen(
-                            sessionToken: widget.sessionToken,
-                            friendAccountId: f.accountId,
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => FriendProfileScreen(
+                                  sessionToken: widget.sessionToken,
+                                  friendAccountId: f.accountId,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              const CircleAvatar(
+                                backgroundColor: Color(0xFFE53935),
+                                child: Icon(Icons.person, color: Colors.white),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(f.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                    if (f.email.isNotEmpty)
+                                      Text(f.email, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, color: Colors.white54),
+                            ],
                           ),
                         ),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121826),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        children: [
-                          const CircleAvatar(
-                            backgroundColor: Color(0xFFE53935),
-                            child: Icon(Icons.person, color: Colors.white),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _removeFriend(f),
+                            icon: const Icon(Icons.person_remove),
+                            label: const Text('Arkadaşlıktan Çıkart'),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(f.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                                if (f.email.isNotEmpty)
-                                  Text(f.email, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right, color: Colors.white54),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   );
                 }).toList(),
