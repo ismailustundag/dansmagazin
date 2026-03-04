@@ -115,9 +115,7 @@ class _SocialScreenState extends State<SocialScreen> {
       _incomingFuture = _fetchIncoming();
     });
     await _future;
-    if (_searchCtrl.text.trim().length >= 2) {
-      await _runSearch();
-    }
+    await _runSearch();
     await NotificationCenter.refresh(widget.sessionToken);
   }
 
@@ -161,7 +159,7 @@ class _SocialScreenState extends State<SocialScreen> {
       final items = await EventSocialApi.searchUsers(
         sessionToken: widget.sessionToken,
         query: q,
-        limit: 200,
+        limit: 100,
       );
       if (!mounted) return;
       setState(() => _searchItems = items);

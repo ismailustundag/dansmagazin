@@ -5,6 +5,9 @@ import 'package:http/http.dart' as http;
 class EventSocialApiException implements Exception {
   final String message;
   EventSocialApiException(this.message);
+
+  @override
+  String toString() => message;
 }
 
 class EventAttendee {
@@ -227,8 +230,9 @@ class EventSocialApi {
     int limit = 20,
   }) async {
     final q = query.trim();
+    final lim = limit < 1 ? 1 : (limit > 100 ? 100 : limit);
     final resp = await http.get(
-      Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$limit'),
+      Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$lim'),
       headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
     );
     if (resp.statusCode != 200) {
@@ -276,7 +280,15 @@ class EventSocialApi {
     try {
       final j = jsonDecode(body);
       if (j is Map<String, dynamic>) {
-        return (j['detail'] ?? j['message'] ?? fallback).toString();
+        final detail = j['detail'];
+        if (detail is List && detail.isNotEmpty) {
+          final first = detail.first;
+          if (first is Map<String, dynamic>) {
+            return (first['msg'] ?? first['message'] ?? fallback).toString();
+          }
+          return first.toString();
+        }
+        return (detail ?? j['message'] ?? fallback).toString();
       }
     } catch (_) {}
     return fallback;
