@@ -155,7 +155,17 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                         final shareText = item.link.isNotEmpty
                             ? '${item.title}\n${item.link}'
                             : item.title;
-                        Share.share(shareText, subject: item.title);
+                        final box = context.findRenderObject() as RenderBox?;
+                        final origin = box == null
+                            ? null
+                            : (box.localToGlobal(Offset.zero) & box.size);
+                        SharePlus.instance.share(
+                          ShareParams(
+                            text: shareText,
+                            subject: item.title,
+                            sharePositionOrigin: origin,
+                          ),
+                        );
                       },
                       icon: const Icon(Icons.share),
                       label: const Text('Paylaş'),

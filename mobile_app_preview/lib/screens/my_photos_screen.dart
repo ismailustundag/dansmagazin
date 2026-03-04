@@ -168,6 +168,35 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
     }
   }
 
+  Future<void> _share(String text) async {
+    final payload = text.trim();
+    if (payload.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paylaşılacak içerik bulunamadı')),
+      );
+      return;
+    }
+    try {
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box == null
+          ? null
+          : (box.localToGlobal(Offset.zero) & box.size);
+      await SharePlus.instance.share(
+        ShareParams(
+          text: payload,
+          subject: 'Dansmagazin Fotoğraf',
+          sharePositionOrigin: origin,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paylaşım açılamadı')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -226,7 +255,7 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => Share.share(photo.url),
+                      onPressed: () => _share(photo.url),
                       icon: const Icon(Icons.share),
                       label: Text(t('share')),
                     ),

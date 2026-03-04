@@ -9,6 +9,39 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/i18n.dart';
 import 'screen_shell.dart';
 
+Future<void> _safeShare(
+  BuildContext context,
+  String text, {
+  String subject = '',
+}) async {
+  final payload = text.trim();
+  if (payload.isEmpty) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Paylaşılacak içerik bulunamadı')),
+    );
+    return;
+  }
+  try {
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null
+        ? null
+        : (box.localToGlobal(Offset.zero) & box.size);
+    await SharePlus.instance.share(
+      ShareParams(
+        text: payload,
+        subject: subject,
+        sharePositionOrigin: origin,
+      ),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Paylaşım açılamadı')),
+    );
+  }
+}
+
 class PhotosScreen extends StatefulWidget {
   final int accountId;
   final String sessionToken;
@@ -65,26 +98,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   Future<void> _shareAlbum(_Album album) async {
     final albumUrl = '$_publicAlbumBaseUrl${album.slug}';
     final text = 'Dansmagazin albümü: ${album.name}\n$albumUrl\n\nUygulama yoksa buradan indirebilirsiniz:\n$_fallbackInstallUrl';
-    await _shareText(context, text, subject: album.name);
-  }
-
-  Future<void> _shareText(BuildContext context, String text, {String? subject}) async {
-    final payload = text.trim();
-    if (payload.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylaşılacak içerik bulunamadı')),
-      );
-      return;
-    }
-    try {
-      await Share.share(payload, subject: subject ?? '');
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylaşım açılamadı')),
-      );
-    }
+    await _safeShare(context, text, subject: album.name);
   }
 
   Future<List<_Album>> _fetchAlbums() async {
@@ -567,22 +581,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   }
 
   Future<void> _sharePhoto(String url) async {
-    final payload = url.trim();
-    if (payload.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylaşılacak fotoğraf bulunamadı')),
-      );
-      return;
-    }
-    try {
-      await Share.share(payload, subject: 'Dansmagazin Fotoğraf');
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylaşım açılamadı')),
-      );
-    }
+    await _safeShare(context, url, subject: 'Dansmagazin Fotoğraf');
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
