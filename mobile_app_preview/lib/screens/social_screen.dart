@@ -28,13 +28,13 @@ class _SocialScreenState extends State<SocialScreen> {
   List<SocialUserItem> _searchItems = const [];
   bool _searchLoading = false;
   String _searchError = '';
+  bool _addFriendsOpen = false;
 
   @override
   void initState() {
     super.initState();
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
-    _runSearch();
     NotificationCenter.refresh(widget.sessionToken);
   }
 
@@ -115,7 +115,9 @@ class _SocialScreenState extends State<SocialScreen> {
       _incomingFuture = _fetchIncoming();
     });
     await _future;
-    await _runSearch();
+    if (_addFriendsOpen) {
+      await _runSearch();
+    }
     await NotificationCenter.refresh(widget.sessionToken);
   }
 
@@ -168,6 +170,14 @@ class _SocialScreenState extends State<SocialScreen> {
       setState(() => _searchError = e.toString());
     } finally {
       if (mounted) setState(() => _searchLoading = false);
+    }
+  }
+
+  Future<void> _toggleAddFriendsPanel() async {
+    final next = !_addFriendsOpen;
+    setState(() => _addFriendsOpen = next);
+    if (next && _searchItems.isEmpty && !_searchLoading) {
+      await _runSearch();
     }
   }
 
@@ -442,91 +452,110 @@ class _SocialScreenState extends State<SocialScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Arkadaş Ekle',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: _toggleAddFriendsPanel,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Arkadaş Ekle',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Icon(
+                        _addFriendsOpen ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.white70,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      textInputAction: TextInputAction.search,
-                      onChanged: (_) => _runSearch(),
-                      onSubmitted: (_) => _runSearch(),
-                      decoration: const InputDecoration(
-                        hintText: 'Kullanıcı ara (liste canlı filtrelenir)',
-                        isDense: true,
-                        border: OutlineInputBorder(),
+              if (_addFriendsOpen) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        textInputAction: TextInputAction.search,
+                        onChanged: (_) => _runSearch(),
+                        onSubmitted: (_) => _runSearch(),
+                        decoration: const InputDecoration(
+                          hintText: 'Kullanıcı ara (liste canlı filtrelenir)',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _searchLoading ? null : _runSearch,
+                      child: Text(_searchLoading ? '...' : 'Ara'),
+                    ),
+                  ],
+                ),
+                if (_searchError.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(_searchError, style: const TextStyle(color: Colors.redAccent)),
+                ],
+                if (_searchItems.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  ..._searchItems.map(
+                    (u) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: const Color(0xFF1F2937),
+                            backgroundImage: u.avatarUrl.trim().isNotEmpty ? NetworkImage(u.avatarUrl.trim()) : null,
+                            child: u.avatarUrl.trim().isNotEmpty
+                                ? null
+                                : Text(
+                                    (u.name.isNotEmpty ? u.name[0] : '?').toUpperCase(),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                                  ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(u.name.isNotEmpty ? u.name : t('user'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                                if (u.email.isNotEmpty) Text(u.email, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                              ],
+                            ),
+                          ),
+                          if (u.friendStatus == 'friend')
+                            const Text('Arkadaş', style: TextStyle(color: Colors.greenAccent))
+                          else if (u.friendStatus == 'pending_outgoing')
+                            OutlinedButton(
+                              onPressed: (u.friendRequestId ?? 0) > 0
+                                  ? () => _cancelFriendRequest(u.friendRequestId!)
+                                  : null,
+                              child: const Text('Geri Çek'),
+                            )
+                          else if (u.friendStatus == 'pending_incoming')
+                            const Text('Sana istek gönderdi', style: TextStyle(color: Colors.orangeAccent))
+                          else
+                            ElevatedButton(
+                              onPressed: () => _sendFriendRequest(u),
+                              child: const Text('Ekle'),
+                            ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _searchLoading ? null : _runSearch,
-                    child: Text(_searchLoading ? '...' : 'Ara'),
-                  ),
                 ],
-              ),
-              if (_searchError.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(_searchError, style: const TextStyle(color: Colors.redAccent)),
-              ],
-              if (_searchItems.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                ..._searchItems.map(
-                  (u) => Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white10),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: const Color(0xFF1F2937),
-                          backgroundImage: u.avatarUrl.trim().isNotEmpty ? NetworkImage(u.avatarUrl.trim()) : null,
-                          child: u.avatarUrl.trim().isNotEmpty
-                              ? null
-                              : Text(
-                                  (u.name.isNotEmpty ? u.name[0] : '?').toUpperCase(),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                                ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(u.name.isNotEmpty ? u.name : t('user'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                              if (u.email.isNotEmpty) Text(u.email, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                            ],
-                          ),
-                        ),
-                        if (u.friendStatus == 'friend')
-                          const Text('Arkadaş', style: TextStyle(color: Colors.greenAccent))
-                        else if (u.friendStatus == 'pending_outgoing')
-                          OutlinedButton(
-                            onPressed: (u.friendRequestId ?? 0) > 0
-                                ? () => _cancelFriendRequest(u.friendRequestId!)
-                                : null,
-                            child: const Text('Geri Çek'),
-                          )
-                        else if (u.friendStatus == 'pending_incoming')
-                          const Text('Sana istek gönderdi', style: TextStyle(color: Colors.orangeAccent))
-                        else
-                          ElevatedButton(
-                            onPressed: () => _sendFriendRequest(u),
-                            child: const Text('Ekle'),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
             ],
           ),
