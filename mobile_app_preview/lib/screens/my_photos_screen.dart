@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -25,23 +25,30 @@ Future<List<int>> _downloadImageBytes(String url) async {
   throw HttpException('image_download_failed_${resp.statusCode}');
 }
 
-Future<XFile> _saveImageToTempXFile(String url, List<int> bytes) async {
+String _galleryNameFromUrl(String url) {
   final lower = url.toLowerCase();
   final ext = lower.contains('.png')
       ? 'png'
       : lower.contains('.webp')
           ? 'webp'
           : 'jpg';
-  final mime = ext == 'png'
-      ? 'image/png'
-      : ext == 'webp'
-          ? 'image/webp'
-          : 'image/jpeg';
-  final dir = Directory.systemTemp;
-  final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
-  final file = File('${dir.path}/$name');
-  await file.writeAsBytes(bytes, flush: true);
-  return XFile(file.path, mimeType: mime, name: name);
+  return 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
+}
+
+Future<bool> _saveToGallery(String url, List<int> bytes) async {
+  final name = _galleryNameFromUrl(url);
+  final result = await ImageGallerySaver.saveImage(
+    bytes,
+    quality: 100,
+    name: name,
+  );
+  if (result is Map) {
+    final success = result['isSuccess'] == true ||
+        result['success'] == true ||
+        result['filePath'] != null;
+    return success;
+  }
+  return result != null;
 }
 
 class MyPhotosScreen extends StatefulWidget {
@@ -201,15 +208,17 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
   Future<void> _download(String url) async {
     try {
       final bytes = await _downloadImageBytes(url);
-      final file = await _saveImageToTempXFile(url, bytes);
-      await Share.shareXFiles(
-        <XFile>[file],
-        subject: 'Dansmagazin Fotoğraf',
-      );
-    } catch (_) {
+      final saved = await _saveToGallery(url, bytes);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.t('cannot_open_download'))),
+        SnackBar(
+          content: Text(saved ? 'Fotoğraf albüme kaydedildi' : I18n.t('cannot_open_download')),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${I18n.t('cannot_open_download')} (${e.runtimeType})')),
       );
     }
   }
