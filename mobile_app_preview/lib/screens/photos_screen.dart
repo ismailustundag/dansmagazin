@@ -5,13 +5,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/i18n.dart';
 import 'screen_shell.dart';
+
+Uri _encodedUri(String rawUrl) => Uri.parse(Uri.encodeFull(rawUrl.trim()));
+
+Future<List<int>> _downloadImageBytes(String url, {String? bearerToken}) async {
+  final headers = <String, String>{
+    'Accept': 'image/*,*/*;q=0.8',
+    'User-Agent': 'DansmagazinApp/1.0',
+  };
+  final token = (bearerToken ?? '').trim();
+  if (token.isNotEmpty) {
+    headers['Authorization'] = 'Bearer $token';
+  }
+  final resp = await http.get(_encodedUri(url), headers: headers);
+  if (resp.statusCode >= 200 && resp.statusCode < 300 && resp.bodyBytes.isNotEmpty) {
+    return resp.bodyBytes;
+  }
+  throw HttpException('image_download_failed_${resp.statusCode}');
+}
 
 Future<XFile> _saveImageToTempXFile(String url, List<int> bytes) async {
   final lower = url.toLowerCase();
@@ -25,7 +42,7 @@ Future<XFile> _saveImageToTempXFile(String url, List<int> bytes) async {
       : ext == 'webp'
           ? 'image/webp'
           : 'image/jpeg';
-  final dir = await getTemporaryDirectory();
+  final dir = Directory.systemTemp;
   final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
   final file = File('${dir.path}/$name');
   await file.writeAsBytes(bytes, flush: true);
@@ -659,11 +676,8 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
 
   Future<void> _download(String url) async {
     try {
-      final resp = await http.get(Uri.parse(url));
-      if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.bodyBytes.isEmpty) {
-        throw Exception('download failed');
-      }
-      final file = await _saveImageToTempXFile(url, resp.bodyBytes);
+      final bytes = await _downloadImageBytes(url, bearerToken: widget.sessionToken);
+      final file = await _saveImageToTempXFile(url, bytes);
       await Share.shareXFiles(
         <XFile>[file],
         subject: 'Dansmagazin Fotoğraf',
@@ -1217,11 +1231,8 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
 
   Future<void> _download(String url) async {
     try {
-      final resp = await http.get(Uri.parse(url));
-      if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.bodyBytes.isEmpty) {
-        throw Exception('download failed');
-      }
-      final file = await _saveImageToTempXFile(url, resp.bodyBytes);
+      final bytes = await _downloadImageBytes(url);
+      final file = await _saveImageToTempXFile(url, bytes);
       await Share.shareXFiles(
         <XFile>[file],
         subject: 'Dansmagazin Fotoğraf',

@@ -4,11 +4,26 @@ import 'dart:io';
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../services/i18n.dart';
+
+Uri _encodedUri(String rawUrl) => Uri.parse(Uri.encodeFull(rawUrl.trim()));
+
+Future<List<int>> _downloadImageBytes(String url) async {
+  final resp = await http.get(
+    _encodedUri(url),
+    headers: const {
+      'Accept': 'image/*,*/*;q=0.8',
+      'User-Agent': 'DansmagazinApp/1.0',
+    },
+  );
+  if (resp.statusCode >= 200 && resp.statusCode < 300 && resp.bodyBytes.isNotEmpty) {
+    return resp.bodyBytes;
+  }
+  throw HttpException('image_download_failed_${resp.statusCode}');
+}
 
 Future<XFile> _saveImageToTempXFile(String url, List<int> bytes) async {
   final lower = url.toLowerCase();
@@ -22,7 +37,7 @@ Future<XFile> _saveImageToTempXFile(String url, List<int> bytes) async {
       : ext == 'webp'
           ? 'image/webp'
           : 'image/jpeg';
-  final dir = await getTemporaryDirectory();
+  final dir = Directory.systemTemp;
   final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
   final file = File('${dir.path}/$name');
   await file.writeAsBytes(bytes, flush: true);
@@ -185,11 +200,8 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
 
   Future<void> _download(String url) async {
     try {
-      final resp = await http.get(Uri.parse(url));
-      if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.bodyBytes.isEmpty) {
-        throw Exception('download failed');
-      }
-      final file = await _saveImageToTempXFile(url, resp.bodyBytes);
+      final bytes = await _downloadImageBytes(url);
+      final file = await _saveImageToTempXFile(url, bytes);
       await Share.shareXFiles(
         <XFile>[file],
         subject: 'Dansmagazin Fotoğraf',
