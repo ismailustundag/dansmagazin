@@ -22,6 +22,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     incomingFriendRequestsCount: 0,
     unreadMessagesCount: 0,
   );
+  List<NotificationFeedItem> _feed = const [];
   bool _loading = true;
   String? _error;
   Timer? _timer;
@@ -60,11 +61,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       });
     }
     try {
-      final s = await NotificationsApi.fetchSummary(widget.sessionToken);
+      final results = await Future.wait<dynamic>([
+        NotificationsApi.fetchSummary(widget.sessionToken),
+        NotificationsApi.fetchFeed(widget.sessionToken, limit: 100),
+      ]);
+      final s = results[0] as NotificationSummary;
+      final feed = results[1] as List<NotificationFeedItem>;
       if (!mounted) return;
       NotificationCenter.setSummary(s);
       setState(() {
         _summary = s;
+        _feed = feed;
         _loading = false;
         _error = null;
       });
@@ -135,6 +142,77 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           await _refresh(silent: true);
                         },
                       ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Son Bildirimler',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_feed.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF121826),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Text(
+                            'Henüz bildirim yok.',
+                            style: TextStyle(color: Colors.white.withOpacity(0.75)),
+                          ),
+                        )
+                      else
+                        ..._feed.map(
+                          (n) => Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF121826),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        n.title.trim().isEmpty ? 'Bildirim' : n.title.trim(),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      _fmtDate(n.createdAt),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  n.body,
+                                  style: const TextStyle(color: Colors.white70),
+                                ),
+                                if (n.sentByName.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Gönderen: ${n.sentByName}',
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
       ),
@@ -176,5 +254,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       ),
     );
+  }
+
+  String _fmtDate(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '-';
+    final d = DateTime.tryParse(value);
+    if (d == null) {
+      final c = value.replaceAll('T', ' ');
+      return c.length >= 16 ? c.substring(0, 16) : c;
+    }
+    final local = d.toLocal();
+    final dd = local.day.toString().padLeft(2, '0');
+    final mm = local.month.toString().padLeft(2, '0');
+    final yyyy = local.year.toString();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mi = local.minute.toString().padLeft(2, '0');
+    return '$dd.$mm.$yyyy $hh:$mi';
   }
 }
