@@ -855,6 +855,9 @@ class _ManagedEventItem {
   final String description;
   final String eventDate;
   final String venue;
+  final String city;
+  final String eventKind;
+  final bool ticketSalesEnabled;
   final String organizerName;
   final String programText;
   final String entryFee;
@@ -867,6 +870,9 @@ class _ManagedEventItem {
     required this.description,
     required this.eventDate,
     required this.venue,
+    required this.city,
+    required this.eventKind,
+    required this.ticketSalesEnabled,
     required this.organizerName,
     required this.programText,
     required this.entryFee,
@@ -881,6 +887,9 @@ class _ManagedEventItem {
       description: (json['description'] ?? '').toString(),
       eventDate: (json['event_date'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
+      city: (json['city'] ?? '').toString(),
+      eventKind: (json['event_kind'] ?? '').toString(),
+      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
       organizerName: (json['organizer_name'] ?? '').toString(),
       programText: (json['program_text'] ?? '').toString(),
       entryFee: (json['entry_fee'] ?? '0').toString(),
@@ -910,6 +919,22 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   late final TextEditingController _venueCtrl;
   late final TextEditingController _orgCtrl;
   late final TextEditingController _programCtrl;
+  final List<String> _cities = const [
+    'İstanbul',
+    'Ankara',
+    'İzmir',
+    'Bursa',
+    'Antalya',
+    'Adana',
+    'Kocaeli',
+    'Muğla',
+    'Mersin',
+    'Eskişehir',
+    'Belirtilmedi',
+  ];
+  String _city = 'İstanbul';
+  String _eventKind = 'dance_night';
+  bool _ticketSalesEnabled = true;
   bool _saving = false;
   String? _error;
 
@@ -921,6 +946,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     _venueCtrl = TextEditingController(text: widget.item.venue);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
     _programCtrl = TextEditingController(text: widget.item.programText);
+    _city = widget.item.city.trim().isEmpty ? 'Belirtilmedi' : widget.item.city.trim();
+    _eventKind = _normalizeKind(widget.item.eventKind);
+    _ticketSalesEnabled = widget.item.ticketSalesEnabled;
   }
 
   @override
@@ -947,6 +975,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
         ..fields['venue'] = _venueCtrl.text.trim()
+        ..fields['city'] = _city
+        ..fields['event_kind'] = _eventKind
+        ..fields['ticket_sales_enabled'] = _ticketSalesEnabled ? '1' : '0'
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim();
       final res = await req.send();
@@ -993,6 +1024,43 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               _txt(_descCtrl, 'Detaylar', maxLines: 3),
               _txt(_programCtrl, 'Program', maxLines: 3),
               _txt(_venueCtrl, 'Konum / Mekan'),
+              DropdownButtonFormField<String>(
+                value: _cities.contains(_city) ? _city : 'Belirtilmedi',
+                items: _cities
+                    .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: _saving ? null : (v) => setState(() => _city = v ?? _city),
+                decoration: InputDecoration(
+                  labelText: 'Şehir',
+                  filled: true,
+                  fillColor: const Color(0xFF111827),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _eventKind,
+                items: const [
+                  DropdownMenuItem(value: 'dance_night', child: Text('Dans Gecesi')),
+                  DropdownMenuItem(value: 'festival', child: Text('Festival')),
+                  DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
+                ],
+                onChanged: _saving ? null : (v) => setState(() => _eventKind = v ?? _eventKind),
+                decoration: InputDecoration(
+                  labelText: 'Etkinlik Türü',
+                  filled: true,
+                  fillColor: const Color(0xFF111827),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 4),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Bilet Satışına Aç'),
+                subtitle: const Text('Kapalıysa etkinlik yalnızca uygulamada görünür'),
+                value: _ticketSalesEnabled,
+                onChanged: _saving ? null : (v) => setState(() => _ticketSalesEnabled = v),
+              ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateField(_dateCtrl, 'Etkinlik Tarihi'),
               if (_error != null) ...[
@@ -1028,6 +1096,12 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ),
       ),
     );
+  }
+
+  String _normalizeKind(String raw) {
+    final v = raw.trim().toLowerCase();
+    if (v == 'festival' || v == 'competition' || v == 'dance_night') return v;
+    return 'dance_night';
   }
 
   Future<void> _pickDate(TextEditingController ctrl) async {
