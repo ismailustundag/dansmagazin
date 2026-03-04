@@ -8,6 +8,7 @@ class I18n {
     final trMap = <String, String>{
       'news': 'Haberler',
       'photos': 'Fotoğraflar',
+      'shop': 'Alışveriş',
       'social': 'Sosyal',
       'profile': 'Profil',
       'social_subtitle': 'Arkadaşlarınla bağlantıda kal ve mesajlaş.',
@@ -58,6 +59,7 @@ class I18n {
     final enMap = <String, String>{
       'news': 'News',
       'photos': 'Photos',
+      'shop': 'Shop',
       'social': 'Social',
       'profile': 'Profile',
       'social_subtitle': 'Stay connected with friends and chat.',

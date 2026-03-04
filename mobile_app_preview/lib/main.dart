@@ -314,11 +314,11 @@ class _RootScreenState extends State<RootScreen> {
 
     final pages = [
       DiscoverScreen(sessionToken: _sessionToken),
-      PhotosScreen(accountId: _accountId, sessionToken: _sessionToken),
       EventsStoreHubScreen(
         sessionToken: _sessionToken,
         canCreateEvent: _canCreateMobileEvent,
       ),
+      PhotosScreen(accountId: _accountId, sessionToken: _sessionToken),
       SocialScreen(sessionToken: _sessionToken),
       ProfileScreen(
         isLoggedIn: _isLoggedIn,
@@ -356,9 +356,9 @@ class _RootScreenState extends State<RootScreen> {
               label: _tr('news'),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.photo_library_outlined),
-              activeIcon: Icon(Icons.photo_library),
-              label: _tr('photos'),
+              icon: Icon(Icons.shopping_bag_outlined),
+              activeIcon: Icon(Icons.shopping_bag),
+              label: _tr('shop'),
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.circle),
