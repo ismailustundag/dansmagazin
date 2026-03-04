@@ -1,15 +1,36 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/i18n.dart';
 import 'screen_shell.dart';
+
+Future<XFile> _saveImageToTempXFile(String url, List<int> bytes) async {
+  final lower = url.toLowerCase();
+  final ext = lower.contains('.png')
+      ? 'png'
+      : lower.contains('.webp')
+          ? 'webp'
+          : 'jpg';
+  final mime = ext == 'png'
+      ? 'image/png'
+      : ext == 'webp'
+          ? 'image/webp'
+          : 'image/jpeg';
+  final dir = await getTemporaryDirectory();
+  final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
+  final file = File('${dir.path}/$name');
+  await file.writeAsBytes(bytes, flush: true);
+  return XFile(file.path, mimeType: mime, name: name);
+}
 
 Future<void> _safeShare(
   BuildContext context,
@@ -642,20 +663,9 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
       if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.bodyBytes.isEmpty) {
         throw Exception('download failed');
       }
-      final lower = url.toLowerCase();
-      final ext = lower.contains('.png')
-          ? 'png'
-          : lower.contains('.webp')
-              ? 'webp'
-              : 'jpg';
-      final mime = ext == 'png'
-          ? 'image/png'
-          : ext == 'webp'
-              ? 'image/webp'
-              : 'image/jpeg';
-      final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final file = await _saveImageToTempXFile(url, resp.bodyBytes);
       await Share.shareXFiles(
-        <XFile>[XFile.fromData(resp.bodyBytes, mimeType: mime, name: name)],
+        <XFile>[file],
         subject: 'Dansmagazin Fotoğraf',
       );
     } catch (_) {
@@ -1211,20 +1221,9 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
       if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.bodyBytes.isEmpty) {
         throw Exception('download failed');
       }
-      final lower = url.toLowerCase();
-      final ext = lower.contains('.png')
-          ? 'png'
-          : lower.contains('.webp')
-              ? 'webp'
-              : 'jpg';
-      final mime = ext == 'png'
-          ? 'image/png'
-          : ext == 'webp'
-              ? 'image/webp'
-              : 'image/jpeg';
-      final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final file = await _saveImageToTempXFile(url, resp.bodyBytes);
       await Share.shareXFiles(
-        <XFile>[XFile.fromData(resp.bodyBytes, mimeType: mime, name: name)],
+        <XFile>[file],
         subject: 'Dansmagazin Fotoğraf',
       );
     } catch (_) {
