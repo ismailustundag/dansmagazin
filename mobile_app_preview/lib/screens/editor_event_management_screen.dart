@@ -7,6 +7,46 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+DateTime? _parseEventDate(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return null;
+  final ddmmyyyy = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(v);
+  if (ddmmyyyy != null) {
+    final d = int.tryParse(ddmmyyyy.group(1)!);
+    final m = int.tryParse(ddmmyyyy.group(2)!);
+    final y = int.tryParse(ddmmyyyy.group(3)!);
+    if (d != null && m != null && y != null) return DateTime(y, m, d);
+  }
+  final dt = DateTime.tryParse(v) ?? DateTime.tryParse(v.replaceAll(' ', 'T'));
+  if (dt != null) return dt;
+  final ymd = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(v);
+  if (ymd != null) {
+    final y = int.tryParse(ymd.group(1)!);
+    final m = int.tryParse(ymd.group(2)!);
+    final d = int.tryParse(ymd.group(3)!);
+    if (d != null && m != null && y != null) return DateTime(y, m, d);
+  }
+  return null;
+}
+
+String _toDisplayDate(String raw) {
+  final dt = _parseEventDate(raw);
+  if (dt == null) return raw.trim();
+  final d = dt.day.toString().padLeft(2, '0');
+  final m = dt.month.toString().padLeft(2, '0');
+  final y = dt.year.toString();
+  return '$d.$m.$y';
+}
+
+String _toApiDate(String raw) {
+  final dt = _parseEventDate(raw);
+  if (dt == null) return raw.trim();
+  final d = dt.day.toString().padLeft(2, '0');
+  final m = dt.month.toString().padLeft(2, '0');
+  final y = dt.year.toString();
+  return '$y-$m-$d';
+}
+
 class EditorEventManagementScreen extends StatelessWidget {
   final String sessionToken;
 
@@ -26,11 +66,16 @@ class EditorEventManagementScreen extends StatelessWidget {
             subtitle: 'Yeni etkinliği onaya gönder.',
             icon: Icons.add_circle_outline,
             onTap: () async {
-              await showModalBottomSheet<bool>(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: const Color(0xFF0F172A),
-                builder: (_) => _CreateEventSheet(sessionToken: sessionToken),
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: const Text('Etkinlik Oluştur')),
+                    body: SafeArea(
+                      child: _CreateEventSheet(sessionToken: sessionToken),
+                    ),
+                  ),
+                ),
               );
             },
           ),
@@ -199,7 +244,9 @@ class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   child: _ActionCard(
                     title: e.eventName,
-                    subtitle: e.venue.isNotEmpty ? e.venue : (e.eventDate.isNotEmpty ? e.eventDate : 'Etkinlik #${e.submissionId}'),
+                    subtitle: e.venue.isNotEmpty
+                        ? e.venue
+                        : (e.eventDate.isNotEmpty ? _toDisplayDate(e.eventDate) : 'Etkinlik #${e.submissionId}'),
                     icon: Icons.event_available,
                     onTap: () {
                       Navigator.of(context).push(
@@ -774,7 +821,7 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  e.eventDate.isEmpty ? 'Tarih yok' : e.eventDate,
+                                  e.eventDate.isEmpty ? 'Tarih yok' : _toDisplayDate(e.eventDate),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(color: Colors.white70, fontSize: 12),
@@ -870,7 +917,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   void initState() {
     super.initState();
     _descCtrl = TextEditingController(text: widget.item.description);
-    _dateCtrl = TextEditingController(text: widget.item.eventDate);
+    _dateCtrl = TextEditingController(text: _toDisplayDate(widget.item.eventDate));
     _venueCtrl = TextEditingController(text: widget.item.venue);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
     _programCtrl = TextEditingController(text: widget.item.programText);
@@ -898,7 +945,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       )
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['description'] = _descCtrl.text.trim()
-        ..fields['event_date'] = _dateCtrl.text.trim()
+        ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
         ..fields['venue'] = _venueCtrl.text.trim()
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim();
@@ -947,7 +994,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               _txt(_programCtrl, 'Program', maxLines: 3),
               _txt(_venueCtrl, 'Konum / Mekan'),
               _txt(_orgCtrl, 'Organizatör'),
-              _txt(_dateCtrl, 'Etkinlik Tarihi'),
+              _dateField(_dateCtrl, 'Etkinlik Tarihi'),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Text(_error!, style: const TextStyle(color: Colors.redAccent)),
@@ -978,6 +1025,36 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
           filled: true,
           fillColor: const Color(0xFF111827),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate(TextEditingController ctrl) async {
+    final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      initialDate: initial,
+    );
+    if (date == null || !mounted) return;
+    ctrl.text = _toDisplayDate(date.toIso8601String());
+  }
+
+  Widget _dateField(TextEditingController c, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: c,
+        readOnly: true,
+        onTap: () => _pickDate(c),
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: const Color(0xFF111827),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: const Icon(Icons.calendar_month),
         ),
       ),
     );
@@ -1037,14 +1114,15 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   }
 
   Future<void> _pickDate(TextEditingController ctrl) async {
+    final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
     final date = await showDatePicker(
       context: context,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 3650)),
-      initialDate: DateTime.now(),
+      initialDate: initial,
     );
     if (date == null || !mounted) return;
-    ctrl.text = DateTime(date.year, date.month, date.day).toIso8601String();
+    ctrl.text = _toDisplayDate(date.toIso8601String());
   }
 
   Future<void> _submit() async {
@@ -1066,7 +1144,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['event_kind'] = _eventKind
         ..fields['ticket_sales_enabled'] = _ticketSalesEnabled ? '1' : '0'
         ..fields['organizer_name'] = _orgCtrl.text.trim()
-        ..fields['event_date'] = _dateCtrl.text.trim()
+        ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
         ..fields['entry_fee'] = _feeCtrl.text.trim();
       final token = widget.sessionToken.trim();
       if (token.isNotEmpty) req.headers['Authorization'] = 'Bearer $token';

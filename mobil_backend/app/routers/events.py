@@ -211,6 +211,11 @@ def list_events(limit: int = 50, city: str = "", event_kind: str = ""):
         cover_url = ""
         if cover_path and _cover_exists(cover_path):
             cover_url = _cover_url(cover_path)
+        ticket_sales_enabled = bool(
+            r.get("ticket_sales_enabled") if r.get("ticket_sales_enabled") is not None else True
+        )
+        ticket_url = (r["ticket_url"] or "") if ticket_sales_enabled else ""
+        woo_product_id = (r["woo_product_id"] or "") if ticket_sales_enabled else ""
         items.append(
             {
                 "id": r["id"],
@@ -220,15 +225,15 @@ def list_events(limit: int = 50, city: str = "", event_kind: str = ""):
                 "venue": r["venue"] or "",
                 "city": r.get("city") or "",
                 "event_kind": r.get("event_kind") or "",
-                "ticket_sales_enabled": bool(r.get("ticket_sales_enabled") if r.get("ticket_sales_enabled") is not None else True),
+                "ticket_sales_enabled": ticket_sales_enabled,
                 "organizer_name": r["organizer_name"] or "",
                 "program_text": r["program_text"] or "",
                 "cover": cover_url,
                 "start_at": r["start_at"] or "",
                 "end_at": r["end_at"] or "",
                 "entry_fee": float(r["entry_fee"]) if r["entry_fee"] is not None else 0.0,
-                "ticket_url": r["ticket_url"] or "",
-                "woo_product_id": r["woo_product_id"] or "",
+                "ticket_url": ticket_url,
+                "woo_product_id": woo_product_id,
                 "slug": r["approved_event_slug"] or "",
             }
         )

@@ -6,6 +6,19 @@ import 'package:http/http.dart' as http;
 import 'event_detail_screen.dart';
 import 'screen_shell.dart';
 
+String _formatEventDate(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return '';
+  final dmy = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(v);
+  if (dmy != null) return v;
+  final dt = DateTime.tryParse(v) ?? DateTime.tryParse(v.replaceAll(' ', 'T'));
+  if (dt == null) return v;
+  final d = dt.day.toString().padLeft(2, '0');
+  final m = dt.month.toString().padLeft(2, '0');
+  final y = dt.year.toString();
+  return '$d.$m.$y';
+}
+
 class DiscoverScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -41,10 +54,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       throw Exception('Etkinlikler alınamadı (${resp.statusCode})');
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    final rows = (body['items'] as List<dynamic>? ?? [])
+    var rows = (body['items'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(_EventItem.fromJson)
         .toList();
+    if (kind != 'all') {
+      rows = rows.where((e) => e.eventKind.trim().toLowerCase() == kind).toList();
+    }
+    if (city.isNotEmpty) {
+      rows = rows.where((e) => e.city.trim().toLowerCase() == city.trim().toLowerCase()).toList();
+    }
     rows.sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return rows;
   }
@@ -191,6 +210,7 @@ class _EventItem {
   final String ticketUrl;
   final String wooProductId;
   final String city;
+  final String eventKind;
   final bool ticketSalesEnabled;
 
   const _EventItem({
@@ -206,6 +226,7 @@ class _EventItem {
     required this.ticketUrl,
     required this.wooProductId,
     required this.city,
+    required this.eventKind,
     required this.ticketSalesEnabled,
   });
 
@@ -239,6 +260,7 @@ class _EventItem {
       ticketUrl: absUrl(json['ticket_url'] ?? '', host: 'https://www.dansmagazin.net'),
       wooProductId: (json['woo_product_id'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
+      eventKind: (json['event_kind'] ?? '').toString(),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
     );
   }
@@ -279,7 +301,7 @@ class _EventCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   if (item.city.trim().isNotEmpty)
                     Text(item.city.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  Text(item.eventDate.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(_formatEventDate(item.eventDate), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
