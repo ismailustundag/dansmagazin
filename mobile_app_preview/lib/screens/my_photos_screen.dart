@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -11,7 +12,7 @@ import '../services/i18n.dart';
 
 Uri _encodedUri(String rawUrl) => Uri.parse(Uri.encodeFull(rawUrl.trim()));
 
-Future<List<int>> _downloadImageBytes(String url) async {
+Future<Uint8List> _downloadImageBytes(String url) async {
   final resp = await http.get(
     _encodedUri(url),
     headers: const {
@@ -35,7 +36,7 @@ String _galleryNameFromUrl(String url) {
   return 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
 }
 
-Future<bool> _saveToGallery(String url, List<int> bytes) async {
+Future<bool> _saveToGallery(String url, Uint8List bytes) async {
   final name = _galleryNameFromUrl(url);
   final result = await ImageGallerySaver.saveImage(
     bytes,

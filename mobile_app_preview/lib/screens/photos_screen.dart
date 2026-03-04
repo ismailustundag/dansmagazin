@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +15,7 @@ import 'screen_shell.dart';
 
 Uri _encodedUri(String rawUrl) => Uri.parse(Uri.encodeFull(rawUrl.trim()));
 
-Future<List<int>> _downloadImageBytes(String url, {String? bearerToken}) async {
+Future<Uint8List> _downloadImageBytes(String url, {String? bearerToken}) async {
   final headers = <String, String>{
     'Accept': 'image/*,*/*;q=0.8',
     'User-Agent': 'DansmagazinApp/1.0',
@@ -40,7 +41,7 @@ String _galleryNameFromUrl(String url) {
   return 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
 }
 
-Future<bool> _saveToGallery(String url, List<int> bytes) async {
+Future<bool> _saveToGallery(String url, Uint8List bytes) async {
   final name = _galleryNameFromUrl(url);
   final result = await ImageGallerySaver.saveImage(
     bytes,
