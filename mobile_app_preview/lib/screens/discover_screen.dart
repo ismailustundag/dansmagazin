@@ -19,6 +19,25 @@ String _formatEventDate(String raw) {
   return '$d.$m.$y';
 }
 
+String _normTr(String raw) {
+  return raw
+      .trim()
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('İ', 'i')
+      .replaceAll('I', 'i')
+      .replaceAll('ş', 's')
+      .replaceAll('Ş', 's')
+      .replaceAll('ğ', 'g')
+      .replaceAll('Ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('Ü', 'u')
+      .replaceAll('ö', 'o')
+      .replaceAll('Ö', 'o')
+      .replaceAll('ç', 'c')
+      .replaceAll('Ç', 'c');
+}
+
 class DiscoverScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -47,7 +66,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final city = _selectedCity == 'Tümü' ? '' : _selectedCity;
     final qp = <String, String>{'limit': '300'};
     if (kind != 'all') qp['event_kind'] = kind;
-    if (city.isNotEmpty) qp['city'] = city;
+    // Sehir filtresini client-side yapiyoruz; Turkce karakter/kollasyon farklarinda
+    // backend tarafinda esitlik kacabiliyor.
     final uri = Uri.parse('$_base/events').replace(queryParameters: qp);
     final resp = await http.get(uri);
     if (resp.statusCode != 200) {
@@ -62,7 +82,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       rows = rows.where((e) => e.eventKind.trim().toLowerCase() == kind).toList();
     }
     if (city.isNotEmpty) {
-      rows = rows.where((e) => e.city.trim().toLowerCase() == city.trim().toLowerCase()).toList();
+      final cityN = _normTr(city);
+      rows = rows.where((e) => _normTr(e.city) == cityN).toList();
     }
     rows.sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return rows;
