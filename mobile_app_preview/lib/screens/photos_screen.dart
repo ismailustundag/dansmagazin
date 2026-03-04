@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,11 +26,82 @@ Future<void> _safeShare(
   try {
     await Share.share(payload, subject: subject);
   } catch (_) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Paylaşım açılamadı')),
-    );
+    await _showShareFallback(context, payload);
   }
+}
+
+Future<void> _showShareFallback(BuildContext context, String payload) async {
+  if (!context.mounted) return;
+  Future<void> openExternal(String url) async {
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bağlantı açılamadı')),
+      );
+    }
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: const Color(0xFF0F172A),
+    builder: (ctx) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text(
+                'Paylaşım açılamadı',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text('Aşağıdaki seçeneklerden biriyle devam edebilirsiniz.'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_all),
+              title: const Text('Metni Kopyala'),
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: payload));
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Paylaşım metni kopyalandı')),
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat),
+              title: const Text('WhatsApp'),
+              onTap: () async {
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                final u = 'https://wa.me/?text=${Uri.encodeComponent(payload)}';
+                await openExternal(u);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.send),
+              title: const Text('Telegram'),
+              onTap: () async {
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                final u = 'https://t.me/share/url?text=${Uri.encodeComponent(payload)}';
+                await openExternal(u);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sms_outlined),
+              title: const Text('SMS'),
+              onTap: () async {
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                final u = 'sms:&body=${Uri.encodeComponent(payload)}';
+                await openExternal(u);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class PhotosScreen extends StatefulWidget {
