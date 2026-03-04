@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../services/i18n.dart';
 
@@ -224,25 +223,6 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
     }
   }
 
-  Future<void> _share(String text) async {
-    final payload = text.trim();
-    if (payload.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylaşılacak içerik bulunamadı')),
-      );
-      return;
-    }
-    try {
-      await Share.share(payload, subject: 'Dansmagazin Fotoğraf');
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylaşım açılamadı')),
-      );
-    }
-  }
-
   @override
   void dispose() {
     _controller.dispose();
@@ -296,14 +276,6 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
                         color: fav ? Colors.amber : Colors.white,
                       ),
                       label: Text(fav ? t('saved') : t('favorite')),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _share(photo.url),
-                      icon: const Icon(Icons.share),
-                      label: Text(t('share')),
                     ),
                   ),
                   const SizedBox(width: 10),

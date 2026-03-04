@@ -3,12 +3,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver/image_gallery_saver.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../services/i18n.dart';
 import 'screen_shell.dart';
@@ -57,100 +54,6 @@ Future<bool> _saveToGallery(String url, Uint8List bytes) async {
   return result != null;
 }
 
-Future<void> _safeShare(
-  BuildContext context,
-  String text, {
-  String subject = '',
-}) async {
-  final payload = text.trim();
-  if (payload.isEmpty) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Paylaşılacak içerik bulunamadı')),
-    );
-    return;
-  }
-  try {
-    await Share.share(payload, subject: subject);
-  } catch (_) {
-    await _showShareFallback(context, payload);
-  }
-}
-
-Future<void> _showShareFallback(BuildContext context, String payload) async {
-  if (!context.mounted) return;
-  Future<void> openExternal(String url) async {
-    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bağlantı açılamadı')),
-      );
-    }
-  }
-
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: const Color(0xFF0F172A),
-    builder: (ctx) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text(
-                'Paylaşım açılamadı',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text('Aşağıdaki seçeneklerden biriyle devam edebilirsiniz.'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy_all),
-              title: const Text('Metni Kopyala'),
-              onTap: () async {
-                await Clipboard.setData(ClipboardData(text: payload));
-                if (ctx.mounted) Navigator.of(ctx).pop();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Paylaşım metni kopyalandı')),
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.chat),
-              title: const Text('WhatsApp'),
-              onTap: () async {
-                if (ctx.mounted) Navigator.of(ctx).pop();
-                final u = 'https://wa.me/?text=${Uri.encodeComponent(payload)}';
-                await openExternal(u);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.send),
-              title: const Text('Telegram'),
-              onTap: () async {
-                if (ctx.mounted) Navigator.of(ctx).pop();
-                final u = 'https://t.me/share/url?text=${Uri.encodeComponent(payload)}';
-                await openExternal(u);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.sms_outlined),
-              title: const Text('SMS'),
-              onTap: () async {
-                if (ctx.mounted) Navigator.of(ctx).pop();
-                final u = 'sms:&body=${Uri.encodeComponent(payload)}';
-                await openExternal(u);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      );
-    },
-  );
-}
-
 class PhotosScreen extends StatefulWidget {
   final int accountId;
   final String sessionToken;
@@ -163,8 +66,6 @@ class PhotosScreen extends StatefulWidget {
 
 class _PhotosScreenState extends State<PhotosScreen> {
   static const String _albumsUrl = 'https://api2.dansmagazin.net/photos';
-  static const String _publicAlbumBaseUrl = 'https://dansmagazin.net/e/';
-  static const String _fallbackInstallUrl = 'https://dansmagazin.net';
 
   late Future<List<_Album>> _albumsFuture;
   int _tab = 0; // 0: Fotograflar, 1: Videolar, 2: Favoriler
@@ -202,12 +103,6 @@ class _PhotosScreenState extends State<PhotosScreen> {
         const SnackBar(content: Text('Albüm beğenisi güncellenemedi')),
       );
     }
-  }
-
-  Future<void> _shareAlbum(_Album album) async {
-    final albumUrl = '$_publicAlbumBaseUrl${album.slug}';
-    final text = 'Dansmagazin albümü: ${album.name}\n$albumUrl\n\nUygulama yoksa buradan indirebilirsiniz:\n$_fallbackInstallUrl';
-    await _safeShare(context, text, subject: album.name);
   }
 
   Future<List<_Album>> _fetchAlbums() async {
@@ -257,8 +152,8 @@ class _PhotosScreenState extends State<PhotosScreen> {
       title: I18n.t('photos'),
       icon: Icons.photo_library,
       subtitle: I18n.isEnglish
-          ? 'You can view, share, download and favorite your photos.'
-          : 'Fotoğraflarınızı görüntüleyebilir, paylaşabilir, indirebilir ve sonrası için favorileyebilirsiniz.',
+          ? 'You can view, download and favorite your photos.'
+          : 'Fotoğraflarınızı görüntüleyebilir, indirebilir ve sonrası için favorileyebilirsiniz.',
       content: [
         Wrap(
           spacing: 8,
@@ -318,7 +213,6 @@ class _PhotosScreenState extends State<PhotosScreen> {
                         album: album,
                         liked: album.likedByMe,
                         onLikeTap: () => _toggleAlbumLike(album),
-                        onShareTap: () => _shareAlbum(album),
                         onTap: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute(
@@ -698,10 +592,6 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     }
   }
 
-  Future<void> _sharePhoto(String url) async {
-    await _safeShare(context, url, subject: 'Dansmagazin Fotoğraf');
-  }
-
   Future<void> _togglePhotoLike(_Photo photo) async {
     final endpoint = photo.likedByMe ? 'unlike' : 'like';
     try {
@@ -790,12 +680,6 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                     color: fav ? const Color(0xFFFFC107) : Colors.white,
                   ),
                   _iconAction(
-                    onTap: () => _sharePhoto(photo.url),
-                    tooltip: 'Paylaş',
-                    icon: Icons.share,
-                    color: Colors.white,
-                  ),
-                  _iconAction(
                     onTap: () => _download(photo.url),
                     tooltip: 'İndir',
                     icon: Icons.download,
@@ -840,14 +724,12 @@ class _AlbumCard extends StatelessWidget {
   final _Album album;
   final bool liked;
   final VoidCallback onLikeTap;
-  final VoidCallback onShareTap;
   final VoidCallback onTap;
 
   const _AlbumCard({
     required this.album,
     required this.liked,
     required this.onLikeTap,
-    required this.onShareTap,
     required this.onTap,
   });
 
@@ -907,14 +789,6 @@ class _AlbumCard extends StatelessWidget {
                         size: 18,
                       ),
                       label: Text('Beğen (${album.likeCount})'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onShareTap,
-                      icon: const Icon(Icons.share, size: 18),
-                      label: const Text('Paylaş'),
                     ),
                   ),
                 ],
