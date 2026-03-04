@@ -64,9 +64,27 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
   Future<void> _shareAlbum(_Album album) async {
     final albumUrl = '$_publicAlbumBaseUrl${album.slug}';
-    await Share.share(
-      'Dansmagazin albümü: ${album.name}\n$albumUrl\n\nUygulama yoksa buradan indirebilirsiniz:\n$_fallbackInstallUrl',
-    );
+    final text = 'Dansmagazin albümü: ${album.name}\n$albumUrl\n\nUygulama yoksa buradan indirebilirsiniz:\n$_fallbackInstallUrl';
+    await _shareText(context, text, subject: album.name);
+  }
+
+  Future<void> _shareText(BuildContext context, String text, {String? subject}) async {
+    final payload = text.trim();
+    if (payload.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paylaşılacak içerik bulunamadı')),
+      );
+      return;
+    }
+    try {
+      await Share.share(payload, subject: subject ?? '');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paylaşım açılamadı')),
+      );
+    }
   }
 
   Future<List<_Album>> _fetchAlbums() async {
@@ -548,6 +566,25 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     }
   }
 
+  Future<void> _sharePhoto(String url) async {
+    final payload = url.trim();
+    if (payload.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paylaşılacak fotoğraf bulunamadı')),
+      );
+      return;
+    }
+    try {
+      await Share.share(payload, subject: 'Dansmagazin Fotoğraf');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paylaşım açılamadı')),
+      );
+    }
+  }
+
   Future<void> _togglePhotoLike(_Photo photo) async {
     final endpoint = photo.likedByMe ? 'unlike' : 'like';
     try {
@@ -636,7 +673,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                     color: fav ? const Color(0xFFFFC107) : Colors.white,
                   ),
                   _iconAction(
-                    onTap: () => Share.share(photo.url),
+                    onTap: () => _sharePhoto(photo.url),
                     tooltip: 'Paylaş',
                     icon: Icons.share,
                     color: Colors.white,
