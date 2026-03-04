@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cross_file/cross_file.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -636,9 +637,32 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   }
 
   Future<void> _download(String url) async {
-    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('İndirme açılamadı')));
+    try {
+      final resp = await http.get(Uri.parse(url));
+      if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.bodyBytes.isEmpty) {
+        throw Exception('download failed');
+      }
+      final lower = url.toLowerCase();
+      final ext = lower.contains('.png')
+          ? 'png'
+          : lower.contains('.webp')
+              ? 'webp'
+              : 'jpg';
+      final mime = ext == 'png'
+          ? 'image/png'
+          : ext == 'webp'
+              ? 'image/webp'
+              : 'image/jpeg';
+      final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      await Share.shareXFiles(
+        <XFile>[XFile.fromData(resp.bodyBytes, mimeType: mime, name: name)],
+        subject: 'Dansmagazin Fotoğraf',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İndirme açılamadı')),
+      );
     }
   }
 
@@ -1182,9 +1206,32 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
   }
 
   Future<void> _download(String url) async {
-    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('İndirme açılamadı')));
+    try {
+      final resp = await http.get(Uri.parse(url));
+      if (resp.statusCode < 200 || resp.statusCode >= 300 || resp.bodyBytes.isEmpty) {
+        throw Exception('download failed');
+      }
+      final lower = url.toLowerCase();
+      final ext = lower.contains('.png')
+          ? 'png'
+          : lower.contains('.webp')
+              ? 'webp'
+              : 'jpg';
+      final mime = ext == 'png'
+          ? 'image/png'
+          : ext == 'webp'
+              ? 'image/webp'
+              : 'image/jpeg';
+      final name = 'dansmagazin_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      await Share.shareXFiles(
+        <XFile>[XFile.fromData(resp.bodyBytes, mimeType: mime, name: name)],
+        subject: 'Dansmagazin Fotoğraf',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İndirme açılamadı')),
+      );
     }
   }
 
