@@ -54,6 +54,26 @@ class NotificationFeedItem {
   }
 }
 
+class NotificationUserCandidate {
+  final int accountId;
+  final String name;
+  final String email;
+
+  const NotificationUserCandidate({
+    required this.accountId,
+    required this.name,
+    required this.email,
+  });
+
+  factory NotificationUserCandidate.fromJson(Map<String, dynamic> json) {
+    return NotificationUserCandidate(
+      accountId: (json['account_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+    );
+  }
+}
+
 class NotificationsApi {
   static const _base = 'https://api2.dansmagazin.net';
 
@@ -85,5 +105,90 @@ class NotificationsApi {
         .whereType<Map<String, dynamic>>()
         .map(NotificationFeedItem.fromJson)
         .toList();
+  }
+
+  static Future<List<NotificationFeedItem>> fetchSent(
+    String sessionToken, {
+    int limit = 200,
+  }) async {
+    final lim = limit < 1 ? 1 : (limit > 1000 ? 1000 : limit);
+    final resp = await http.get(
+      Uri.parse('$_base/profile/notifications/sent?limit=$lim'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Gönderilen bildirimler alınamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(NotificationFeedItem.fromJson)
+        .toList();
+  }
+
+  static Future<List<NotificationUserCandidate>> searchUsers(
+    String sessionToken, {
+    String query = '',
+    int limit = 100,
+  }) async {
+    final q = query.trim();
+    final lim = limit < 1 ? 1 : (limit > 100 ? 100 : limit);
+    final resp = await http.get(
+      Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$lim'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Kullanıcılar alınamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(NotificationUserCandidate.fromJson)
+        .toList();
+  }
+
+  static Future<int> sendNotification(
+    String sessionToken, {
+    required String title,
+    required String body,
+    required bool sendToAll,
+    List<int> targetAccountIds = const [],
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/notifications/send'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'title': title.trim(),
+        'body': body.trim(),
+        'send_to_all': sendToAll,
+        'target_account_ids': targetAccountIds,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Bildirim gönderilemedi'));
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (data['sent_count'] as num?)?.toInt() ?? 0;
+  }
+
+  static String _parseError(String body, {required String fallback}) {
+    try {
+      final j = jsonDecode(body);
+      if (j is Map<String, dynamic>) {
+        final detail = j['detail'];
+        if (detail is List && detail.isNotEmpty) {
+          final first = detail.first;
+          if (first is Map<String, dynamic>) {
+            return (first['msg'] ?? first['message'] ?? fallback).toString();
+          }
+          return first.toString();
+        }
+        return (detail ?? j['message'] ?? fallback).toString();
+      }
+    } catch (_) {}
+    return fallback;
   }
 }

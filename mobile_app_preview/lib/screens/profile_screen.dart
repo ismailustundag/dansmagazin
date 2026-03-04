@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/i18n.dart';
 import '../services/profile_api.dart';
+import 'admin_notifications_screen.dart';
 import 'editor_event_management_screen.dart';
 import 'my_photos_screen.dart';
 import 'notifications_screen.dart';
@@ -17,6 +18,7 @@ class ProfileScreen extends StatefulWidget {
   final int accountId;
   final int? wpUserId;
   final List<String> wpRoles;
+  final String appRole;
   final bool canCreateMobileEvent;
   final VoidCallback onLoginTap;
   final VoidCallback onLogoutTap;
@@ -30,6 +32,7 @@ class ProfileScreen extends StatefulWidget {
     required this.accountId,
     required this.wpUserId,
     required this.wpRoles,
+    required this.appRole,
     required this.canCreateMobileEvent,
     required this.onLoginTap,
     required this.onLogoutTap,
@@ -151,6 +154,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
+        if (widget.appRole == 'super_admin')
+          PreviewCard(
+            title: 'Bildirim Gönder',
+            subtitle: 'Kullanıcılara mobil bildirim gönder',
+            icon: Icons.campaign,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => AdminNotificationsScreen(sessionToken: widget.sessionToken),
+              ),
+            ),
+          ),
         if (widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
           PreviewCard(
             title: t('event_management'),
