@@ -25,7 +25,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   static const String _fallbackInstallUrl = 'https://dansmagazin.net';
 
   late Future<List<_Album>> _albumsFuture;
-  int _tab = 0; // 0: Tum albumler, 1: Favoriler
+  int _tab = 0; // 0: Fotograflar, 1: Videolar, 2: Favoriler
   List<_FavoritePhoto> _favorites = [];
 
   @override
@@ -123,8 +123,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            _tabChip(0, I18n.isEnglish ? 'All Albums' : 'Tüm Albümler'),
-            _tabChip(1, I18n.isEnglish ? 'Favorites' : 'Favoriler'),
+            _tabChip(0, I18n.isEnglish ? 'Photos' : 'Fotoğraflar'),
+            _tabChip(1, I18n.isEnglish ? 'Videos' : 'Videolar'),
+            _tabChip(2, I18n.isEnglish ? 'Favorites' : 'Favoriler'),
           ],
         ),
         const SizedBox(height: 12),
@@ -146,6 +147,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
             final albums = snapshot.data ?? const <_Album>[];
             if (_tab == 1) {
+              return _InfoCard(
+                text: I18n.isEnglish ? 'Videos section is coming very soon.' : 'Videolar bölümü çok yakında.',
+              );
+            }
+
+            if (_tab == 2) {
               return _FavoriteGrid(
                 photos: _favorites,
                 accountId: widget.accountId,

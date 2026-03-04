@@ -10,12 +10,14 @@ class ChatThreadScreen extends StatefulWidget {
   final String sessionToken;
   final int peerAccountId;
   final String peerName;
+  final String peerAvatarUrl;
 
   const ChatThreadScreen({
     super.key,
     required this.sessionToken,
     required this.peerAccountId,
     required this.peerName,
+    this.peerAvatarUrl = '',
   });
 
   @override
@@ -132,13 +134,64 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
   }
 
+  void _showAvatarPreview() {
+    final url = widget.peerAvatarUrl.trim();
+    if (url.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              right: 6,
+              top: 6,
+              child: IconButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0B1020),
-        title: Text(widget.peerName),
+        title: Row(
+          children: [
+            InkWell(
+              onTap: _showAvatarPreview,
+              borderRadius: BorderRadius.circular(20),
+              child: widget.peerAvatarUrl.trim().isNotEmpty
+                  ? CircleAvatar(
+                      radius: 16,
+                      backgroundImage: NetworkImage(widget.peerAvatarUrl.trim()),
+                    )
+                  : const CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Color(0xFFE53935),
+                      child: Icon(Icons.person, color: Colors.white, size: 16),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(widget.peerName)),
+          ],
+        ),
       ),
       body: Column(
         children: [

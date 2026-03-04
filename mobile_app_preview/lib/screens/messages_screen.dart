@@ -117,6 +117,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             sessionToken: widget.sessionToken,
                             peerAccountId: m.accountId,
                             peerName: m.name,
+                            peerAvatarUrl: m.avatarUrl,
                           ),
                         ),
                       );
@@ -136,14 +137,16 @@ class _InboxItem {
   final int accountId;
   final String name;
   final String lastAt;
+  final String avatarUrl;
 
-  const _InboxItem({required this.accountId, required this.name, required this.lastAt});
+  const _InboxItem({required this.accountId, required this.name, required this.lastAt, required this.avatarUrl});
 
   factory _InboxItem.fromJson(Map<String, dynamic> json) {
     return _InboxItem(
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       lastAt: (json['last_at'] ?? '').toString(),
+      avatarUrl: (json['avatar_url'] ?? '').toString(),
     );
   }
 }

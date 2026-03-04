@@ -4,7 +4,6 @@ import '../services/i18n.dart';
 import '../services/profile_api.dart';
 import 'editor_event_management_screen.dart';
 import 'my_photos_screen.dart';
-import 'notifications_screen.dart';
 import 'screen_shell.dart';
 import 'settings_screen.dart';
 import 'tickets_screen.dart';
@@ -152,16 +151,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-        PreviewCard(
-          title: t('notifications'),
-          subtitle: t('notifications_subtitle'),
-          icon: Icons.notifications,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => NotificationsScreen(sessionToken: widget.sessionToken),
-            ),
-          ),
-        ),
         PreviewCard(
           title: t('settings'),
           subtitle: t('settings_subtitle'),

@@ -227,7 +227,6 @@ class EventSocialApi {
     int limit = 20,
   }) async {
     final q = query.trim();
-    if (q.length < 2) return const [];
     final resp = await http.get(
       Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$limit'),
       headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},

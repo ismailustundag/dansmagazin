@@ -82,6 +82,7 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                         sessionToken: widget.sessionToken,
                         peerAccountId: m.accountId,
                         peerName: m.name,
+                        peerAvatarUrl: m.avatarUrl,
                       ),
                     ),
                   );

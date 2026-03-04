@@ -34,6 +34,7 @@ class _SocialScreenState extends State<SocialScreen> {
     super.initState();
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
+    _runSearch();
     NotificationCenter.refresh(widget.sessionToken);
   }
 
@@ -152,14 +153,6 @@ class _SocialScreenState extends State<SocialScreen> {
 
   Future<void> _runSearch() async {
     final q = _searchCtrl.text.trim();
-    if (q.length < 2) {
-      if (!mounted) return;
-      setState(() {
-        _searchItems = const [];
-        _searchError = '';
-      });
-      return;
-    }
     setState(() {
       _searchLoading = true;
       _searchError = '';
@@ -168,6 +161,7 @@ class _SocialScreenState extends State<SocialScreen> {
       final items = await EventSocialApi.searchUsers(
         sessionToken: widget.sessionToken,
         query: q,
+        limit: 200,
       );
       if (!mounted) return;
       setState(() => _searchItems = items);
@@ -298,6 +292,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                 sessionToken: widget.sessionToken,
                                 peerAccountId: f.accountId,
                                 peerName: f.name.isNotEmpty ? f.name : I18n.t('user'),
+                                peerAvatarUrl: f.avatarUrl,
                               ),
                             ),
                           );
@@ -327,6 +322,46 @@ class _SocialScreenState extends State<SocialScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _showAvatarPreview(String avatarUrl, String name) {
+    final url = avatarUrl.trim();
+    if (url.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
+                    padding: const EdgeInsets.all(20),
+                    color: const Color(0xFF111827),
+                    child: Text(name.isEmpty ? 'Görsel açılamadı' : name),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 6,
+              top: 6,
+              child: IconButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -420,9 +455,10 @@ class _SocialScreenState extends State<SocialScreen> {
                     child: TextField(
                       controller: _searchCtrl,
                       textInputAction: TextInputAction.search,
+                      onChanged: (_) => _runSearch(),
                       onSubmitted: (_) => _runSearch(),
                       decoration: const InputDecoration(
-                        hintText: 'İsim veya e-posta ara',
+                        hintText: 'Kullanıcı ara (liste canlı filtrelenir)',
                         isDense: true,
                         border: OutlineInputBorder(),
                       ),
@@ -544,6 +580,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                 sessionToken: widget.sessionToken,
                                 peerAccountId: f.accountId,
                                 peerName: f.name.isNotEmpty ? f.name : t('user'),
+                                peerAvatarUrl: f.avatarUrl,
                               ),
                             ),
                           );
@@ -562,7 +599,10 @@ class _SocialScreenState extends State<SocialScreen> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _FriendAvatar(item: f),
+                              _FriendAvatar(
+                                item: f,
+                                onTap: () => _showAvatarPreview(f.avatarUrl, f.name),
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -629,17 +669,22 @@ class _SocialScreenState extends State<SocialScreen> {
 
 class _FriendAvatar extends StatelessWidget {
   final _FriendItem item;
+  final VoidCallback onTap;
 
-  const _FriendAvatar({required this.item});
+  const _FriendAvatar({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final url = item.avatarUrl.trim();
     if (url.isNotEmpty) {
-      return CircleAvatar(
-        radius: 22,
-        backgroundImage: NetworkImage(url),
-        backgroundColor: const Color(0xFF1F2937),
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: CircleAvatar(
+          radius: 22,
+          backgroundImage: NetworkImage(url),
+          backgroundColor: const Color(0xFF1F2937),
+        ),
       );
     }
     final label = item.name.isNotEmpty ? item.name.substring(0, 1).toUpperCase() : '?';
