@@ -1,10 +1,7 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 
 import '../services/i18n.dart';
 import 'event_detail_screen.dart';
@@ -34,7 +31,7 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Future<List<_EventItem>> _fetchEvents() async {
-    final resp = await http.get(Uri.parse('$_base/events'));
+    final resp = await http.get(Uri.parse('$_base/events?limit=300'));
     if (resp.statusCode != 200) throw Exception('Etkinlikler alınamadı');
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
@@ -64,13 +61,13 @@ class _EventsScreenState extends State<EventsScreen> {
                       I18n.isEnglish ? 'Events' : 'Etkinlikler',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Expanded(
               child: FutureBuilder<List<_EventItem>>(
                 future: _future,
@@ -82,12 +79,18 @@ class _EventsScreenState extends State<EventsScreen> {
                     return Center(
                       child: TextButton(
                         onPressed: () => setState(() => _future = _fetchEvents()),
-                        child: Text(I18n.isEnglish ? 'Failed to load events, try again' : 'Etkinlikler yüklenemedi, tekrar dene'),
+                        child: Text(I18n.isEnglish
+                            ? 'Failed to load events, try again'
+                            : 'Etkinlikler yüklenemedi, tekrar dene'),
                       ),
                     );
                   }
                   final items = snapshot.data ?? [];
-                  if (items.isEmpty) return Center(child: Text(I18n.isEnglish ? 'No approved events yet.' : 'Henüz onaylanmış etkinlik yok.'));
+                  if (items.isEmpty) {
+                    return Center(
+                      child: Text(I18n.isEnglish ? 'No approved events yet.' : 'Henüz onaylanmış etkinlik yok.'),
+                    );
+                  }
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: items.length,
@@ -108,6 +111,7 @@ class _EventsScreenState extends State<EventsScreen> {
                               entryFee: items[i].entryFee,
                               ticketUrl: items[i].ticketUrl,
                               wooProductId: items[i].wooProductId,
+                              ticketSalesEnabled: items[i].ticketSalesEnabled,
                               sessionToken: widget.sessionToken,
                             ),
                           ),
@@ -137,6 +141,9 @@ class _EventItem {
   final String organizer;
   final String program;
   final String wooProductId;
+  final String city;
+  final String eventKind;
+  final bool ticketSalesEnabled;
 
   _EventItem({
     required this.id,
@@ -150,6 +157,9 @@ class _EventItem {
     required this.organizer,
     required this.program,
     required this.wooProductId,
+    required this.city,
+    required this.eventKind,
+    required this.ticketSalesEnabled,
   });
 
   factory _EventItem.fromJson(Map<String, dynamic> json) {
@@ -173,6 +183,9 @@ class _EventItem {
       organizer: (json['organizer_name'] ?? '').toString(),
       program: (json['program_text'] ?? '').toString(),
       wooProductId: (json['woo_product_id'] ?? '').toString(),
+      city: (json['city'] ?? '').toString(),
+      eventKind: (json['event_kind'] ?? '').toString(),
+      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
     );
   }
 }
@@ -183,8 +196,22 @@ class _EventCard extends StatelessWidget {
 
   const _EventCard({required this.item, required this.onTap});
 
+  String _kindLabel(String v) {
+    switch (v.trim().toLowerCase()) {
+      case 'dance_night':
+        return 'Dans Gecesi';
+      case 'festival':
+        return 'Festival';
+      case 'competition':
+        return 'Yarışma';
+      default:
+        return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final kind = _kindLabel(item.eventKind);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -211,222 +238,25 @@ class _EventCard extends StatelessWidget {
               ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      if (item.city.trim().isNotEmpty)
+                        Text(item.city.trim(), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                      if (kind.isNotEmpty)
+                        Text(kind, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CreateEventSheet extends StatefulWidget {
-  final String sessionToken;
-
-  const _CreateEventSheet({required this.sessionToken});
-
-  @override
-  State<_CreateEventSheet> createState() => _CreateEventSheetState();
-}
-
-class _CreateEventSheetState extends State<_CreateEventSheet> {
-  static const String _submitUrl = 'https://api2.dansmagazin.net/events/submissions';
-
-  final _eventCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
-  final _programCtrl = TextEditingController();
-  final _venueCtrl = TextEditingController();
-  final _orgCtrl = TextEditingController();
-  final _dateCtrl = TextEditingController();
-  final _feeCtrl = TextEditingController(text: '0');
-
-  final _picker = ImagePicker();
-  XFile? _image;
-  bool _sending = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _eventCtrl.dispose();
-    _descCtrl.dispose();
-    _programCtrl.dispose();
-    _venueCtrl.dispose();
-    _orgCtrl.dispose();
-    _dateCtrl.dispose();
-    _feeCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickDate(TextEditingController ctrl) async {
-    final date = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 3650)),
-      initialDate: DateTime.now(),
-    );
-    if (date == null || !mounted) return;
-    ctrl.text = DateTime(date.year, date.month, date.day).toIso8601String();
-  }
-
-  Future<void> _submit() async {
-    if (_eventCtrl.text.trim().isEmpty) {
-      setState(() => _error = 'Etkinlik adı zorunlu.');
-      return;
-    }
-    setState(() {
-      _sending = true;
-      _error = null;
-    });
-    try {
-      final req = http.MultipartRequest('POST', Uri.parse(_submitUrl))
-        ..fields['event_name'] = _eventCtrl.text.trim()
-        ..fields['description'] = _descCtrl.text.trim()
-        ..fields['program_text'] = _programCtrl.text.trim()
-        ..fields['venue'] = _venueCtrl.text.trim()
-        ..fields['organizer_name'] = _orgCtrl.text.trim()
-        ..fields['event_date'] = _dateCtrl.text.trim()
-        ..fields['entry_fee'] = _feeCtrl.text.trim();
-      final token = widget.sessionToken.trim();
-      if (token.isNotEmpty) {
-        req.headers['Authorization'] = 'Bearer $token';
-      }
-
-      if (_image != null) {
-        req.files.add(await http.MultipartFile.fromPath('cover_image', _image!.path));
-      }
-
-      final streamed = await req.send();
-      final body = await streamed.stream.bytesToString();
-      if (streamed.statusCode != 200) {
-        setState(() => _error = 'Gönderim başarısız: ${streamed.statusCode} $body');
-        return;
-      }
-      if (!mounted) return;
-      Navigator.of(context).pop(true);
-    } catch (e) {
-      setState(() => _error = 'Hata: $e');
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text('Etkinliğini Ekle', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                  ),
-                  TextButton(
-                    onPressed: _sending ? null : () => Navigator.of(context).pop(false),
-                    child: const Text('Vazgeç'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _txt(_eventCtrl, 'Etkinlik Adı'),
-              _txt(_descCtrl, 'Detaylar', maxLines: 3),
-              _txt(_programCtrl, 'Program', maxLines: 3),
-              _txt(_venueCtrl, 'Konum / Mekan'),
-              _txt(_orgCtrl, 'Organizatör'),
-              _dateField(_dateCtrl, 'Etkinlik Tarihi'),
-              _txt(_feeCtrl, 'Bilet Ücreti (TL)'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _sending
-                        ? null
-                        : () async {
-                            try {
-                              final x = await _picker
-                                  .pickImage(
-                                    source: ImageSource.gallery,
-                                    imageQuality: 85,
-                                    requestFullMetadata: false,
-                                    maxWidth: 1440,
-                                  )
-                                  .timeout(const Duration(seconds: 25));
-                              if (x != null && mounted) {
-                                setState(() => _image = x);
-                              }
-                            } on TimeoutException {
-                              if (!mounted) return;
-                              setState(() => _error = 'Galeri yanıt vermedi, tekrar deneyin.');
-                            } catch (e) {
-                              if (!mounted) return;
-                              setState(() => _error = 'Fotoğraf seçilemedi: $e');
-                            }
-                    },
-                    icon: const Icon(Icons.image),
-                    label: const Text('Kapak Seç'),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(_image == null ? 'Seçilmedi' : _image!.name, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-              if (_image != null) ...[
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.file(File(_image!.path), height: 120, fit: BoxFit.cover),
-                ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _sending ? null : _submit,
-                  child: Text(_sending ? 'Gönderiliyor...' : 'Onaya Gönder'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _txt(TextEditingController c, String label, {int maxLines = 1}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: TextField(
-        controller: c,
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: const Color(0xFF111827),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      ),
-    );
-  }
-
-  Widget _dateField(TextEditingController c, String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: TextField(
-        controller: c,
-        readOnly: true,
-        onTap: () => _pickDate(c),
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: const Color(0xFF111827),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          suffixIcon: const Icon(Icons.calendar_month),
         ),
       ),
     );

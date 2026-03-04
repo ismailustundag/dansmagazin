@@ -39,6 +39,9 @@ def init_event_submission_tables():
             description TEXT,
             event_date TEXT,
             venue TEXT,
+            city TEXT,
+            event_kind TEXT,
+            ticket_sales_enabled BOOLEAN NOT NULL DEFAULT TRUE,
             organizer_name TEXT,
             program_text TEXT,
             cover_path TEXT,
@@ -80,6 +83,24 @@ def init_event_submission_tables():
                 WHERE table_name='mobile_event_submissions' AND column_name='venue'
             ) THEN
                 ALTER TABLE mobile_event_submissions ADD COLUMN venue TEXT;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='city'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN city TEXT;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='event_kind'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN event_kind TEXT;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='mobile_event_submissions' AND column_name='ticket_sales_enabled'
+            ) THEN
+                ALTER TABLE mobile_event_submissions ADD COLUMN ticket_sales_enabled BOOLEAN NOT NULL DEFAULT TRUE;
             END IF;
             IF NOT EXISTS (
                 SELECT 1 FROM information_schema.columns
@@ -139,17 +160,30 @@ def _save_cover(upload: UploadFile) -> str:
 
 
 @router.get("", summary="Onaylanmış etkinlik listesi")
-def list_events(limit: int = 50):
+def list_events(limit: int = 50, city: str = "", event_kind: str = ""):
     conn = _db_conn()
     cur = conn.cursor()
+    wheres = ["mes.status='approved'", "COALESCE(se.is_active, 1)=1"]
+    vals: List[Any] = []
+    city_q = (city or "").strip().lower()
+    kind_q = (event_kind or "").strip().lower()
+    if city_q:
+        wheres.append("LOWER(COALESCE(mes.city,''))=%s")
+        vals.append(city_q)
+    if kind_q and kind_q != "all":
+        wheres.append("LOWER(COALESCE(mes.event_kind,''))=%s")
+        vals.append(kind_q)
     cur.execute(
-        """
+        f"""
         SELECT
             mes.id,
             mes.event_name,
             mes.description,
             mes.event_date,
             mes.venue,
+            COALESCE(mes.city,'') AS city,
+            COALESCE(mes.event_kind,'') AS event_kind,
+            COALESCE(mes.ticket_sales_enabled, TRUE) AS ticket_sales_enabled,
             mes.organizer_name,
             mes.program_text,
             mes.cover_path,
@@ -162,12 +196,12 @@ def list_events(limit: int = 50):
             COALESCE(se.ticket_url, '') AS ticket_url,
             COALESCE(se.external_event_id, '') AS woo_product_id
         FROM mobile_event_submissions mes
-        JOIN saas_events se ON se.slug = mes.approved_event_slug
-        WHERE mes.status='approved' AND COALESCE(se.is_active, 1)=1
-        ORDER BY COALESCE(mes.approved_at, mes.created_at) DESC
+        LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
+        WHERE {' AND '.join(wheres)}
+        ORDER BY COALESCE(mes.event_date, mes.start_at, mes.approved_at, mes.created_at) ASC
         LIMIT %s
         """,
-        (max(1, min(int(limit), 200)),),
+        tuple(vals + [max(1, min(int(limit), 500))]),
     )
     rows = cur.fetchall() or []
     conn.close()
@@ -184,6 +218,9 @@ def list_events(limit: int = 50):
                 "description": r["description"] or "",
                 "event_date": r["event_date"] or r["start_at"] or "",
                 "venue": r["venue"] or "",
+                "city": r.get("city") or "",
+                "event_kind": r.get("event_kind") or "",
+                "ticket_sales_enabled": bool(r.get("ticket_sales_enabled") if r.get("ticket_sales_enabled") is not None else True),
                 "organizer_name": r["organizer_name"] or "",
                 "program_text": r["program_text"] or "",
                 "cover": cover_url,
@@ -206,6 +243,9 @@ async def create_submission(
     description: str = Form(""),
     event_date: str = Form(""),
     venue: str = Form(""),
+    city: str = Form(""),
+    event_kind: str = Form("dance_night"),
+    ticket_sales_enabled: str = Form("1"),
     organizer_name: str = Form(""),
     program_text: str = Form(""),
     start_at: str = Form(""),
@@ -215,6 +255,18 @@ async def create_submission(
 ):
     if len(event_name.strip()) < 2:
         raise HTTPException(status_code=400, detail="Etkinlik adı çok kısa")
+    city_val = city.strip()
+    if not city_val:
+        raise HTTPException(status_code=400, detail="Şehir zorunlu")
+    kind_val = (event_kind or "").strip().lower() or "dance_night"
+    if kind_val not in {"dance_night", "festival", "competition"}:
+        raise HTTPException(status_code=400, detail="Geçersiz etkinlik türü")
+    ticket_sales_val = (ticket_sales_enabled or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     try:
         fee_val = Decimal(entry_fee or "0")
     except InvalidOperation:
@@ -227,8 +279,13 @@ async def create_submission(
     cur.execute(
         """
         INSERT INTO mobile_event_submissions
-        (submitter_name, submitter_email, event_name, description, event_date, venue, organizer_name, program_text, cover_path, start_at, end_at, entry_fee, status, created_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)
+        (
+            submitter_name, submitter_email, event_name, description, event_date,
+            venue, city, event_kind, ticket_sales_enabled,
+            organizer_name, program_text, cover_path, start_at, end_at, entry_fee,
+            status, created_at
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)
         RETURNING id
         """,
         (
@@ -238,6 +295,9 @@ async def create_submission(
             description.strip(),
             event_date.strip(),
             venue.strip(),
+            city_val,
+            kind_val,
+            ticket_sales_val,
             organizer_name.strip(),
             program_text.strip(),
             cover_path,

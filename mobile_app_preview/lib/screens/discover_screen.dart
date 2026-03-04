@@ -3,8 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../services/i18n.dart';
-import 'news_detail_screen.dart';
+import 'event_detail_screen.dart';
 import 'screen_shell.dart';
 
 class DiscoverScreen extends StatefulWidget {
@@ -17,42 +16,92 @@ class DiscoverScreen extends StatefulWidget {
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
-  static const String _discoverUrl =
-      'https://api2.dansmagazin.net/discover?news_limit=50&events_limit=1&albums_limit=1';
+  static const String _base = 'https://api2.dansmagazin.net';
+  static const List<String> _tabs = ['all', 'dance_night', 'festival'];
 
-  late Future<_DiscoverData> _future;
+  late Future<List<_EventItem>> _future;
+  int _tabIndex = 0;
+  String _selectedCity = 'Tümü';
 
   @override
   void initState() {
     super.initState();
-    _future = _fetchDiscover();
+    _future = _fetchEvents();
   }
 
-  Future<void> _refreshDiscover() async {
-    final future = _fetchDiscover();
-    setState(() => _future = future);
-    await future;
-  }
-
-  Future<_DiscoverData> _fetchDiscover() async {
-    final resp = await http.get(Uri.parse(_discoverUrl));
+  Future<List<_EventItem>> _fetchEvents() async {
+    final kind = _tabs[_tabIndex];
+    final city = _selectedCity == 'Tümü' ? '' : _selectedCity;
+    final qp = <String, String>{'limit': '300'};
+    if (kind != 'all') qp['event_kind'] = kind;
+    if (city.isNotEmpty) qp['city'] = city;
+    final uri = Uri.parse('$_base/events').replace(queryParameters: qp);
+    final resp = await http.get(uri);
     if (resp.statusCode != 200) {
-      throw Exception('Discover endpoint hata: ${resp.statusCode}');
+      throw Exception('Etkinlikler alınamadı (${resp.statusCode})');
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    return _DiscoverData.fromJson(body);
+    final rows = (body['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(_EventItem.fromJson)
+        .toList();
+    rows.sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    return rows;
+  }
+
+  Future<void> _refresh() async {
+    final f = _fetchEvents();
+    setState(() => _future = f);
+    await f;
   }
 
   @override
   Widget build(BuildContext context) {
     return ScreenShell(
-      title: I18n.t('news'),
-      icon: Icons.article,
+      title: 'Etkinlik Akışı',
+      icon: Icons.local_activity,
       subtitle: '',
-      onRefresh: _refreshDiscover,
+      onRefresh: _refresh,
       content: [
-        _SectionTitle(title: I18n.isEnglish ? 'All News' : 'Tüm Haberler'),
-        FutureBuilder<_DiscoverData>(
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _tabChip(0, 'Haberler'),
+              const SizedBox(width: 8),
+              _tabChip(1, 'Dans Geceleri'),
+              const SizedBox(width: 8),
+              _tabChip(2, 'Festivaller'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        FutureBuilder<List<_EventItem>>(
+          future: _future,
+          builder: (context, snapshot) {
+            final data = snapshot.data ?? const <_EventItem>[];
+            final cities = <String>{'Tümü'};
+            for (final e in data) {
+              if (e.city.trim().isNotEmpty) cities.add(e.city.trim());
+            }
+            return DropdownButtonFormField<String>(
+              value: cities.contains(_selectedCity) ? _selectedCity : 'Tümü',
+              items: cities.map((c) => DropdownMenuItem(value: c, child: Text('Şehir: $c'))).toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _selectedCity = v);
+                _refresh();
+              },
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFF111827),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        FutureBuilder<List<_EventItem>>(
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -62,175 +111,176 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               );
             }
             if (snapshot.hasError) {
-              return _ErrorCard(
-                text: I18n.isEnglish ? 'News could not be loaded. Please try again.' : 'Haberler alınamadı. Lütfen tekrar deneyin.',
-                onRetry: () => setState(() => _future = _fetchDiscover()),
+              return _InfoCard(
+                text: 'Liste yüklenemedi, tekrar deneyin.',
+                actionText: 'Yenile',
+                onTap: _refresh,
               );
             }
-            final data = snapshot.data ?? _DiscoverData.empty();
-            return _NewsList(items: data.news, sessionToken: widget.sessionToken);
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _DiscoverData {
-  final List<_NewsItem> news;
-
-  _DiscoverData({
-    required this.news,
-  });
-
-  factory _DiscoverData.empty() => _DiscoverData(news: []);
-
-  factory _DiscoverData.fromJson(Map<String, dynamic> json) {
-    final rawNews = (json['news'] as List<dynamic>? ?? []);
-    final news = rawNews
-        .map((e) => _NewsItem.fromJson(e as Map<String, dynamic>))
-        .where((e) => e.title.trim().isNotEmpty)
-        .toList();
-    news.sort((a, b) => b.date.compareTo(a.date));
-    return _DiscoverData(
-      news: news,
-    );
-  }
-}
-
-class _NewsItem {
-  final int id;
-  final String title;
-  final String excerpt;
-  final String image;
-  final String link;
-  final String date;
-
-  _NewsItem({
-    required this.id,
-    required this.title,
-    required this.excerpt,
-    required this.image,
-    required this.link,
-    required this.date,
-  });
-
-  factory _NewsItem.fromJson(Map<String, dynamic> json) {
-    return _NewsItem(
-      id: (json['id'] as num?)?.toInt() ?? 0,
-      title: (json['title'] ?? '').toString(),
-      excerpt: (json['excerpt'] ?? '').toString(),
-      image: (json['image'] ?? '').toString(),
-      link: (json['link'] ?? '').toString(),
-      date: (json['date'] ?? '').toString(),
-    );
-  }
-}
-
-class _NewsList extends StatelessWidget {
-  final List<_NewsItem> items;
-  final String sessionToken;
-
-  const _NewsList({required this.items, required this.sessionToken});
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return _InfoCard(text: I18n.isEnglish ? 'No news found yet.' : 'Henüz haber bulunamadı.');
-    }
-    return Column(
-      children: items
-          .map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _NewsCard(
-                item: item,
+            final items = snapshot.data ?? const <_EventItem>[];
+            if (items.isEmpty) {
+              return const _InfoCard(text: 'Filtreye uygun etkinlik bulunamadı.');
+            }
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: items.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 0.72,
+              ),
+              itemBuilder: (_, i) => _EventCard(
+                item: items[i],
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => NewsDetailScreen(
-                        postId: item.id,
-                        sessionToken: sessionToken,
+                      builder: (_) => EventDetailScreen(
+                        title: items[i].name,
+                        submissionId: items[i].id,
+                        cover: items[i].cover,
+                        description: items[i].description,
+                        eventDate: items[i].eventDate,
+                        venue: items[i].venue,
+                        organizer: items[i].organizer,
+                        program: items[i].program,
+                        entryFee: items[i].entryFee,
+                        ticketUrl: items[i].ticketUrl,
+                        wooProductId: items[i].wooProductId,
+                        ticketSalesEnabled: items[i].ticketSalesEnabled,
+                        sessionToken: widget.sessionToken,
                       ),
                     ),
                   );
                 },
               ),
-            ),
-          )
-          .toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _tabChip(int index, String label) {
+    final selected = _tabIndex == index;
+    return ChoiceChip(
+      selected: selected,
+      label: Text(label),
+      selectedColor: const Color(0xFFE53935),
+      backgroundColor: const Color(0xFF121826),
+      labelStyle: TextStyle(color: selected ? Colors.white : Colors.white70),
+      onSelected: (_) {
+        setState(() => _tabIndex = index);
+        _refresh();
+      },
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
+class _EventItem {
+  final int id;
+  final String name;
+  final String description;
+  final String cover;
+  final String eventDate;
+  final String venue;
+  final String organizer;
+  final String program;
+  final double entryFee;
+  final String ticketUrl;
+  final String wooProductId;
+  final String city;
+  final bool ticketSalesEnabled;
 
-  const _SectionTitle({required this.title});
+  const _EventItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.cover,
+    required this.eventDate,
+    required this.venue,
+    required this.organizer,
+    required this.program,
+    required this.entryFee,
+    required this.ticketUrl,
+    required this.wooProductId,
+    required this.city,
+    required this.ticketSalesEnabled,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
+  DateTime get sortKey {
+    final dt = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
+    if (dt == null) return DateTime.utc(9999, 1, 1);
+    final now = DateTime.now();
+    if (dt.isBefore(now)) return DateTime.utc(9999, 1, 1).add(now.difference(dt));
+    return dt;
+  }
+
+  factory _EventItem.fromJson(Map<String, dynamic> json) {
+    String absUrl(dynamic raw, {String host = 'https://api2.dansmagazin.net'}) {
+      final v = (raw ?? '').toString().trim();
+      if (v.isEmpty) return '';
+      if (v.startsWith('http://') || v.startsWith('https://')) return v;
+      if (v.startsWith('/')) return '$host$v';
+      return '$host/$v';
+    }
+
+    return _EventItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),
+      eventDate: (json['event_date'] ?? json['start_at'] ?? '').toString(),
+      venue: (json['venue'] ?? '').toString(),
+      organizer: (json['organizer_name'] ?? '').toString(),
+      program: (json['program_text'] ?? '').toString(),
+      entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
+      ticketUrl: absUrl(json['ticket_url'] ?? '', host: 'https://www.dansmagazin.net'),
+      wooProductId: (json['woo_product_id'] ?? '').toString(),
+      city: (json['city'] ?? '').toString(),
+      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
     );
   }
 }
 
-class _NewsCard extends StatelessWidget {
-  final _NewsItem item;
+class _EventCard extends StatelessWidget {
+  final _EventItem item;
   final VoidCallback onTap;
 
-  const _NewsCard({required this.item, required this.onTap});
+  const _EventCard({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
           color: const Color(0xFF121826),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white12),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: item.image.isNotEmpty
-                  ? Image.network(
-                      item.image,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imageFallback(),
-                    )
-                  : _imageFallback(),
+            Expanded(
+              child: item.cover.isNotEmpty
+                  ? Image.network(item.cover, width: double.infinity, fit: BoxFit.cover)
+                  : Container(color: const Color(0xFF1F2937)),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
-              child: Text(
-                item.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-              child: Text(
-                item.date,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  if (item.city.trim().isNotEmpty)
+                    Text(item.city.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(item.eventDate.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
               ),
             ),
           ],
@@ -238,21 +288,14 @@ class _NewsCard extends StatelessWidget {
       ),
     );
   }
-
-  Widget _imageFallback() {
-    return Container(
-      color: const Color(0xFF1F2937),
-      child: const Center(
-        child: Icon(Icons.image_not_supported_outlined, color: Colors.white54),
-      ),
-    );
-  }
 }
 
 class _InfoCard extends StatelessWidget {
   final String text;
+  final String? actionText;
+  final VoidCallback? onTap;
 
-  const _InfoCard({required this.text});
+  const _InfoCard({required this.text, this.actionText, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -264,35 +307,12 @@ class _InfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white12),
       ),
-      child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.8))),
-    );
-  }
-}
-
-class _ErrorCard extends StatelessWidget {
-  final String text;
-  final VoidCallback onRetry;
-
-  const _ErrorCard({required this.text, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 120,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A1212),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF7F1D1D)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(text),
-          const SizedBox(height: 8),
-          TextButton(onPressed: onRetry, child: const Text('Tekrar Dene')),
+          Text(text, style: TextStyle(color: Colors.white.withOpacity(0.85))),
+          if (actionText != null && onTap != null)
+            TextButton(onPressed: onTap, child: Text(actionText!)),
         ],
       ),
     );

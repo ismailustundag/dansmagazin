@@ -106,6 +106,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                           sessionToken: widget.sessionToken,
                           peerAccountId: p.accountId,
                           peerName: p.name,
+                          peerAvatarUrl: p.avatarUrl,
                         ),
                       ),
                     );
@@ -127,12 +128,14 @@ class _FriendProfile {
   final int accountId;
   final String name;
   final String email;
+  final String avatarUrl;
   final String friendsSince;
 
   const _FriendProfile({
     required this.accountId,
     required this.name,
     required this.email,
+    required this.avatarUrl,
     required this.friendsSince,
   });
 
@@ -141,6 +144,7 @@ class _FriendProfile {
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
+      avatarUrl: (json['avatar_url'] ?? '').toString(),
       friendsSince: (json['friends_since'] ?? '').toString(),
     );
   }

@@ -16,6 +16,7 @@ class EventDetailScreen extends StatefulWidget {
   final double entryFee;
   final String ticketUrl;
   final String wooProductId;
+  final bool ticketSalesEnabled;
   final String sessionToken;
 
   const EventDetailScreen({
@@ -31,6 +32,7 @@ class EventDetailScreen extends StatefulWidget {
     required this.entryFee,
     required this.ticketUrl,
     required this.wooProductId,
+    required this.ticketSalesEnabled,
     required this.sessionToken,
   });
 
@@ -66,6 +68,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   String _buyUrl() {
+    if (!widget.ticketSalesEnabled) return '';
     final t = widget.ticketUrl.trim();
     if (t.isNotEmpty) {
       final u = Uri.tryParse(t);

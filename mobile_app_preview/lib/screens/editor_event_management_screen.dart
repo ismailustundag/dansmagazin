@@ -1003,6 +1003,21 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final _orgCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
+  final List<String> _cities = const [
+    'İstanbul',
+    'Ankara',
+    'İzmir',
+    'Bursa',
+    'Antalya',
+    'Adana',
+    'Kocaeli',
+    'Muğla',
+    'Mersin',
+    'Eskişehir',
+  ];
+  String _city = 'İstanbul';
+  String _eventKind = 'dance_night';
+  bool _ticketSalesEnabled = true;
 
   final _picker = ImagePicker();
   XFile? _image;
@@ -1047,6 +1062,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim()
         ..fields['venue'] = _venueCtrl.text.trim()
+        ..fields['city'] = _city
+        ..fields['event_kind'] = _eventKind
+        ..fields['ticket_sales_enabled'] = _ticketSalesEnabled ? '1' : '0'
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['event_date'] = _dateCtrl.text.trim()
         ..fields['entry_fee'] = _feeCtrl.text.trim();
@@ -1095,6 +1113,43 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               _txt(_descCtrl, 'Detaylar', maxLines: 3),
               _txt(_programCtrl, 'Program', maxLines: 3),
               _txt(_venueCtrl, 'Konum / Mekan'),
+              DropdownButtonFormField<String>(
+                value: _city,
+                items: _cities
+                    .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: _sending ? null : (v) => setState(() => _city = v ?? _city),
+                decoration: InputDecoration(
+                  labelText: 'Şehir',
+                  filled: true,
+                  fillColor: const Color(0xFF111827),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _eventKind,
+                items: const [
+                  DropdownMenuItem(value: 'dance_night', child: Text('Dans Gecesi')),
+                  DropdownMenuItem(value: 'festival', child: Text('Festival')),
+                  DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
+                ],
+                onChanged: _sending ? null : (v) => setState(() => _eventKind = v ?? _eventKind),
+                decoration: InputDecoration(
+                  labelText: 'Etkinlik Türü',
+                  filled: true,
+                  fillColor: const Color(0xFF111827),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 4),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Bilet Satışına Aç'),
+                subtitle: const Text('Kapalıysa etkinlik sadece uygulamada görünür'),
+                value: _ticketSalesEnabled,
+                onChanged: _sending ? null : (v) => setState(() => _ticketSalesEnabled = v),
+              ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateField(_dateCtrl, 'Etkinlik Tarihi'),
               _txt(_feeCtrl, 'Bilet Ücreti (TL)'),
