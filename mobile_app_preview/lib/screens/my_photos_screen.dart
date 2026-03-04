@@ -178,17 +178,7 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
       return;
     }
     try {
-      final box = context.findRenderObject() as RenderBox?;
-      final origin = box == null
-          ? null
-          : (box.localToGlobal(Offset.zero) & box.size);
-      await SharePlus.instance.share(
-        ShareParams(
-          text: payload,
-          subject: 'Dansmagazin Fotoğraf',
-          sharePositionOrigin: origin,
-        ),
-      );
+      await Share.share(payload, subject: 'Dansmagazin Fotoğraf');
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

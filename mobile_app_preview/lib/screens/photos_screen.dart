@@ -23,17 +23,7 @@ Future<void> _safeShare(
     return;
   }
   try {
-    final box = context.findRenderObject() as RenderBox?;
-    final origin = box == null
-        ? null
-        : (box.localToGlobal(Offset.zero) & box.size);
-    await SharePlus.instance.share(
-      ShareParams(
-        text: payload,
-        subject: subject,
-        sharePositionOrigin: origin,
-      ),
-    );
+    await Share.share(payload, subject: subject);
   } catch (_) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
