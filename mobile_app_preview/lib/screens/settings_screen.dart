@@ -133,53 +133,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _birthDateUi() {
     final raw = _birthDate.trim();
     if (raw.isEmpty) return 'Seçilmedi';
-    try {
-      // Beklenen format: dd.MM.yyyy
-      final dt = DateFormat('dd.MM.yyyy').parseStrict(raw);
-      return DateFormat('dd.MM.yyyy').format(dt);
-    } catch (_) {}
-    try {
-      final dt = DateFormat('dd-MM-yyyy').parseStrict(raw);
-      return DateFormat('dd.MM.yyyy').format(dt);
-    } catch (_) {}
-    final dt = DateTime.tryParse(raw);
+    final dt = _parseBirthDate(raw);
     if (dt == null) return raw;
     return DateFormat('dd.MM.yyyy').format(dt);
   }
 
-  Future<void> _pickBirthDate() async {
-    final now = DateTime.now();
-    DateTime initial = DateTime(now.year - 20, 1, 1);
+  DateTime? _parseBirthDate(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return null;
     try {
-      initial = DateFormat('dd.MM.yyyy').parseStrict(_birthDate);
-    } catch (_) {
-      try {
-        initial = DateFormat('dd-MM-yyyy').parseStrict(_birthDate);
-      } catch (_) {
-        final iso = DateTime.tryParse(_birthDate);
-        if (iso != null) initial = iso;
-      }
-    }
-    DateTime? picked;
-    if (Platform.isIOS) {
-      picked = await _pickBirthDateIOS(initial.isAfter(now) ? now : initial, now);
-    } else {
-      picked = await showDatePicker(
-        context: context,
-        initialDate: initial.isAfter(now) ? now : initial,
-        firstDate: DateTime(1900, 1, 1),
-        lastDate: now,
-        helpText: 'Doğum Tarihi',
-        locale: const Locale('tr', 'TR'),
-      );
-    }
-    if (picked == null) return;
-    final formatted = DateFormat('dd.MM.yyyy').format(picked);
-    setState(() => _birthDate = formatted);
-    await _saveRemote(birthDate: formatted);
+      return DateFormat('dd.MM.yyyy').parseStrict(v);
+    } catch (_) {}
+    try {
+      return DateFormat('dd-MM-yyyy').parseStrict(v);
+    } catch (_) {}
+    try {
+      return DateFormat('yyyy-MM-dd').parseStrict(v);
+    } catch (_) {}
+    return DateTime.tryParse(v);
   }
 
-  Future<DateTime?> _pickBirthDateIOS(DateTime initial, DateTime now) async {
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final parsed = _parseBirthDate(_birthDate);
+    final initial = (parsed != null && !parsed.isAfter(now)) ? parsed : DateTime(now.year - 20, 1, 1);
+    final picked = await _pickBirthDateSheet(initial, now);
+    if (picked == null) return;
+    final apiDate = DateFormat('yyyy-MM-dd').format(picked);
+    setState(() => _birthDate = apiDate);
+    await _saveRemote(birthDate: apiDate);
+  }
+
+  Future<DateTime?> _pickBirthDateSheet(DateTime initial, DateTime now) async {
     DateTime temp = initial;
     final picked = await showModalBottomSheet<DateTime>(
       context: context,
@@ -226,14 +211,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 SizedBox(
                   height: 230,
-                  child: CupertinoTheme(
-                    data: const CupertinoThemeData(brightness: Brightness.dark),
-                    child: CupertinoDatePicker(
-                      mode: CupertinoDatePickerMode.date,
-                      initialDateTime: initial,
-                      minimumDate: DateTime(1900, 1, 1),
-                      maximumDate: now,
-                      onDateTimeChanged: (v) => temp = v,
+                  child: Localizations.override(
+                    context: ctx,
+                    locale: const Locale('tr', 'TR'),
+                    child: CupertinoTheme(
+                      data: const CupertinoThemeData(brightness: Brightness.dark),
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.date,
+                        dateOrder: DatePickerDateOrder.dmy,
+                        initialDateTime: initial,
+                        minimumDate: DateTime(1900, 1, 1),
+                        maximumDate: now,
+                        onDateTimeChanged: (v) => temp = v,
+                      ),
                     ),
                   ),
                 ),
