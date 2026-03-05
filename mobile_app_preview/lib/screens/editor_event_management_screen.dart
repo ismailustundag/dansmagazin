@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../services/turkiye_cities.dart';
 
 DateTime? _parseEventDate(String raw) {
   final v = raw.trim();
@@ -919,19 +920,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   late final TextEditingController _venueCtrl;
   late final TextEditingController _orgCtrl;
   late final TextEditingController _programCtrl;
-  final List<String> _cities = const [
-    'İstanbul',
-    'Ankara',
-    'İzmir',
-    'Bursa',
-    'Antalya',
-    'Adana',
-    'Kocaeli',
-    'Muğla',
-    'Mersin',
-    'Eskişehir',
-    'Belirtilmedi',
-  ];
+  final List<String> _cities = kTurkiyeCitiesWithUnknown;
   String _city = 'İstanbul';
   String _eventKind = 'dance_night';
   bool _ticketSalesEnabled = true;
@@ -1154,18 +1143,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final _orgCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
-  final List<String> _cities = const [
-    'İstanbul',
-    'Ankara',
-    'İzmir',
-    'Bursa',
-    'Antalya',
-    'Adana',
-    'Kocaeli',
-    'Muğla',
-    'Mersin',
-    'Eskişehir',
-  ];
+  final List<String> _cities = kTurkiyeCities;
   String _city = 'İstanbul';
   String _eventKind = 'dance_night';
   bool _ticketSalesEnabled = true;

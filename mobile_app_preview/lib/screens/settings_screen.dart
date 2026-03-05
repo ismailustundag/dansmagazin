@@ -11,6 +11,7 @@ import '../services/app_settings.dart';
 import '../services/i18n.dart';
 import '../services/profile_api.dart';
 import '../services/push_notifications_service.dart';
+import '../services/turkiye_cities.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String sessionToken;
@@ -28,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _usernameCtrl = TextEditingController();
   bool _notificationsEnabled = true;
   String _language = 'tr';
+  String _city = 'İstanbul';
   String _avatarPath = '';
   String _avatarUrl = '';
   String _email = '';
@@ -55,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final remote = await ProfileApi.settings(widget.sessionToken);
         _notificationsEnabled = remote.notificationsEnabled;
         _language = remote.language == 'en' ? 'en' : 'tr';
+        _city = remote.city.trim().isEmpty ? 'İstanbul' : remote.city.trim();
         _avatarUrl = remote.avatarUrl;
         _email = remote.email;
         _usernameCtrl.text = remote.username;
@@ -68,13 +71,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _saveRemote({String? username, String? language, bool? notifications, String? avatarUrl}) async {
+  Future<void> _saveRemote({String? username, String? city, String? language, bool? notifications, String? avatarUrl}) async {
     if (widget.sessionToken.trim().isEmpty) return;
     setState(() => _saving = true);
     try {
       final saved = await ProfileApi.updateSettings(
         sessionToken: widget.sessionToken,
         username: username,
+        city: city,
         language: language,
         notificationsEnabled: notifications,
         avatarUrl: avatarUrl,
@@ -83,6 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _notificationsEnabled = saved.notificationsEnabled;
         _language = saved.language == 'en' ? 'en' : 'tr';
+        _city = saved.city.trim().isEmpty ? _city : saved.city.trim();
         _avatarUrl = saved.avatarUrl;
         _email = saved.email;
         if (username != null) _usernameCtrl.text = saved.username;
@@ -104,6 +109,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _language = v);
     await AppSettings.setLanguage(v);
     await _saveRemote(language: v);
+  }
+
+  Future<void> _saveCity(String v) async {
+    setState(() => _city = v);
+    await _saveRemote(city: v);
   }
 
   Future<void> _saveNotif(bool v) async {
@@ -284,6 +294,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ],
                               ),
                             ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Yaşadığınız Şehir', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: kTurkiyeCities.contains(_city) ? _city : 'İstanbul',
+                          items: kTurkiyeCities
+                              .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                              .toList(),
+                          onChanged: _saving
+                              ? null
+                              : (v) {
+                                  if (v != null) _saveCity(v);
+                                },
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(),
                           ),
                         ),
                       ],

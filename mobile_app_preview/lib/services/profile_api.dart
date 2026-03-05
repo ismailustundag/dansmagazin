@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 class ProfileSettingsData {
   final String username;
   final String email;
+  final String city;
   final String language;
   final bool notificationsEnabled;
   final String avatarUrl;
@@ -12,6 +13,7 @@ class ProfileSettingsData {
   const ProfileSettingsData({
     required this.username,
     required this.email,
+    required this.city,
     required this.language,
     required this.notificationsEnabled,
     required this.avatarUrl,
@@ -21,6 +23,7 @@ class ProfileSettingsData {
     return ProfileSettingsData(
       username: (json['username'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
+      city: (json['city'] ?? '').toString(),
       language: (json['language'] ?? 'tr').toString(),
       notificationsEnabled: json['notifications_enabled'] == true,
       avatarUrl: (json['avatar_url'] ?? '').toString(),
@@ -45,12 +48,14 @@ class ProfileApi {
   static Future<ProfileSettingsData> updateSettings({
     required String sessionToken,
     String? username,
+    String? city,
     String? language,
     bool? notificationsEnabled,
     String? avatarUrl,
   }) async {
     final body = <String, dynamic>{};
     if (username != null) body['username'] = username;
+    if (city != null) body['city'] = city;
     if (language != null) body['language'] = language;
     if (notificationsEnabled != null) body['notifications_enabled'] = notificationsEnabled;
     if (avatarUrl != null) body['avatar_url'] = avatarUrl;
