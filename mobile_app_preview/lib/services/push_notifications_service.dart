@@ -90,19 +90,21 @@ class PushNotificationsService {
     await _ensureLocalReady();
 
     final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-
-    final isGranted =
-        settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional;
+    bool isGranted = true;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+      isGranted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    }
 
     if (!isGranted || !notificationsEnabled) {
       try {
