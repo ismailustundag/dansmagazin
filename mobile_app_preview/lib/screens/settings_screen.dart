@@ -177,7 +177,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               surface: Colors.white,
               onSurface: Colors.black,
             ),
-            dialogTheme: const DialogTheme(backgroundColor: Colors.white),
             textTheme: baseTheme.textTheme.apply(
               bodyColor: Colors.black,
               displayColor: Colors.black,
