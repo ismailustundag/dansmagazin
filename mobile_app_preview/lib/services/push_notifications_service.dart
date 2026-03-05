@@ -34,6 +34,19 @@ class PushNotificationsService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
+  static Future<String?> _resolveFcmTokenWithRetry(
+    FirebaseMessaging messaging,
+  ) async {
+    for (var i = 0; i < 4; i++) {
+      final t = await messaging.getToken();
+      if (t != null && t.trim().isNotEmpty) {
+        return t.trim();
+      }
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+    return null;
+  }
+
   static Future<bool> _ensureFirebaseReady() async {
     if (_firebaseReady) return true;
     try {
@@ -121,7 +134,15 @@ class PushNotificationsService {
       );
     } catch (_) {}
 
-    final currentToken = await messaging.getToken();
+    String? currentToken = await _resolveFcmTokenWithRetry(messaging);
+    if ((currentToken ?? '').isEmpty) {
+      // Token gelmiyorsa bir kez resetleyip tekrar dene.
+      try {
+        await messaging.deleteToken();
+      } catch (_) {}
+      currentToken = await _resolveFcmTokenWithRetry(messaging);
+    }
+
     if (currentToken != null && currentToken.trim().isNotEmpty) {
       try {
         await NotificationsApi.registerPushToken(
@@ -187,6 +208,9 @@ class PushNotificationsService {
       } catch (_) {}
       return;
     }
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (_) {}
     await initForSession(token, notificationsEnabled: true);
   }
 
