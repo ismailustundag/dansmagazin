@@ -25,6 +25,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
+  static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
 
   final _picker = ImagePicker();
   final _usernameCtrl = TextEditingController();
@@ -479,6 +480,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Text(
+                      'Build: $_buildSha',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.55),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
