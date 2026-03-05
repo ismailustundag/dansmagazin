@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/date_time_format.dart';
 import '../services/i18n.dart';
 import 'screen_shell.dart';
 
@@ -1208,12 +1209,7 @@ String _absUrl(dynamic raw) {
 }
 
 String _fmtDate(String raw) {
-  if (raw.isEmpty) return '-';
-  final cleaned = raw.replaceAll('T', ' ');
-  if (cleaned.length >= 16) {
-    return cleaned.substring(0, 16);
-  }
-  return cleaned;
+  return formatDateTimeDdMmYyyyHmDot(raw);
 }
 
 class _InfoCard extends StatelessWidget {

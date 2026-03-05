@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
 import '../services/notification_center.dart';
@@ -669,7 +670,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                       ),
                                     if (f.lastMessageAt.isNotEmpty)
                                       Text(
-                                        '${t('last_message')}: ${f.lastMessageAt}',
+                                        '${t('last_message')}: ${formatDateTimeDdMmYyyyHmDot(f.lastMessageAt)}',
                                         style: TextStyle(
                                           color: f.unreadCount > 0 ? Colors.redAccent : Colors.white70,
                                           fontSize: 12,

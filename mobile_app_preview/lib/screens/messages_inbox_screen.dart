@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/date_time_format.dart';
 import 'chat_thread_screen.dart';
 
 class MessagesInboxScreen extends StatefulWidget {
@@ -37,6 +38,7 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
         .map((e) => _InboxItem.fromJson(e as Map<String, dynamic>))
+        .map((e) => e.copyWith(lastAt: formatDateTimeDdMmYyyyHmDot(e.lastAt)))
         .toList();
   }
 
@@ -110,7 +112,10 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                           children: [
                             Text(m.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                             if (m.lastAt.isNotEmpty)
-                              Text('Son mesaj: ${m.lastAt}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                              Text(
+                                'Son mesaj: ${formatDateTimeDdMmYyyyHmDot(m.lastAt)}',
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
                           ],
                         ),
                       ),
@@ -135,6 +140,20 @@ class _InboxItem {
   final String avatarUrl;
 
   const _InboxItem({required this.accountId, required this.name, required this.lastAt, required this.avatarUrl});
+
+  _InboxItem copyWith({
+    int? accountId,
+    String? name,
+    String? lastAt,
+    String? avatarUrl,
+  }) {
+    return _InboxItem(
+      accountId: accountId ?? this.accountId,
+      name: name ?? this.name,
+      lastAt: lastAt ?? this.lastAt,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
 
   factory _InboxItem.fromJson(Map<String, dynamic> json) {
     return _InboxItem(

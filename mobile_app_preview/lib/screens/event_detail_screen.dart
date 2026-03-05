@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/checkout_api.dart';
+import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import 'app_webview_screen.dart';
 
@@ -55,16 +56,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   String _fmtDate(String raw) {
-    final v = raw.trim();
-    if (v.isEmpty) return '-';
-    final dt = DateTime.tryParse(v) ?? DateTime.tryParse(v.replaceAll(' ', 'T'));
-    if (dt == null) return v;
-    final dd = dt.day.toString().padLeft(2, '0');
-    final mm = dt.month.toString().padLeft(2, '0');
-    final yy = (dt.year % 100).toString().padLeft(2, '0');
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final mn = dt.minute.toString().padLeft(2, '0');
-    return '$dd.$mm.$yy  $hh:$mn';
+    return formatDateTimeDdMmYyyyHmDot(raw);
   }
 
   String _buyUrl() {

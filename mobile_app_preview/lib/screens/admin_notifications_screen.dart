@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/notifications_api.dart';
+import '../services/date_time_format.dart';
 
 class AdminNotificationsScreen extends StatefulWidget {
   final String sessionToken;
@@ -112,17 +113,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   }
 
   String _fmtDate(String raw) {
-    final v = raw.trim();
-    if (v.isEmpty) return '-';
-    final d = DateTime.tryParse(v);
-    if (d == null) return v.replaceAll('T', ' ');
-    final x = d.toLocal();
-    final dd = x.day.toString().padLeft(2, '0');
-    final mm = x.month.toString().padLeft(2, '0');
-    final yy = x.year.toString();
-    final hh = x.hour.toString().padLeft(2, '0');
-    final mi = x.minute.toString().padLeft(2, '0');
-    return '$dd.$mm.$yy $hh:$mi';
+    return formatDateTimeDdMmYyyyHmDot(raw);
   }
 
   @override

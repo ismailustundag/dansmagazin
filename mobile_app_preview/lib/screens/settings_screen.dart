@@ -131,6 +131,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _birthDateUi() {
     final raw = _birthDate.trim();
     if (raw.isEmpty) return 'Seçilmedi';
+    try {
+      // Beklenen format: dd.MM.yyyy
+      final dt = DateFormat('dd.MM.yyyy').parseStrict(raw);
+      return DateFormat('dd.MM.yyyy').format(dt);
+    } catch (_) {}
+    try {
+      final dt = DateFormat('dd-MM-yyyy').parseStrict(raw);
+      return DateFormat('dd.MM.yyyy').format(dt);
+    } catch (_) {}
     final dt = DateTime.tryParse(raw);
     if (dt == null) return raw;
     return DateFormat('dd.MM.yyyy').format(dt);
@@ -138,19 +147,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
-    final initial = DateTime.tryParse(_birthDate) ?? DateTime(now.year - 20, 1, 1);
+    DateTime initial = DateTime(now.year - 20, 1, 1);
+    try {
+      initial = DateFormat('dd.MM.yyyy').parseStrict(_birthDate);
+    } catch (_) {
+      try {
+        initial = DateFormat('dd-MM-yyyy').parseStrict(_birthDate);
+      } catch (_) {
+        final iso = DateTime.tryParse(_birthDate);
+        if (iso != null) initial = iso;
+      }
+    }
     final picked = await showDatePicker(
       context: context,
       initialDate: initial.isAfter(now) ? now : initial,
       firstDate: DateTime(1900, 1, 1),
       lastDate: now,
       helpText: 'Doğum Tarihi',
-      locale: const Locale('tr'),
+      locale: const Locale('tr', 'TR'),
+      builder: (ctx, child) {
+        final base = Theme.of(ctx);
+        return Theme(
+          data: base.copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFE53935),
+              onPrimary: Colors.white,
+              surface: Color(0xFF121826),
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: const Color(0xFF121826),
+            datePickerTheme: const DatePickerThemeData(
+              backgroundColor: Color(0xFF121826),
+              headerBackgroundColor: Color(0xFF0F172A),
+              headerForegroundColor: Colors.white,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
     if (picked == null) return;
-    final iso = DateFormat('yyyy-MM-dd').format(picked);
-    setState(() => _birthDate = iso);
-    await _saveRemote(birthDate: iso);
+    final formatted = DateFormat('dd.MM.yyyy').format(picked);
+    setState(() => _birthDate = formatted);
+    await _saveRemote(birthDate: formatted);
   }
 
   Future<void> _saveNotif(bool v) async {
@@ -303,60 +342,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white12),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _avatar(),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(t('profile_photo'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  ElevatedButton.icon(
-                                    onPressed: _pickingAvatar ? null : _pickAvatar,
-                                    icon: const Icon(Icons.photo_camera, size: 18),
-                                    label: Text(_pickingAvatar ? '...' : t('select')),
-                                  ),
-                                  if (_avatarPath.isNotEmpty)
-                                    OutlinedButton.icon(
-                                      onPressed: _clearAvatar,
-                                      icon: const Icon(Icons.delete_outline, size: 18),
-                                      label: Text(t('remove')),
-                                    ),
-                                ],
-                              ),
-                            ],
+                        Text(t('username'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        if (_email.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(_email, style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12)),
+                        ],
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _usernameCtrl,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                            hintText: 'ornek_kullanici',
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF121826),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Text('Doğum Tarihi', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                        ),
-                        Text(
-                          _birthDateUi(),
-                          style: const TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                        const SizedBox(width: 8),
-                        OutlinedButton(
-                          onPressed: _saving ? null : _pickBirthDate,
-                          child: const Text('Seç'),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton(
+                            onPressed: _saving ? null : _saveUsername,
+                            child: Text(t('save')),
+                          ),
                         ),
                       ],
                     ),
@@ -400,60 +409,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white12),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(t('username'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                        if (_email.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(_email, style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12)),
-                        ],
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _usernameCtrl,
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            border: OutlineInputBorder(),
-                            hintText: 'ornek_kullanici',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton(
-                            onPressed: _saving ? null : _saveUsername,
-                            child: Text(t('save')),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF121826),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white12),
-                    ),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(t('notifications'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 2),
-                              Text(t('app_notifications'), style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                            ],
-                          ),
+                        const Expanded(
+                          child: Text('Doğum Tarihiniz', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                         ),
-                        Transform.scale(
-                          scale: 0.85,
-                          child: Switch(
-                            value: _notificationsEnabled,
-                            onChanged: _saving ? null : _saveNotif,
-                          ),
+                        Text(
+                          _birthDateUi(),
+                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: _saving ? null : _pickBirthDate,
+                          child: const Text('Seç'),
                         ),
                       ],
                     ),
@@ -485,6 +453,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           decoration: const InputDecoration(
                             isDense: true,
                             border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(t('notifications'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                        Transform.scale(
+                          scale: 0.80,
+                          child: Switch(
+                            value: _notificationsEnabled,
+                            onChanged: _saving ? null : _saveNotif,
                           ),
                         ),
                       ],

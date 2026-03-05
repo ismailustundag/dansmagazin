@@ -11,7 +11,7 @@ import '../services/turkiye_cities.dart';
 DateTime? _parseEventDate(String raw) {
   final v = raw.trim();
   if (v.isEmpty) return null;
-  final ddmmyyyy = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(v);
+  final ddmmyyyy = RegExp(r'^(\d{1,2})[-\.](\d{1,2})[-\.](\d{4})$').firstMatch(v);
   if (ddmmyyyy != null) {
     final d = int.tryParse(ddmmyyyy.group(1)!);
     final m = int.tryParse(ddmmyyyy.group(2)!);
@@ -36,7 +36,7 @@ String _toDisplayDate(String raw) {
   final d = dt.day.toString().padLeft(2, '0');
   final m = dt.month.toString().padLeft(2, '0');
   final y = dt.year.toString();
-  return '$d.$m.$y';
+  return '$d-$m-$y';
 }
 
 String _toApiDate(String raw) {

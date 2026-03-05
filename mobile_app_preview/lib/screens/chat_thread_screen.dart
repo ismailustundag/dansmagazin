@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/date_time_format.dart';
 import '../services/notification_center.dart';
 
 class ChatThreadScreen extends StatefulWidget {
@@ -230,7 +231,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                       Text(m.body),
                                       const SizedBox(height: 4),
                                       Text(
-                                        m.createdAt,
+                                        formatDateTimeDdMmYyyyHmDot(m.createdAt),
                                         style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
                                       ),
                                     ],
