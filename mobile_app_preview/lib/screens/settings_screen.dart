@@ -168,12 +168,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       helpText: 'Doğum Tarihi',
       locale: const Locale('tr', 'TR'),
       builder: (context, child) {
+        final baseTheme = ThemeData.light();
         return Theme(
-          data: Theme.of(context).copyWith(
+          data: baseTheme.copyWith(
             colorScheme: const ColorScheme.light(
               primary: Color(0xFFE53935),
               onPrimary: Colors.white,
-              onSurface: Colors.black87,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+            dialogTheme: const DialogTheme(backgroundColor: Colors.white),
+            textTheme: baseTheme.textTheme.apply(
+              bodyColor: Colors.black,
+              displayColor: Colors.black,
+            ),
+            primaryTextTheme: baseTheme.primaryTextTheme.apply(
+              bodyColor: Colors.black,
+              displayColor: Colors.black,
             ),
           ),
           child: child!,
