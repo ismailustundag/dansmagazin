@@ -160,45 +160,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final fallback = DateTime(now.year - 20, 1, 1);
     final base = (parsed != null && !parsed.isAfter(now)) ? parsed : fallback;
     final initial = base.isBefore(first) ? first : (base.isAfter(now) ? now : base);
-    final picked = Platform.isIOS
-        ? await _pickBirthDateIOS(initial, first, now)
-        : await _pickBirthDateAndroid(initial, first, now);
+    final picked = await _pickBirthDateWheel(initial, first, now);
     if (picked == null) return;
     final apiDate = DateFormat('yyyy-MM-dd').format(picked);
     setState(() => _birthDate = apiDate);
     await _saveRemote(birthDate: apiDate);
   }
 
-  Future<DateTime?> _pickBirthDateIOS(DateTime initial, DateTime first, DateTime last) async {
+  Future<DateTime?> _pickBirthDateWheel(DateTime initial, DateTime first, DateTime last) async {
     DateTime temp = initial;
-    final picked = await showCupertinoModalPopup<DateTime>(
+    final picked = await showModalBottomSheet<DateTime>(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
       builder: (ctx) {
-        return Container(
-          height: 300,
-          color: const Color(0xFF121826),
+        return SafeArea(
+          top: false,
+          child: Container(
+          margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          height: 320,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Column(
             children: [
               Container(
                 height: 48,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.white24)),
+                  border: Border(bottom: BorderSide(color: Color(0x11000000))),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
+                    TextButton(
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
                       onPressed: () => Navigator.of(ctx).pop(),
                       child: const Text('Vazgeç'),
                     ),
                     const Text(
                       'Doğum Tarihi',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w700),
                     ),
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
+                    TextButton(
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
                       onPressed: () => Navigator.of(ctx).pop(temp),
                       child: const Text('Seç'),
                     ),
@@ -206,89 +212,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               Expanded(
-                child: CupertinoTheme(
-                  data: const CupertinoThemeData(brightness: Brightness.dark),
-                  child: CupertinoDatePicker(
-                    mode: CupertinoDatePickerMode.date,
-                    backgroundColor: Color(0xFF121826),
-                    dateOrder: DatePickerDateOrder.dmy,
-                    initialDateTime: initial,
-                    minimumDate: first,
-                    maximumDate: last,
-                    onDateTimeChanged: (v) => temp = v,
+                child: Localizations.override(
+                  context: ctx,
+                  locale: const Locale('tr', 'TR'),
+                  child: CupertinoTheme(
+                    data: const CupertinoThemeData(
+                      brightness: Brightness.light,
+                    ),
+                    child: CupertinoDatePicker(
+                      mode: CupertinoDatePickerMode.date,
+                      backgroundColor: Colors.white,
+                      dateOrder: DatePickerDateOrder.dmy,
+                      initialDateTime: initial,
+                      minimumDate: first,
+                      maximumDate: last,
+                      onDateTimeChanged: (v) => temp = v,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-        );
-      },
-    );
-    return picked;
-  }
-
-  Future<DateTime?> _pickBirthDateAndroid(DateTime initial, DateTime first, DateTime last) async {
-    DateTime temp = initial;
-    final picked = await showModalBottomSheet<DateTime>(
-      context: context,
-      backgroundColor: const Color(0xFF121826),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 420,
-            child: Column(
-              children: [
-                Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Colors.white24)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text('Vazgeç'),
-                      ),
-                      const Text(
-                        'Doğum Tarihi',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(temp),
-                        child: const Text('Seç'),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Theme(
-                    data: Theme.of(ctx).copyWith(
-                      colorScheme: const ColorScheme.dark(
-                        primary: Color(0xFFE53935),
-                        onPrimary: Colors.white,
-                        surface: Color(0xFF121826),
-                        onSurface: Colors.white,
-                      ),
-                      textButtonTheme: TextButtonThemeData(
-                        style: TextButton.styleFrom(foregroundColor: Colors.white),
-                      ),
-                    ),
-                    child: CalendarDatePicker(
-                      initialDate: initial,
-                      firstDate: first,
-                      lastDate: last,
-                      onDateChanged: (v) => temp = v,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         );
       },
