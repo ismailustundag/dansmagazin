@@ -160,15 +160,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final fallback = DateTime(now.year - 20, 1, 1);
     final base = (parsed != null && !parsed.isAfter(now)) ? parsed : fallback;
     final initial = base.isBefore(first) ? first : (base.isAfter(now) ? now : base);
-    final picked = await _pickBirthDateWheel(initial, first, now);
+    final picked = await _pickBirthDateSheet(initial, first, now);
     if (picked == null) return;
     final apiDate = DateFormat('yyyy-MM-dd').format(picked);
     setState(() => _birthDate = apiDate);
     await _saveRemote(birthDate: apiDate);
   }
 
-  Future<DateTime?> _pickBirthDateWheel(DateTime initial, DateTime first, DateTime last) async {
-    DateTime temp = initial;
+  int _daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
+
+  Future<DateTime?> _pickBirthDateSheet(DateTime initial, DateTime first, DateTime last) async {
+    int year = initial.year;
+    int month = initial.month;
+    int day = initial.day;
+    final years = [for (int y = last.year; y >= first.year; y--) y];
+    const months = [
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
+    ];
     final picked = await showModalBottomSheet<DateTime>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -176,63 +195,106 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) {
         return SafeArea(
           top: false,
-          child: Container(
-          margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-          height: 320,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            children: [
-              Container(
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0x11000000))),
+          child: StatefulBuilder(
+            builder: (ctx2, setModalState) {
+              final maxDay = _daysInMonth(year, month);
+              if (day > maxDay) day = maxDay;
+              final days = [for (int d = 1; d <= maxDay; d++) d];
+              return Container(
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextButton(
-                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Vazgeç'),
+                    SizedBox(
+                      height: 48,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Vazgeç'),
+                          ),
+                          const Text(
+                            'Doğum Tarihi',
+                            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w700),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              final selected = DateTime(year, month, day);
+                              if (selected.isBefore(first) || selected.isAfter(last)) return;
+                              Navigator.of(ctx).pop(selected);
+                            },
+                            child: const Text('Seç'),
+                          ),
+                        ],
+                      ),
                     ),
-                    const Text(
-                      'Doğum Tarihi',
-                      style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w700),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                      onPressed: () => Navigator.of(ctx).pop(temp),
-                      child: const Text('Seç'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: day,
+                            items: days
+                                .map((d) => DropdownMenuItem<int>(value: d, child: Text(d.toString().padLeft(2, '0'))))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setModalState(() => day = v);
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Gün',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: month,
+                            items: List.generate(
+                              12,
+                              (i) => DropdownMenuItem<int>(value: i + 1, child: Text(months[i])),
+                            ),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setModalState(() => month = v);
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Ay',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: year,
+                            items: years.map((y) => DropdownMenuItem<int>(value: y, child: Text(y.toString()))).toList(),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setModalState(() => year = v);
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Yıl',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                child: Localizations.override(
-                  context: ctx,
-                  locale: const Locale('tr', 'TR'),
-                  child: CupertinoTheme(
-                    data: const CupertinoThemeData(
-                      brightness: Brightness.light,
-                    ),
-                    child: CupertinoDatePicker(
-                      mode: CupertinoDatePickerMode.date,
-                      backgroundColor: Colors.white,
-                      dateOrder: DatePickerDateOrder.dmy,
-                      initialDateTime: initial,
-                      minimumDate: first,
-                      maximumDate: last,
-                      onDateTimeChanged: (v) => temp = v,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+              );
+            },
           ),
         );
       },
