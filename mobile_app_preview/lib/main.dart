@@ -357,22 +357,23 @@ class _RootScreenState extends State<RootScreen> {
         }
       }
       if (event == null || !mounted) return;
+      final ev = event;
       setState(() => _index = 0);
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => EventDetailScreen(
-            title: (event['name'] ?? '').toString(),
+            title: (ev['name'] ?? '').toString(),
             submissionId: submissionId,
-            cover: _asAbsUrl((event['cover'] ?? event['cover_url'] ?? event['image'] ?? '').toString()),
-            description: (event['description'] ?? '').toString(),
-            eventDate: (event['event_date'] ?? event['start_at'] ?? '').toString(),
-            venue: (event['venue'] ?? '').toString(),
-            organizer: (event['organizer_name'] ?? '').toString(),
-            program: (event['program_text'] ?? '').toString(),
-            entryFee: (event['entry_fee'] as num?)?.toDouble() ?? 0.0,
-            ticketUrl: _asAbsUrl((event['ticket_url'] ?? '').toString(), host: 'https://www.dansmagazin.net'),
-            wooProductId: (event['woo_product_id'] ?? '').toString(),
-            ticketSalesEnabled: (event['ticket_sales_enabled'] == true) || (event['ticket_sales_enabled'] == 1),
+            cover: _asAbsUrl((ev['cover'] ?? ev['cover_url'] ?? ev['image'] ?? '').toString()),
+            description: (ev['description'] ?? '').toString(),
+            eventDate: (ev['event_date'] ?? ev['start_at'] ?? '').toString(),
+            venue: (ev['venue'] ?? '').toString(),
+            organizer: (ev['organizer_name'] ?? '').toString(),
+            program: (ev['program_text'] ?? '').toString(),
+            entryFee: (ev['entry_fee'] as num?)?.toDouble() ?? 0.0,
+            ticketUrl: _asAbsUrl((ev['ticket_url'] ?? '').toString(), host: 'https://www.dansmagazin.net'),
+            wooProductId: (ev['woo_product_id'] ?? '').toString(),
+            ticketSalesEnabled: (ev['ticket_sales_enabled'] == true) || (ev['ticket_sales_enabled'] == 1),
             sessionToken: _sessionToken,
           ),
         ),
