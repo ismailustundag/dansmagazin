@@ -101,4 +101,17 @@ class ProfileApi {
     final j = jsonDecode(body) as Map<String, dynamic>;
     return (j['avatar_url'] ?? '').toString();
   }
+
+  static Future<void> deleteAccount(String sessionToken) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/profile/account'),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+    );
+    if (resp.statusCode == 200) return;
+    String detail = 'Hesap silinemedi';
+    try {
+      detail = (jsonDecode(resp.body) as Map<String, dynamic>)['detail']?.toString() ?? detail;
+    } catch (_) {}
+    throw Exception(detail);
+  }
 }

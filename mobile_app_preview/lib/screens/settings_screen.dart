@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
@@ -11,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_settings.dart';
 import '../services/i18n.dart';
+import '../services/legal_links.dart';
 import '../services/profile_api.dart';
 import '../services/push_notifications_service.dart';
 import '../services/turkiye_cities.dart';
@@ -40,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _pickingAvatar = false;
+  bool _deletingAccount = false;
 
   @override
   void initState() {
@@ -287,6 +290,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(I18n.t('username_updated'))),
     );
+  }
+
+  Future<void> _openLink(String url) async {
+    final uri = Uri.parse(url);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (ok || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Bağlantı açılamadı')),
+    );
+  }
+
+  Future<void> _deleteAccountFlow() async {
+    if (_deletingAccount || widget.sessionToken.trim().isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hesabımı Sil'),
+        content: const Text(
+          'Bu işlem hesabınızı pasife alır ve bu cihazdaki oturumunuz kapanır. Devam etmek istiyor musunuz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Hesabı Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    setState(() => _deletingAccount = true);
+    try {
+      await ProfileApi.deleteAccount(widget.sessionToken);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hesabınız pasife alındı')),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _deletingAccount = false);
+    }
   }
 
   Future<String?> _pickAvatarPathIOSSafe() async {
@@ -558,6 +610,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Switch(
                             value: _notificationsEnabled,
                             onChanged: _saving ? null : _saveNotif,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Yasal', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton(
+                              onPressed: () => _openLink(LegalLinks.privacyPolicy),
+                              child: const Text('Gizlilik Politikası'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => _openLink(LegalLinks.kvkkNotice),
+                              child: const Text('KVKK Aydınlatma'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => _openLink(LegalLinks.terms),
+                              child: const Text('Kullanım Şartları'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => _openLink(LegalLinks.support),
+                              child: const Text('Destek'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextButton.icon(
+                          onPressed: _deletingAccount ? null : _deleteAccountFlow,
+                          icon: _deletingAccount
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.delete_forever, color: Colors.redAccent),
+                          label: const Text(
+                            'Hesabımı Sil',
+                            style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ],

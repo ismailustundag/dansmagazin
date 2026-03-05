@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auth_api.dart';
+import '../services/legal_links.dart';
 
 enum AuthAction { login, register, guest }
 
@@ -49,6 +50,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscurePassword = true;
   bool _obscurePasswordAgain = true;
   bool _loading = false;
+  bool _acceptedLegal = false;
   String? _error;
 
   final _nameCtrl = TextEditingController();
@@ -66,6 +68,10 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isRegister && !_acceptedLegal) {
+      setState(() => _error = 'Kayıt için yasal metinleri onaylamalısınız');
+      return;
+    }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
@@ -118,6 +124,15 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = 'Şifre sıfırlama sayfası açılamadı');
+    }
+  }
+
+  Future<void> _openLegalLink(String url) async {
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Yasal bağlantı açılamadı');
     }
   }
 
@@ -234,6 +249,43 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                           ],
                         ),
+                        if (_isRegister) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Checkbox(
+                                value: _acceptedLegal,
+                                onChanged: (v) => setState(() => _acceptedLegal = v ?? false),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              const Expanded(
+                                child: Text(
+                                  'Yasal metinleri okudum ve kabul ediyorum',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 0,
+                            children: [
+                              TextButton(
+                                onPressed: () => _openLegalLink(LegalLinks.privacyPolicy),
+                                child: const Text('Gizlilik'),
+                              ),
+                              TextButton(
+                                onPressed: () => _openLegalLink(LegalLinks.kvkkNotice),
+                                child: const Text('KVKK'),
+                              ),
+                              TextButton(
+                                onPressed: () => _openLegalLink(LegalLinks.terms),
+                                child: const Text('Kullanım Şartları'),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         SizedBox(
                           height: 52,

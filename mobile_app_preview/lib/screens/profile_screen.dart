@@ -181,11 +181,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           subtitle: t('settings_subtitle'),
           icon: Icons.settings,
           onTap: () async {
-            await Navigator.of(context).push(
+            final deleted = await Navigator.of(context).push<bool>(
               MaterialPageRoute(
                 builder: (_) => SettingsScreen(sessionToken: widget.sessionToken),
               ),
             );
+            if (deleted == true) {
+              widget.onLogoutTap();
+              return;
+            }
             await _loadProfileVisuals();
           },
         ),
