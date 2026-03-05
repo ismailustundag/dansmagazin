@@ -166,26 +166,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       lastDate: now,
       helpText: 'Doğum Tarihi',
       locale: const Locale('tr', 'TR'),
-      builder: (ctx, child) {
-        final base = Theme.of(ctx);
-        return Theme(
-          data: base.copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFFE53935),
-              onPrimary: Colors.white,
-              surface: Color(0xFF121826),
-              onSurface: Colors.white,
-            ),
-            dialogBackgroundColor: const Color(0xFF121826),
-            datePickerTheme: const DatePickerThemeData(
-              backgroundColor: Color(0xFF121826),
-              headerBackgroundColor: Color(0xFF0F172A),
-              headerForegroundColor: Colors.white,
-            ),
-          ),
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
     );
     if (picked == null) return;
     final formatted = DateFormat('dd.MM.yyyy').format(picked);
