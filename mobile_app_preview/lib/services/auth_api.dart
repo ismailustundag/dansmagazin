@@ -120,8 +120,13 @@ class AuthApi {
     );
   }
 
-  static Future<String> googleLoginUrl() async {
-    final resp = await http.get(Uri.parse('$_base/auth/google-login-url'));
+  static Future<String> googleLoginUrl({String? callbackUrl}) async {
+    final uri = Uri.parse('$_base/auth/google-login-url').replace(
+      queryParameters: {
+        if ((callbackUrl ?? '').trim().isNotEmpty) 'callback': callbackUrl!.trim(),
+      },
+    );
+    final resp = await http.get(uri);
     if (resp.statusCode != 200) {
       throw AuthApiException(_parseError(resp.body, fallback: 'Google giriş bağlantısı alınamadı'));
     }
