@@ -167,28 +167,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       lastDate: now,
       helpText: 'Doğum Tarihi',
       locale: const Locale('tr', 'TR'),
-      builder: (context, child) {
-        final baseTheme = ThemeData.light();
-        return Theme(
-          data: baseTheme.copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFE53935),
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black,
-            ),
-            textTheme: baseTheme.textTheme.apply(
-              bodyColor: Colors.black,
-              displayColor: Colors.black,
-            ),
-            primaryTextTheme: baseTheme.primaryTextTheme.apply(
-              bodyColor: Colors.black,
-              displayColor: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
     if (picked == null) return;
     final apiDate = DateFormat('yyyy-MM-dd').format(picked);
