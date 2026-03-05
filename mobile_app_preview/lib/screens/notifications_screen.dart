@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../services/notification_center.dart';
 import '../services/notifications_api.dart';
-import 'messages_inbox_screen.dart';
-import 'social_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final String sessionToken;
@@ -106,46 +104,52 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 : ListView(
                     padding: const EdgeInsets.all(14),
                     children: [
-                      _card(
-                        title: 'Toplam Bildirim',
-                        value: _summary.totalCount.toString(),
-                        icon: Icons.notifications_active,
-                        color: _summary.totalCount > 0 ? Colors.redAccent : Colors.white70,
-                      ),
-                      const SizedBox(height: 10),
-                      _card(
-                        title: 'Gelen Arkadaşlık İstekleri',
-                        value: _summary.incomingFriendRequestsCount.toString(),
-                        icon: Icons.group_add,
-                        color: _summary.incomingFriendRequestsCount > 0 ? Colors.orangeAccent : Colors.white70,
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => SocialScreen(sessionToken: widget.sessionToken),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Son Bildirimler',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                             ),
-                          );
-                          await _refresh(silent: true);
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      _card(
-                        title: 'Okunmamış Mesajlar',
-                        value: _summary.unreadMessagesCount.toString(),
-                        icon: Icons.mark_chat_unread,
-                        color: _summary.unreadMessagesCount > 0 ? Colors.redAccent : Colors.white70,
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => MessagesInboxScreen(sessionToken: widget.sessionToken),
-                            ),
-                          );
-                          await _refresh(silent: true);
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Son Bildirimler',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
+                          TextButton.icon(
+                            onPressed: _feed.isEmpty
+                                ? null
+                                : () async {
+                                    final ok = await showDialog<bool>(
+                                      context: context,
+                                      builder: (_) => AlertDialog(
+                                        title: const Text('Tüm bildirimler temizlensin mi?'),
+                                        content: const Text('Bu işlem geri alınamaz.'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(false),
+                                            child: const Text('Vazgeç'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () => Navigator.of(context).pop(true),
+                                            child: const Text('Temizle'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (ok != true) return;
+                                    try {
+                                      await NotificationsApi.clearFeed(widget.sessionToken);
+                                      if (!mounted) return;
+                                      setState(() => _feed = const []);
+                                      await _refresh(silent: true);
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
+                                      );
+                                    }
+                                  },
+                            icon: const Icon(Icons.delete_sweep, size: 18),
+                            label: const Text('Tümünü Temizle'),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       if (_feed.isEmpty)

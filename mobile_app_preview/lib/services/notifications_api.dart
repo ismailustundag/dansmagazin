@@ -107,6 +107,16 @@ class NotificationsApi {
         .toList();
   }
 
+  static Future<void> clearFeed(String sessionToken) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/profile/notifications/feed'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Bildirimler temizlenemedi'));
+    }
+  }
+
   static Future<List<NotificationFeedItem>> fetchSent(
     String sessionToken, {
     int limit = 200,
