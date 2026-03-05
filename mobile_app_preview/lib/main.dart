@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/auth_api.dart';
@@ -10,6 +12,7 @@ import 'services/notification_center.dart';
 import 'services/push_notifications_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
+import 'screens/event_detail_screen.dart';
 import 'screens/events_store_hub_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
@@ -61,6 +64,7 @@ class RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<RootScreen> {
+  static const _apiBase = 'https://api2.dansmagazin.net';
   static const _kRemember = 'auth.remember';
   static const _kLoggedIn = 'auth.logged_in';
   static const _kName = 'auth.name';
@@ -141,7 +145,10 @@ class _RootScreenState extends State<RootScreen> {
           _bootDone = true;
         });
         _startNotificationsPolling();
-        unawaited(PushNotificationsService.initForSession(_sessionToken));
+        unawaited(PushNotificationsService.initForSession(
+          _sessionToken,
+          onRouteTap: _openFromPushRoute,
+        ));
         return;
       } catch (_) {
         // invalid/expired token: fall through to logged-out mode
@@ -247,7 +254,10 @@ class _RootScreenState extends State<RootScreen> {
       if (targetIndex != null) _index = targetIndex;
     });
     _startNotificationsPolling();
-    unawaited(PushNotificationsService.initForSession(_sessionToken));
+    unawaited(PushNotificationsService.initForSession(
+      _sessionToken,
+      onRouteTap: _openFromPushRoute,
+    ));
   }
 
   Future<void> _logout() async {
@@ -305,6 +315,71 @@ class _RootScreenState extends State<RootScreen> {
       return;
     }
     await NotificationCenter.refresh(token);
+  }
+
+  Future<void> _openFromPushRoute(String route) async {
+    final raw = route.trim();
+    if (raw.isEmpty || !mounted) return;
+    final eventMatch = RegExp(r'^/events/(\d+)$').firstMatch(raw);
+    if (eventMatch != null) {
+      final id = int.tryParse(eventMatch.group(1) ?? '') ?? 0;
+      if (id > 0) {
+        await _openEventDetailById(id);
+        return;
+      }
+    }
+    if (raw == '/profile/notifications') {
+      if (!mounted) return;
+      setState(() => _index = 4);
+    }
+  }
+
+  String _asAbsUrl(String v, {String host = _apiBase}) {
+    final x = v.trim();
+    if (x.isEmpty) return '';
+    if (x.startsWith('http://') || x.startsWith('https://')) return x;
+    if (x.startsWith('/')) return '$host$x';
+    return '$host/$x';
+  }
+
+  Future<void> _openEventDetailById(int submissionId) async {
+    try {
+      final uri = Uri.parse('$_apiBase/events').replace(queryParameters: {'limit': '500'});
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) return;
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      final items = (body['items'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>();
+      Map<String, dynamic>? event;
+      for (final it in items) {
+        if ((it['id'] as num?)?.toInt() == submissionId) {
+          event = it;
+          break;
+        }
+      }
+      if (event == null || !mounted) return;
+      setState(() => _index = 0);
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EventDetailScreen(
+            title: (event['name'] ?? '').toString(),
+            submissionId: submissionId,
+            cover: _asAbsUrl((event['cover'] ?? event['cover_url'] ?? event['image'] ?? '').toString()),
+            description: (event['description'] ?? '').toString(),
+            eventDate: (event['event_date'] ?? event['start_at'] ?? '').toString(),
+            venue: (event['venue'] ?? '').toString(),
+            organizer: (event['organizer_name'] ?? '').toString(),
+            program: (event['program_text'] ?? '').toString(),
+            entryFee: (event['entry_fee'] as num?)?.toDouble() ?? 0.0,
+            ticketUrl: _asAbsUrl((event['ticket_url'] ?? '').toString(), host: 'https://www.dansmagazin.net'),
+            wooProductId: (event['woo_product_id'] ?? '').toString(),
+            ticketSalesEnabled: (event['ticket_sales_enabled'] == true) || (event['ticket_sales_enabled'] == 1),
+            sessionToken: _sessionToken,
+          ),
+        ),
+      );
+    } catch (_) {
+      // sessiz geç: bildirim açılışı ana akışı bozmasın
+    }
   }
 
   @override

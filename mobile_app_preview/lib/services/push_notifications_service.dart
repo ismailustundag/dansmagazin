@@ -21,6 +21,8 @@ class PushNotificationsService {
   static String _sessionToken = '';
   static StreamSubscription<String>? _tokenRefreshSub;
   static StreamSubscription<RemoteMessage>? _onMessageSub;
+  static StreamSubscription<RemoteMessage>? _onMessageOpenedSub;
+  static Future<void> Function(String route)? _onRouteTap;
 
   static const AndroidNotificationChannel _androidChannel =
       AndroidNotificationChannel(
@@ -68,7 +70,15 @@ class PushNotificationsService {
       iOS: DarwinInitializationSettings(),
     );
 
-    await _localNotifications.initialize(initSettings);
+    await _localNotifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (details) {
+        final route = (details.payload ?? '').trim();
+        if (route.isNotEmpty) {
+          unawaited(_onRouteTap?.call(route));
+        }
+      },
+    );
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
@@ -92,10 +102,12 @@ class PushNotificationsService {
   static Future<void> initForSession(
     String sessionToken, {
     bool notificationsEnabled = true,
+    Future<void> Function(String route)? onRouteTap,
   }) async {
     final token = sessionToken.trim();
     if (token.isEmpty) return;
     _sessionToken = token;
+    _onRouteTap = onRouteTap;
 
     final ready = await _ensureFirebaseReady();
     if (!ready) return;
@@ -200,12 +212,37 @@ class PushNotificationsService {
               presentSound: true,
             ),
           ),
-          payload: (message.data['route'] ?? '').toString(),
+          payload: _routeFromMessage(message),
         );
       });
 
+      _onMessageOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        final route = _routeFromMessage(message);
+        if (route.isNotEmpty) {
+          unawaited(_onRouteTap?.call(route));
+        }
+      });
+
+      unawaited(() async {
+        final initial = await FirebaseMessaging.instance.getInitialMessage();
+        if (initial == null) return;
+        final route = _routeFromMessage(initial);
+        if (route.isNotEmpty) {
+          await _onRouteTap?.call(route);
+        }
+      }());
+
       _listenersBound = true;
     }
+  }
+
+  static String _routeFromMessage(RemoteMessage message) {
+    final data = message.data;
+    final route = (data['route'] ?? '').toString().trim();
+    if (route.isNotEmpty) return route;
+    final eventId = int.tryParse((data['event_submission_id'] ?? data['event_id'] ?? '').toString()) ?? 0;
+    if (eventId > 0) return '/events/$eventId';
+    return '/profile/notifications';
   }
 
   static Future<void> syncPreference(String sessionToken, bool enabled) async {
@@ -235,8 +272,11 @@ class PushNotificationsService {
     _sessionToken = '';
     await _tokenRefreshSub?.cancel();
     await _onMessageSub?.cancel();
+    await _onMessageOpenedSub?.cancel();
     _tokenRefreshSub = null;
     _onMessageSub = null;
+    _onMessageOpenedSub = null;
     _listenersBound = false;
+    _onRouteTap = null;
   }
 }

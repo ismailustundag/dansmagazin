@@ -27,6 +27,7 @@ class NotificationFeedItem {
   final String title;
   final String body;
   final String type;
+  final String route;
   final String createdAt;
   final int? sentByAccountId;
   final String sentByName;
@@ -36,6 +37,7 @@ class NotificationFeedItem {
     required this.title,
     required this.body,
     required this.type,
+    required this.route,
     required this.createdAt,
     required this.sentByAccountId,
     required this.sentByName,
@@ -47,6 +49,7 @@ class NotificationFeedItem {
       title: (json['title'] ?? '').toString(),
       body: (json['body'] ?? '').toString(),
       type: (json['type'] ?? 'manual').toString(),
+      route: (json['route'] ?? '').toString(),
       createdAt: (json['created_at'] ?? '').toString(),
       sentByAccountId: (json['sent_by_account_id'] as num?)?.toInt(),
       sentByName: (json['sent_by_name'] ?? '').toString(),
@@ -162,6 +165,7 @@ class NotificationsApi {
     required String title,
     required String body,
     required bool sendToAll,
+    int? eventSubmissionId,
     List<int> targetAccountIds = const [],
   }) async {
     final resp = await http.post(
@@ -173,6 +177,7 @@ class NotificationsApi {
       body: jsonEncode({
         'title': title.trim(),
         'body': body.trim(),
+        'event_submission_id': eventSubmissionId,
         'send_to_all': sendToAll,
         'target_account_ids': targetAccountIds,
       }),
