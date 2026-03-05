@@ -153,6 +153,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return DateTime.tryParse(v);
   }
 
+  int _daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
+
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
     final first = DateTime(1900, 1, 1);
@@ -160,18 +162,116 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final fallback = DateTime(now.year - 20, 1, 1);
     final base = (parsed != null && !parsed.isAfter(now)) ? parsed : fallback;
     final initial = base.isBefore(first) ? first : (base.isAfter(now) ? now : base);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: first,
-      lastDate: now,
-      helpText: 'Doğum Tarihi',
-      locale: const Locale('tr', 'TR'),
-    );
+    final picked = await _pickBirthDateManual(initial, first, now);
     if (picked == null) return;
     final apiDate = DateFormat('yyyy-MM-dd').format(picked);
     setState(() => _birthDate = apiDate);
     await _saveRemote(birthDate: apiDate);
+  }
+
+  Future<DateTime?> _pickBirthDateManual(DateTime initial, DateTime first, DateTime last) async {
+    int year = initial.year;
+    int month = initial.month;
+    int day = initial.day;
+    final years = [for (int y = last.year; y >= first.year; y--) y];
+    const months = [
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
+    ];
+
+    return showDialog<DateTime>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx2, setModalState) {
+            final maxDay = _daysInMonth(year, month);
+            if (day > maxDay) day = maxDay;
+            final days = [for (int d = 1; d <= maxDay; d++) d];
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              title: const Text('Doğum Tarihi', style: TextStyle(color: Colors.black)),
+              content: SizedBox(
+                width: 420,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: day,
+                        dropdownColor: Colors.white,
+                        style: const TextStyle(color: Colors.black),
+                        items: days
+                            .map((d) => DropdownMenuItem<int>(value: d, child: Text(d.toString().padLeft(2, '0'))))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setModalState(() => day = v);
+                        },
+                        decoration: const InputDecoration(labelText: 'Gün', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: month,
+                        dropdownColor: Colors.white,
+                        style: const TextStyle(color: Colors.black),
+                        items: List.generate(
+                          12,
+                          (i) => DropdownMenuItem<int>(value: i + 1, child: Text(months[i])),
+                        ),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setModalState(() => month = v);
+                        },
+                        decoration: const InputDecoration(labelText: 'Ay', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: year,
+                        dropdownColor: Colors.white,
+                        style: const TextStyle(color: Colors.black),
+                        items: years.map((y) => DropdownMenuItem<int>(value: y, child: Text(y.toString()))).toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setModalState(() => year = v);
+                        },
+                        decoration: const InputDecoration(labelText: 'Yıl', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Vazgeç'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final selected = DateTime(year, month, day);
+                    if (selected.isBefore(first) || selected.isAfter(last)) return;
+                    Navigator.of(ctx).pop(selected);
+                  },
+                  child: const Text('Seç'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _saveNotif(bool v) async {
