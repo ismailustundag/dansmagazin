@@ -117,6 +117,15 @@ class PushNotificationsService {
       isGranted =
           settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      // Android 13+ icin runtime bildirim izni iste.
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      final androidGranted = await androidPlugin?.requestNotificationsPermission();
+      if (androidGranted == false) {
+        isGranted = false;
+      }
     }
 
     if (!isGranted || !notificationsEnabled) {
