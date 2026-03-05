@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:intl/intl.dart';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -159,18 +160,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (iso != null) initial = iso;
       }
     }
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial.isAfter(now) ? now : initial,
-      firstDate: DateTime(1900, 1, 1),
-      lastDate: now,
-      helpText: 'Doğum Tarihi',
-      locale: const Locale('tr', 'TR'),
-    );
+    DateTime? picked;
+    if (Platform.isIOS) {
+      picked = await _pickBirthDateIOS(initial.isAfter(now) ? now : initial, now);
+    } else {
+      picked = await showDatePicker(
+        context: context,
+        initialDate: initial.isAfter(now) ? now : initial,
+        firstDate: DateTime(1900, 1, 1),
+        lastDate: now,
+        helpText: 'Doğum Tarihi',
+        locale: const Locale('tr', 'TR'),
+      );
+    }
     if (picked == null) return;
     final formatted = DateFormat('dd.MM.yyyy').format(picked);
     setState(() => _birthDate = formatted);
     await _saveRemote(birthDate: formatted);
+  }
+
+  Future<DateTime?> _pickBirthDateIOS(DateTime initial, DateTime now) async {
+    DateTime temp = initial;
+    final picked = await showCupertinoModalPopup<DateTime>(
+      context: context,
+      builder: (ctx) {
+        return Container(
+          height: 300,
+          color: const Color(0xFF121826),
+          child: Column(
+            children: [
+              Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.white24)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('Vazgeç'),
+                    ),
+                    const Text(
+                      'Doğum Tarihi',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(ctx).pop(temp),
+                      child: const Text('Seç'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: CupertinoTheme(
+                  data: const CupertinoThemeData(brightness: Brightness.dark),
+                  child: CupertinoDatePicker(
+                    mode: CupertinoDatePickerMode.date,
+                    initialDateTime: initial,
+                    minimumDate: DateTime(1900, 1, 1),
+                    maximumDate: now,
+                    onDateTimeChanged: (v) => temp = v,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    return picked;
   }
 
   Future<void> _saveNotif(bool v) async {
