@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -90,12 +91,14 @@ class _RootScreenState extends State<RootScreen> {
   bool _canCreateMobileEvent = false;
   int _notificationCount = 0;
   Timer? _notifTimer;
+  StreamSubscription<Uri>? _deepLinkSub;
 
   @override
   void initState() {
     super.initState();
     AppSettings.language.addListener(_onLanguageChanged);
     NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
+    _initDeepLinks();
     _restoreSession();
   }
 
@@ -109,8 +112,80 @@ class _RootScreenState extends State<RootScreen> {
     AppSettings.language.removeListener(_onLanguageChanged);
     NotificationCenter.totalCount.removeListener(_onNotificationCountChanged);
     _notifTimer?.cancel();
+    _deepLinkSub?.cancel();
     PushNotificationsService.dispose();
     super.dispose();
+  }
+
+  static bool _readBoolParam(String? v) {
+    final s = (v ?? '').trim().toLowerCase();
+    return s == '1' || s == 'true' || s == 'yes';
+  }
+
+  Future<void> _initDeepLinks() async {
+    final appLinks = AppLinks();
+    try {
+      final initial = await appLinks.getInitialLink();
+      if (initial != null) {
+        await _handleDeepLink(initial);
+      }
+    } catch (_) {}
+    _deepLinkSub = appLinks.uriLinkStream.listen((uri) async {
+      await _handleDeepLink(uri);
+    }, onError: (_) {});
+  }
+
+  Future<void> _handleDeepLink(Uri uri) async {
+    if (uri.scheme != 'dansmagazin' || uri.host != 'auth-callback') return;
+    final sessionToken = (uri.queryParameters['session_token'] ?? '').trim();
+    if (sessionToken.isEmpty) return;
+    final accountId = int.tryParse((uri.queryParameters['account_id'] ?? '0').trim()) ?? 0;
+    final wpUserIdRaw = (uri.queryParameters['wp_user_id'] ?? '').trim();
+    final wpUserId = wpUserIdRaw.isEmpty ? null : int.tryParse(wpUserIdRaw);
+    final wpRolesRaw = (uri.queryParameters['wp_roles'] ?? '').trim();
+    final wpRoles = wpRolesRaw.isEmpty
+        ? const <String>[]
+        : wpRolesRaw
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList(growable: false);
+    final appRole = (uri.queryParameters['app_role'] ?? 'customer').trim();
+    final canCreate = _readBoolParam(uri.queryParameters['can_create_mobile_event']);
+    final email = (uri.queryParameters['email'] ?? '').trim();
+    final name = (uri.queryParameters['name'] ?? '').trim();
+
+    await _persist(
+      remember: true,
+      loggedIn: true,
+      name: name,
+      email: email,
+      sessionToken: sessionToken,
+      accountId: accountId,
+      wpUserId: wpUserId,
+      wpRoles: wpRoles,
+      appRole: appRole,
+      canCreateMobileEvent: canCreate,
+    );
+    if (!mounted) return;
+    setState(() {
+      _guestMode = false;
+      _isLoggedIn = true;
+      _userName = name;
+      _userEmail = email;
+      _sessionToken = sessionToken;
+      _accountId = accountId;
+      _wpUserId = wpUserId;
+      _wpRoles = wpRoles;
+      _appRole = appRole.isEmpty ? 'customer' : appRole;
+      _canCreateMobileEvent = canCreate;
+      _index = 0;
+    });
+    _startNotificationsPolling();
+    unawaited(PushNotificationsService.initForSession(
+      _sessionToken,
+      onRouteTap: _openFromPushRoute,
+    ));
   }
 
   void _onNotificationCountChanged() {
