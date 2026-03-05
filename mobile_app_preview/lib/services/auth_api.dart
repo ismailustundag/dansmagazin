@@ -120,6 +120,19 @@ class AuthApi {
     );
   }
 
+  static Future<String> googleLoginUrl() async {
+    final resp = await http.get(Uri.parse('$_base/auth/google-login-url'));
+    if (resp.statusCode != 200) {
+      throw AuthApiException(_parseError(resp.body, fallback: 'Google giriş bağlantısı alınamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final url = (body['url'] ?? '').toString().trim();
+    if (url.isEmpty) {
+      throw AuthApiException('Google giriş bağlantısı boş');
+    }
+    return url;
+  }
+
   static AuthSession _parseSession(http.Response resp) {
     if (resp.statusCode != 200) {
       throw AuthApiException(_parseError(resp.body, fallback: 'Kimlik doğrulama başarısız'));

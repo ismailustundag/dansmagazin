@@ -127,6 +127,24 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _openGoogleLogin() async {
+    if (_loading) return;
+    setState(() => _error = null);
+    try {
+      final url = await AuthApi.googleLoginUrl();
+      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        setState(() => _error = 'Google giriş sayfası açılamadı');
+      }
+    } on AuthApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Google giriş sayfası açılamadı');
+    }
+  }
+
   Future<void> _openLegalLink(String url) async {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -287,26 +305,46 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ],
                         const SizedBox(height: 4),
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE53935),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            onPressed: _loading ? null : _submit,
-                            child: _loading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : Text(
-                                    _isRegister ? 'Kayıt Ol' : 'Giriş Yap',
-                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 52,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFE53935),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
-                          ),
+                                  onPressed: _loading ? null : _submit,
+                                  child: _loading
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : Text(
+                                          _isRegister ? 'Kayıt Ol' : 'Giriş Yap',
+                                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                                        ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: SizedBox(
+                                height: 52,
+                                child: OutlinedButton.icon(
+                                  onPressed: _loading ? null : _openGoogleLogin,
+                                  icon: const Icon(Icons.login),
+                                  label: const Text(
+                                    'Google',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 10),
                         Text(
