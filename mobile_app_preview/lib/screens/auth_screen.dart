@@ -42,6 +42,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   static final Uri _forgotPasswordUri = Uri.parse('https://dansmagazin.net/my-account/lost-password/');
+  static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
   final _formKey = GlobalKey<FormState>();
   bool _isRegister = false;
   bool _rememberMe = true;
@@ -253,6 +254,16 @@ class _AuthScreenState extends State<AuthScreen> {
                                     _isRegister ? 'Kayıt Ol' : 'Giriş Yap',
                                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                                   ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Build: $_buildSha',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                         TextButton(

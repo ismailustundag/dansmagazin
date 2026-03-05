@@ -181,53 +181,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<DateTime?> _pickBirthDateIOS(DateTime initial, DateTime now) async {
     DateTime temp = initial;
-    final picked = await showCupertinoModalPopup<DateTime>(
+    final picked = await showModalBottomSheet<DateTime>(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
       builder: (ctx) {
-        return Container(
-          height: 300,
-          color: const Color(0xFF121826),
-          child: Column(
-            children: [
-              Container(
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.white24)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Vazgeç'),
-                    ),
-                    const Text(
-                      'Doğum Tarihi',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                    ),
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: () => Navigator.of(ctx).pop(temp),
-                      child: const Text('Seç'),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: CupertinoTheme(
-                  data: const CupertinoThemeData(brightness: Brightness.dark),
-                  child: CupertinoDatePicker(
-                    mode: CupertinoDatePickerMode.date,
-                    initialDateTime: initial,
-                    minimumDate: DateTime(1900, 1, 1),
-                    maximumDate: now,
-                    onDateTimeChanged: (v) => temp = v,
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF121826),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Colors.white24)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Vazgeç'),
+                      ),
+                      const Text(
+                        'Doğum Tarihi',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      ),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => Navigator.of(ctx).pop(temp),
+                        child: const Text('Seç'),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                SizedBox(
+                  height: 230,
+                  child: CupertinoTheme(
+                    data: const CupertinoThemeData(brightness: Brightness.dark),
+                    child: CupertinoDatePicker(
+                      mode: CupertinoDatePickerMode.date,
+                      initialDateTime: initial,
+                      minimumDate: DateTime(1900, 1, 1),
+                      maximumDate: now,
+                      onDateTimeChanged: (v) => temp = v,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
