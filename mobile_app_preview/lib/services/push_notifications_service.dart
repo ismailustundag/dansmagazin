@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'notifications_api.dart';
 
@@ -16,8 +17,22 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class PushNotificationsService {
   static bool _firebaseReady = false;
   static bool _listenersBound = false;
+  static bool _localReady = false;
   static String _sessionToken = '';
   static StreamSubscription<String>? _tokenRefreshSub;
+  static StreamSubscription<RemoteMessage>? _onMessageSub;
+
+  static const AndroidNotificationChannel _androidChannel =
+      AndroidNotificationChannel(
+    'dmz_general',
+    'Genel Bildirimler',
+    description: 'Dansmagazin bildirimleri',
+    importance: Importance.max,
+    playSound: true,
+  );
+
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
 
   static Future<bool> _ensureFirebaseReady() async {
     if (_firebaseReady) return true;
@@ -30,6 +45,24 @@ class PushNotificationsService {
       _firebaseReady = false;
       return false;
     }
+  }
+
+  static Future<void> _ensureLocalReady() async {
+    if (_localReady) return;
+
+    const initSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    );
+
+    await _localNotifications.initialize(initSettings);
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_androidChannel);
+
+    _localReady = true;
   }
 
   static String _platformName() {
@@ -53,6 +86,8 @@ class PushNotificationsService {
 
     final ready = await _ensureFirebaseReady();
     if (!ready) return;
+
+    await _ensureLocalReady();
 
     final messaging = FirebaseMessaging.instance;
     final settings = await messaging.requestPermission(
@@ -109,6 +144,34 @@ class PushNotificationsService {
           );
         } catch (_) {}
       });
+
+      _onMessageSub = FirebaseMessaging.onMessage.listen((message) async {
+        final n = message.notification;
+        if (n == null) return;
+
+        await _localNotifications.show(
+          DateTime.now().millisecondsSinceEpoch.remainder(100000),
+          n.title ?? 'Dansmagazin',
+          n.body ?? '',
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              _androidChannel.id,
+              _androidChannel.name,
+              channelDescription: _androidChannel.description,
+              importance: Importance.max,
+              priority: Priority.high,
+              icon: '@mipmap/ic_launcher',
+            ),
+            iOS: const DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: true,
+            ),
+          ),
+          payload: (message.data['route'] ?? '').toString(),
+        );
+      });
+
       _listenersBound = true;
     }
   }
@@ -136,7 +199,9 @@ class PushNotificationsService {
   static Future<void> dispose() async {
     _sessionToken = '';
     await _tokenRefreshSub?.cancel();
+    await _onMessageSub?.cancel();
     _tokenRefreshSub = null;
+    _onMessageSub = null;
     _listenersBound = false;
   }
 }
