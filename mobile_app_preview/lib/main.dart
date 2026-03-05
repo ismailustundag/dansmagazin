@@ -7,6 +7,7 @@ import 'services/auth_api.dart';
 import 'services/app_settings.dart';
 import 'services/i18n.dart';
 import 'services/notification_center.dart';
+import 'services/push_notifications_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/events_store_hub_screen.dart';
@@ -104,6 +105,7 @@ class _RootScreenState extends State<RootScreen> {
     AppSettings.language.removeListener(_onLanguageChanged);
     NotificationCenter.totalCount.removeListener(_onNotificationCountChanged);
     _notifTimer?.cancel();
+    PushNotificationsService.dispose();
     super.dispose();
   }
 
@@ -139,6 +141,7 @@ class _RootScreenState extends State<RootScreen> {
           _bootDone = true;
         });
         _startNotificationsPolling();
+        unawaited(PushNotificationsService.initForSession(_sessionToken));
         return;
       } catch (_) {
         // invalid/expired token: fall through to logged-out mode
@@ -160,6 +163,7 @@ class _RootScreenState extends State<RootScreen> {
     });
     NotificationCenter.clear();
     _stopNotificationsPolling();
+    unawaited(PushNotificationsService.dispose());
   }
 
   Future<void> _persist({
@@ -197,6 +201,7 @@ class _RootScreenState extends State<RootScreen> {
     );
     if (result == null || !mounted) return;
     if (result.action == AuthAction.guest) {
+      final previousSession = _sessionToken;
       setState(() {
         _guestMode = true;
         _isLoggedIn = false;
@@ -211,6 +216,8 @@ class _RootScreenState extends State<RootScreen> {
       });
       NotificationCenter.clear();
       _stopNotificationsPolling();
+      unawaited(PushNotificationsService.unregisterForSession(previousSession));
+      unawaited(PushNotificationsService.dispose());
       return;
     }
     await _persist(
@@ -240,9 +247,11 @@ class _RootScreenState extends State<RootScreen> {
       if (targetIndex != null) _index = targetIndex;
     });
     _startNotificationsPolling();
+    unawaited(PushNotificationsService.initForSession(_sessionToken));
   }
 
   Future<void> _logout() async {
+    final previousSession = _sessionToken;
     await _persist(remember: false, loggedIn: false, name: '', email: '');
     if (!mounted) return;
     setState(() {
@@ -261,6 +270,8 @@ class _RootScreenState extends State<RootScreen> {
     });
     NotificationCenter.clear();
     _stopNotificationsPolling();
+    unawaited(PushNotificationsService.unregisterForSession(previousSession));
+    unawaited(PushNotificationsService.dispose());
   }
 
   void _onNavTap(int i) {

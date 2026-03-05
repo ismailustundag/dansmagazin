@@ -12,8 +12,22 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    afterEvaluate {
+        if (name == "image_gallery_saver") {
+            extensions.findByName("android")?.let { androidExt ->
+                val setNamespace = androidExt.javaClass.methods.firstOrNull {
+                    it.name == "setNamespace" && it.parameterTypes.size == 1
+                }
+                setNamespace?.invoke(androidExt, "com.example.image_gallery_saver")
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

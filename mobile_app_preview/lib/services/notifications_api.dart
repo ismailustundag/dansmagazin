@@ -174,6 +174,53 @@ class NotificationsApi {
     return (data['sent_count'] as num?)?.toInt() ?? 0;
   }
 
+
+  static Future<void> registerPushToken(
+    String sessionToken, {
+    required String deviceToken,
+    required String platform,
+    bool notificationsEnabled = true,
+    String appVersion = '',
+    String deviceModel = '',
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/push/register'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'device_token': deviceToken.trim(),
+        'platform': platform.trim(),
+        'notifications_enabled': notificationsEnabled,
+        'app_version': appVersion,
+        'device_model': deviceModel,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Push kayıt yapılamadı'));
+    }
+  }
+
+  static Future<void> unregisterPushToken(
+    String sessionToken, {
+    String? deviceToken,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/push/unregister'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'device_token': (deviceToken ?? '').trim().isEmpty ? null : deviceToken!.trim(),
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Push kaydı kaldırılamadı'));
+    }
+  }
+
   static String _parseError(String body, {required String fallback}) {
     try {
       final j = jsonDecode(body);

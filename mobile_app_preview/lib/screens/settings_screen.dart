@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/app_settings.dart';
 import '../services/i18n.dart';
 import '../services/profile_api.dart';
+import '../services/push_notifications_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String sessionToken;
@@ -108,6 +109,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveNotif(bool v) async {
     setState(() => _notificationsEnabled = v);
     await _saveRemote(notifications: v);
+    await PushNotificationsService.syncPreference(widget.sessionToken, v);
   }
 
   Future<void> _saveUsername() async {
