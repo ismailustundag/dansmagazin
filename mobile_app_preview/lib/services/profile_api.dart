@@ -6,6 +6,7 @@ class ProfileSettingsData {
   final String username;
   final String email;
   final String city;
+  final String birthDate;
   final String language;
   final bool notificationsEnabled;
   final String avatarUrl;
@@ -14,6 +15,7 @@ class ProfileSettingsData {
     required this.username,
     required this.email,
     required this.city,
+    required this.birthDate,
     required this.language,
     required this.notificationsEnabled,
     required this.avatarUrl,
@@ -24,6 +26,7 @@ class ProfileSettingsData {
       username: (json['username'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
+      birthDate: (json['birth_date'] ?? '').toString(),
       language: (json['language'] ?? 'tr').toString(),
       notificationsEnabled: json['notifications_enabled'] == true,
       avatarUrl: (json['avatar_url'] ?? '').toString(),
@@ -49,6 +52,7 @@ class ProfileApi {
     required String sessionToken,
     String? username,
     String? city,
+    String? birthDate,
     String? language,
     bool? notificationsEnabled,
     String? avatarUrl,
@@ -56,6 +60,7 @@ class ProfileApi {
     final body = <String, dynamic>{};
     if (username != null) body['username'] = username;
     if (city != null) body['city'] = city;
+    if (birthDate != null) body['birth_date'] = birthDate;
     if (language != null) body['language'] = language;
     if (notificationsEnabled != null) body['notifications_enabled'] = notificationsEnabled;
     if (avatarUrl != null) body['avatar_url'] = avatarUrl;

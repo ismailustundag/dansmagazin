@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:intl/intl.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   String _language = 'tr';
   String _city = 'İstanbul';
+  String _birthDate = '';
   String _avatarPath = '';
   String _avatarUrl = '';
   String _email = '';
@@ -58,6 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _notificationsEnabled = remote.notificationsEnabled;
         _language = remote.language == 'en' ? 'en' : 'tr';
         _city = remote.city.trim().isEmpty ? 'İstanbul' : remote.city.trim();
+        _birthDate = remote.birthDate.trim();
         _avatarUrl = remote.avatarUrl;
         _email = remote.email;
         _usernameCtrl.text = remote.username;
@@ -71,7 +74,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _saveRemote({String? username, String? city, String? language, bool? notifications, String? avatarUrl}) async {
+  Future<void> _saveRemote({
+    String? username,
+    String? city,
+    String? birthDate,
+    String? language,
+    bool? notifications,
+    String? avatarUrl,
+  }) async {
     if (widget.sessionToken.trim().isEmpty) return;
     setState(() => _saving = true);
     try {
@@ -79,6 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         sessionToken: widget.sessionToken,
         username: username,
         city: city,
+        birthDate: birthDate,
         language: language,
         notificationsEnabled: notifications,
         avatarUrl: avatarUrl,
@@ -88,6 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _notificationsEnabled = saved.notificationsEnabled;
         _language = saved.language == 'en' ? 'en' : 'tr';
         _city = saved.city.trim().isEmpty ? _city : saved.city.trim();
+        _birthDate = saved.birthDate.trim();
         _avatarUrl = saved.avatarUrl;
         _email = saved.email;
         if (username != null) _usernameCtrl.text = saved.username;
@@ -114,6 +126,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveCity(String v) async {
     setState(() => _city = v);
     await _saveRemote(city: v);
+  }
+
+  String _birthDateUi() {
+    final raw = _birthDate.trim();
+    if (raw.isEmpty) return 'Seçilmedi';
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return raw;
+    return DateFormat('dd.MM.yyyy').format(dt);
+  }
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final initial = DateTime.tryParse(_birthDate) ?? DateTime(now.year - 20, 1, 1);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isAfter(now) ? now : initial,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: now,
+      helpText: 'Doğum Tarihi',
+      locale: const Locale('tr'),
+    );
+    if (picked == null) return;
+    final iso = DateFormat('yyyy-MM-dd').format(picked);
+    setState(() => _birthDate = iso);
+    await _saveRemote(birthDate: iso);
   }
 
   Future<void> _saveNotif(bool v) async {
@@ -295,6 +332,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ],
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text('Doğum Tarihi', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        ),
+                        Text(
+                          _birthDateUi(),
+                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: _saving ? null : _pickBirthDate,
+                          child: const Text('Seç'),
                         ),
                       ],
                     ),
