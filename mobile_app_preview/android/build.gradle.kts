@@ -18,7 +18,7 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
+    plugins.withId("com.android.library") {
         if (name == "image_gallery_saver") {
             extensions.findByName("android")?.let { androidExt ->
                 val setNamespace = androidExt.javaClass.methods.firstOrNull {
