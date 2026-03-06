@@ -181,9 +181,9 @@ class _AuthScreenState extends State<AuthScreen> {
     } on AuthApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Google ile giriş başarısız');
+      setState(() => _error = 'Google ile giriş başarısız: $e');
     } finally {
       if (mounted) {
         setState(() => _loading = false);
