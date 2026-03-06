@@ -34,6 +34,18 @@ class ProfileSettingsData {
   }
 }
 
+class SupportContact {
+  final int accountId;
+  final String name;
+  final String avatarUrl;
+
+  const SupportContact({
+    required this.accountId,
+    required this.name,
+    required this.avatarUrl,
+  });
+}
+
 class ProfileApi {
   static const _base = 'https://api2.dansmagazin.net';
 
@@ -113,5 +125,45 @@ class ProfileApi {
       detail = (jsonDecode(resp.body) as Map<String, dynamic>)['detail']?.toString() ?? detail;
     } catch (_) {}
     throw Exception(detail);
+  }
+
+  static Future<SupportContact?> supportContact(String sessionToken) async {
+    final resp = await http.get(
+      Uri.parse('$_base/profile/friends?limit=400'),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Destek hesabı alınamadı (${resp.statusCode})');
+    }
+
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final items = (body['items'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>();
+
+    SupportContact? byName;
+    SupportContact? byFallbackId;
+    for (final item in items) {
+      final accountId = (item['account_id'] as num?)?.toInt() ?? 0;
+      if (accountId <= 0) continue;
+      final name = (item['name'] ?? '').toString().trim();
+      final email = (item['email'] ?? '').toString().trim().toLowerCase();
+      final avatarUrl = (item['avatar_url'] ?? '').toString().trim();
+      final contact = SupportContact(
+        accountId: accountId,
+        name: name.isEmpty ? 'Dansmagazin' : name,
+        avatarUrl: avatarUrl,
+      );
+
+      if (email == 'info@dansmagazin.net') {
+        return contact;
+      }
+      final normName = name.toLowerCase();
+      if (byName == null && normName.contains('dans') && normName.contains('magazin')) {
+        byName = contact;
+      }
+      if (byFallbackId == null && accountId == 164) {
+        byFallbackId = contact;
+      }
+    }
+    return byName ?? byFallbackId;
   }
 }

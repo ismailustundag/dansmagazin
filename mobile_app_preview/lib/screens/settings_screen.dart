@@ -16,6 +16,7 @@ import '../services/legal_links.dart';
 import '../services/profile_api.dart';
 import '../services/push_notifications_service.dart';
 import '../services/turkiye_cities.dart';
+import 'chat_thread_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String sessionToken;
@@ -299,6 +300,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Bağlantı açılamadı')),
     );
+  }
+
+  Future<void> _openSupportChat() async {
+    if (widget.sessionToken.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Destek için önce giriş yapın')),
+      );
+      return;
+    }
+
+    try {
+      final contact = await ProfileApi.supportContact(widget.sessionToken);
+      final target = contact ??
+          const SupportContact(
+            accountId: 164,
+            name: 'Dansmagazin',
+            avatarUrl: '',
+          );
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatThreadScreen(
+            sessionToken: widget.sessionToken,
+            peerAccountId: target.accountId,
+            peerName: target.name,
+            peerAvatarUrl: target.avatarUrl,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Destek açılamadı: $e')),
+      );
+    }
   }
 
   Future<void> _deleteAccountFlow() async {
@@ -645,7 +682,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: const Text('Kullanım Şartları'),
                             ),
                             OutlinedButton(
-                              onPressed: () => _openLink(LegalLinks.support),
+                              onPressed: _openSupportChat,
                               child: const Text('Destek'),
                             ),
                           ],
