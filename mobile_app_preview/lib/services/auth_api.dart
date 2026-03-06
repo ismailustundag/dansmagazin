@@ -138,6 +138,21 @@ class AuthApi {
     return url;
   }
 
+  static Future<AuthSession> googleNativeLogin({
+    required String idToken,
+    required bool rememberMe,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/auth/google/native'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'id_token': idToken.trim(),
+        'remember_me': rememberMe,
+      }),
+    );
+    return _parseSession(resp);
+  }
+
   static AuthSession _parseSession(http.Response resp) {
     if (resp.statusCode != 200) {
       throw AuthApiException(_parseError(resp.body, fallback: 'Kimlik doğrulama başarısız'));

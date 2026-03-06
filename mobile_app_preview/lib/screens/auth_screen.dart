@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auth_api.dart';
@@ -44,6 +45,10 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   static final Uri _forgotPasswordUri = Uri.parse('https://dansmagazin.net/my-account/lost-password/');
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
+  static const String _googleServerClientId =
+      String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
+  static const String _googleIosClientId =
+      String.fromEnvironment('GOOGLE_IOS_CLIENT_ID', defaultValue: '');
   final _formKey = GlobalKey<FormState>();
   bool _isRegister = false;
   bool _rememberMe = true;
@@ -129,19 +134,60 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _openGoogleLogin() async {
     if (_loading) return;
-    setState(() => _error = null);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final url = await AuthApi.googleLoginUrl(callbackUrl: 'https://dansmagazin.net/mobil-donus?mobile=1');
-      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        setState(() => _error = 'Google giriş sayfası açılamadı');
+      final googleSignIn = GoogleSignIn(
+        scopes: const ['email', 'profile'],
+        serverClientId: _googleServerClientId.trim().isEmpty ? null : _googleServerClientId.trim(),
+        // iOS'ta GoogleService-Info.plist yoksa clientId'yi build-time veriyoruz.
+        clientId: _googleIosClientId.trim().isEmpty ? null : _googleIosClientId.trim(),
+      );
+      await googleSignIn.signOut();
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        if (!mounted) return;
+        setState(() => _error = 'Google girişi iptal edildi');
+        return;
       }
+      final auth = await account.authentication;
+      final idToken = (auth.idToken ?? '').trim();
+      if (idToken.isEmpty) {
+        if (!mounted) return;
+        setState(() => _error = 'Google kimlik doğrulama tokenı alınamadı');
+        return;
+      }
+      final session = await AuthApi.googleNativeLogin(
+        idToken: idToken,
+        rememberMe: _rememberMe,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(
+        AuthResult(
+          action: AuthAction.login,
+          name: session.name.trim().isEmpty ? session.email.split('@').first : session.name,
+          email: session.email,
+          rememberMe: _rememberMe,
+          sessionToken: session.sessionToken,
+          accountId: session.accountId,
+          wpUserId: session.wpUserId,
+          wpRoles: session.wpRoles,
+          appRole: session.appRole,
+          canCreateMobileEvent: session.canCreateMobileEvent,
+        ),
+      );
     } on AuthApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Google giriş sayfası açılamadı');
+      setState(() => _error = 'Google ile giriş başarısız');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
