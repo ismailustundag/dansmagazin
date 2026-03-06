@@ -131,7 +131,7 @@ class _AuthScreenState extends State<AuthScreen> {
     if (_loading) return;
     setState(() => _error = null);
     try {
-      final url = await AuthApi.googleLoginUrl(callbackUrl: 'https://www.dansmagazin.net/mobil-donus?mobile=1');
+      final url = await AuthApi.googleLoginUrl(callbackUrl: 'https://dansmagazin.net/mobil-donus?mobile=1');
       final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         setState(() => _error = 'Google giriş sayfası açılamadı');
