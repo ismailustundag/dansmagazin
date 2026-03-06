@@ -49,6 +49,8 @@ class _AuthScreenState extends State<AuthScreen> {
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
   static const String _googleIosClientId =
       String.fromEnvironment('GOOGLE_IOS_CLIENT_ID', defaultValue: '');
+  static const String _googleIosClientIdFallback =
+      '715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com';
   final _formKey = GlobalKey<FormState>();
   bool _isRegister = false;
   bool _rememberMe = true;
@@ -139,13 +141,19 @@ class _AuthScreenState extends State<AuthScreen> {
       _error = null;
     });
     try {
+      final serverClientId = _googleServerClientId.trim();
+      final iosClientId =
+          _googleIosClientId.trim().isNotEmpty ? _googleIosClientId.trim() : _googleIosClientIdFallback;
+      if (serverClientId.isEmpty) {
+        if (!mounted) return;
+        setState(() => _error = 'Google yapılandırması eksik: server client id');
+        return;
+      }
       final googleSignIn = GoogleSignIn(
         scopes: const ['email', 'profile'],
-        serverClientId: _googleServerClientId.trim().isEmpty ? null : _googleServerClientId.trim(),
-        // iOS'ta GoogleService-Info.plist yoksa clientId'yi build-time veriyoruz.
-        clientId: _googleIosClientId.trim().isEmpty ? null : _googleIosClientId.trim(),
+        serverClientId: serverClientId,
+        clientId: iosClientId,
       );
-      await googleSignIn.signOut();
       final account = await googleSignIn.signIn();
       if (account == null) {
         if (!mounted) return;

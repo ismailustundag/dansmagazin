@@ -26,9 +26,12 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>dansmagazin</string>
+				<string>com.googleusercontent.apps.715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs</string>
 			</array>
 		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
