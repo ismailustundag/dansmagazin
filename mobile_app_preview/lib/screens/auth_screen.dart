@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -149,10 +150,12 @@ class _AuthScreenState extends State<AuthScreen> {
         setState(() => _error = 'Google yapılandırması eksik: server client id');
         return;
       }
+      final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
       final googleSignIn = GoogleSignIn(
         scopes: const ['email', 'profile'],
         serverClientId: serverClientId,
-        clientId: iosClientId,
+        // iOS dışında clientId gönderilirse Android'de sign_in_failed (code 10) oluşabiliyor.
+        clientId: isIOS ? iosClientId : null,
       );
       final account = await googleSignIn.signIn();
       if (account == null) {
@@ -185,6 +188,15 @@ class _AuthScreenState extends State<AuthScreen> {
           appRole: session.appRole,
           canCreateMobileEvent: session.canCreateMobileEvent,
         ),
+      );
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      final raw = '${e.code}: ${e.message ?? ''}'.trim();
+      final looksLikeCode10 = raw.contains(': 10') || raw.contains('10:') || raw.toLowerCase().contains('sign_in_failed');
+      setState(
+        () => _error = looksLikeCode10
+            ? 'Google Android yapılandırması eksik/uyuşmuyor (SHA-1 + server client id).'
+            : 'Google ile giriş başarısız: $raw',
       );
     } on AuthApiException catch (e) {
       if (!mounted) return;
