@@ -513,6 +513,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white12),
                     ),
+                    child: Row(
+                      children: [
+                        _avatar(),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                t('profile_photo'),
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  OutlinedButton(
+                                    onPressed: (_saving || _pickingAvatar) ? null : _pickAvatar,
+                                    child: Text(_pickingAvatar ? '...' : t('select')),
+                                  ),
+                                  if (_avatarPath.isNotEmpty || _avatarUrl.trim().isNotEmpty)
+                                    OutlinedButton(
+                                      onPressed: (_saving || _pickingAvatar) ? null : _clearAvatar,
+                                      child: Text(t('remove')),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
