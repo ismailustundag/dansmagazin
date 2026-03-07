@@ -77,13 +77,9 @@ class ScreenShell extends StatelessWidget {
         ),
       ),
       child: SafeArea(
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: onRefresh != null
-              ? RefreshIndicator(onRefresh: onRefresh!, child: scroll)
-              : scroll,
-        ),
+        child: onRefresh != null
+            ? RefreshIndicator(onRefresh: onRefresh!, child: scroll)
+            : scroll,
       ),
     );
   }
