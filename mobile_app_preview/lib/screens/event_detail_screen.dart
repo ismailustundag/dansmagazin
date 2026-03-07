@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/checkout_api.dart';
 import '../services/date_time_format.dart';
@@ -129,6 +130,42 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
+  String? _extractFirstUrl(String raw) {
+    final m = RegExp(r'https?://[^\s]+', caseSensitive: false).firstMatch(raw);
+    return m?.group(0);
+  }
+
+  String _venueLabel() {
+    final raw = widget.venue.trim();
+    if (raw.isEmpty) return '';
+    final url = _extractFirstUrl(raw);
+    if (url == null) return raw;
+    final cleaned = raw.replaceFirst(url, '').replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    return cleaned.isEmpty ? raw : cleaned;
+  }
+
+  Uri? _mapsUri() {
+    final raw = widget.venue.trim();
+    if (raw.isEmpty) return null;
+    final sharedUrl = _extractFirstUrl(raw);
+    if (sharedUrl != null) {
+      return Uri.tryParse(sharedUrl);
+    }
+    final q = _venueLabel().trim();
+    if (q.isEmpty) return null;
+    return Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(q)}');
+  }
+
+  Future<void> _openVenueInMaps() async {
+    final uri = _mapsUri();
+    if (uri == null) {
+      _showMsg('Konum linki bulunamadı.');
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) _showMsg('Harita açılamadı.');
+  }
+
   Future<void> _toggleAttend() async {
     final token = widget.sessionToken.trim();
     if (token.isEmpty) {
@@ -196,6 +233,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final buyUrl = _buyUrl();
+    final venueLabel = _venueLabel();
+    final canOpenMaps = _mapsUri() != null;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(
@@ -225,9 +264,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               border: Border.all(color: Colors.white12),
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _line(Icons.calendar_month, _fmtDate(widget.eventDate)),
-                if (widget.venue.trim().isNotEmpty) _line(Icons.location_on, widget.venue.trim()),
+                if (venueLabel.isNotEmpty) _line(Icons.location_on, venueLabel),
+                if (canOpenMaps)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 22, bottom: 6),
+                    child: TextButton.icon(
+                      onPressed: _openVenueInMaps,
+                      icon: const Icon(Icons.map_outlined, size: 18),
+                      label: const Text('Haritada Aç / Yol Tarifi Al'),
+                    ),
+                  ),
                 if (widget.organizer.trim().isNotEmpty) _line(Icons.public, widget.organizer.trim()),
               ],
             ),

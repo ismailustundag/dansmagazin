@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -1072,18 +1073,44 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   }
 
   Widget _txt(TextEditingController c, String label, {int maxLines = 1}) {
+    final isVenue = label == 'Konum / Mekan';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: c,
         maxLines: maxLines,
+        keyboardType: maxLines > 1 ? TextInputType.multiline : TextInputType.text,
+        textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+        enableInteractiveSelection: true,
         decoration: InputDecoration(
           labelText: label,
+          hintText: isVenue ? 'Mekan adı + Google Maps paylaşım linki yapıştırabilirsiniz' : null,
           filled: true,
           fillColor: const Color(0xFF111827),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: IconButton(
+            tooltip: 'Yapıştır',
+            icon: const Icon(Icons.content_paste_rounded),
+            onPressed: () => _pasteFromClipboard(c),
+          ),
         ),
       ),
+    );
+  }
+
+  Future<void> _pasteFromClipboard(TextEditingController c) async {
+    final data = await Clipboard.getData('text/plain');
+    final clip = (data?.text ?? '').trim();
+    if (clip.isEmpty || !mounted) return;
+    final value = c.value;
+    final text = value.text;
+    final sel = value.selection;
+    final start = sel.isValid ? sel.start.clamp(0, text.length).toInt() : text.length;
+    final end = sel.isValid ? sel.end.clamp(0, text.length).toInt() : text.length;
+    final next = text.replaceRange(start, end, clip);
+    c.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + clip.length),
     );
   }
 
@@ -1347,18 +1374,44 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   }
 
   Widget _txt(TextEditingController c, String label, {int maxLines = 1}) {
+    final isVenue = label == 'Konum / Mekan';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: c,
         maxLines: maxLines,
+        keyboardType: maxLines > 1 ? TextInputType.multiline : TextInputType.text,
+        textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+        enableInteractiveSelection: true,
         decoration: InputDecoration(
           labelText: label,
+          hintText: isVenue ? 'Mekan adı + Google Maps paylaşım linki yapıştırabilirsiniz' : null,
           filled: true,
           fillColor: const Color(0xFF111827),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: IconButton(
+            tooltip: 'Yapıştır',
+            icon: const Icon(Icons.content_paste_rounded),
+            onPressed: () => _pasteFromClipboard(c),
+          ),
         ),
       ),
+    );
+  }
+
+  Future<void> _pasteFromClipboard(TextEditingController c) async {
+    final data = await Clipboard.getData('text/plain');
+    final clip = (data?.text ?? '').trim();
+    if (clip.isEmpty || !mounted) return;
+    final value = c.value;
+    final text = value.text;
+    final sel = value.selection;
+    final start = sel.isValid ? sel.start.clamp(0, text.length).toInt() : text.length;
+    final end = sel.isValid ? sel.end.clamp(0, text.length).toInt() : text.length;
+    final next = text.replaceRange(start, end, clip);
+    c.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + clip.length),
     );
   }
 
