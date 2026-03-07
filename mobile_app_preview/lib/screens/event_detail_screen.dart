@@ -13,6 +13,7 @@ class EventDetailScreen extends StatefulWidget {
   final String description;
   final String eventDate;
   final String venue;
+  final String venueMapUrl;
   final String organizer;
   final String program;
   final double entryFee;
@@ -29,6 +30,7 @@ class EventDetailScreen extends StatefulWidget {
     required this.description,
     required this.eventDate,
     required this.venue,
+    required this.venueMapUrl,
     required this.organizer,
     required this.program,
     required this.entryFee,
@@ -145,9 +147,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Uri? _mapsUri() {
-    final raw = widget.venue.trim();
-    if (raw.isEmpty) return null;
-    final sharedUrl = _extractFirstUrl(raw);
+    final direct = widget.venueMapUrl.trim();
+    if (direct.isNotEmpty) {
+      final normalized = direct.startsWith('http://') || direct.startsWith('https://')
+          ? direct
+          : (direct.startsWith('www.') ? 'https://$direct' : direct);
+      final directUri = Uri.tryParse(normalized);
+      if (directUri != null && directUri.hasScheme) return directUri;
+    }
+    final sharedUrl = _extractFirstUrl(widget.venue.trim());
     if (sharedUrl != null) {
       return Uri.tryParse(sharedUrl);
     }

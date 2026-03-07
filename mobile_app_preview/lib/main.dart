@@ -443,6 +443,7 @@ class _RootScreenState extends State<RootScreen> {
             description: (ev['description'] ?? '').toString(),
             eventDate: (ev['event_date'] ?? ev['start_at'] ?? '').toString(),
             venue: (ev['venue'] ?? '').toString(),
+            venueMapUrl: (ev['venue_map_url'] ?? '').toString(),
             organizer: (ev['organizer_name'] ?? '').toString(),
             program: (ev['program_text'] ?? '').toString(),
             entryFee: (ev['entry_fee'] as num?)?.toDouble() ?? 0.0,

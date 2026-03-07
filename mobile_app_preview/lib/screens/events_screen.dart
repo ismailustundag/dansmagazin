@@ -106,6 +106,7 @@ class _EventsScreenState extends State<EventsScreen> {
                               description: items[i].description,
                               eventDate: items[i].eventDate,
                               venue: items[i].venue,
+                              venueMapUrl: items[i].venueMapUrl,
                               organizer: items[i].organizer,
                               program: items[i].program,
                               entryFee: items[i].entryFee,
@@ -138,6 +139,7 @@ class _EventItem {
   final double entryFee;
   final String ticketUrl;
   final String venue;
+  final String venueMapUrl;
   final String organizer;
   final String program;
   final String wooProductId;
@@ -154,6 +156,7 @@ class _EventItem {
     required this.entryFee,
     required this.ticketUrl,
     required this.venue,
+    required this.venueMapUrl,
     required this.organizer,
     required this.program,
     required this.wooProductId,
@@ -180,6 +183,7 @@ class _EventItem {
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
       ticketUrl: absUrl(json['ticket_url'] ?? json['link'] ?? '', host: 'https://www.dansmagazin.net'),
       venue: (json['venue'] ?? '').toString(),
+      venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       organizer: (json['organizer_name'] ?? '').toString(),
       program: (json['program_text'] ?? '').toString(),
       wooProductId: (json['woo_product_id'] ?? '').toString(),

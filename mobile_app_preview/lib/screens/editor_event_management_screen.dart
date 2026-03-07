@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -47,6 +46,46 @@ String _toApiDate(String raw) {
   final m = dt.month.toString().padLeft(2, '0');
   final y = dt.year.toString();
   return '$y-$m-$d';
+}
+
+class _VenueParts {
+  final String name;
+  final String mapUrl;
+  const _VenueParts({required this.name, required this.mapUrl});
+}
+
+const List<String> _weekdayLabels = <String>[
+  'Her Pazartesi',
+  'Her Salı',
+  'Her Çarşamba',
+  'Her Perşembe',
+  'Her Cuma',
+  'Her Cumartesi',
+  'Her Pazar',
+];
+
+String _normalizeMapUrl(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return '';
+  if (v.startsWith('http://') || v.startsWith('https://')) return v;
+  if (v.startsWith('www.')) return 'https://$v';
+  return '';
+}
+
+_VenueParts _splitVenue(String venue, {String mapUrl = ''}) {
+  final explicit = _normalizeMapUrl(mapUrl);
+  if (explicit.isNotEmpty) {
+    return _VenueParts(name: venue.trim(), mapUrl: explicit);
+  }
+  final raw = venue.trim();
+  if (raw.isEmpty) return const _VenueParts(name: '', mapUrl: '');
+  final m = RegExp(r'https?://[^\s]+', caseSensitive: false).firstMatch(raw);
+  if (m == null) {
+    return _VenueParts(name: raw, mapUrl: '');
+  }
+  final link = (m.group(0) ?? '').trim();
+  final name = raw.replaceFirst(link, '').replaceAll(RegExp(r'\s+\n'), '\n').trim();
+  return _VenueParts(name: name, mapUrl: link);
 }
 
 class EditorEventManagementScreen extends StatelessWidget {
@@ -857,9 +896,12 @@ class _ManagedEventItem {
   final String description;
   final String eventDate;
   final String venue;
+  final String venueMapUrl;
   final String city;
   final String eventKind;
   final bool ticketSalesEnabled;
+  final bool repeatWeekly;
+  final int? repeatWeekday;
   final String organizerName;
   final String programText;
   final String entryFee;
@@ -872,9 +914,12 @@ class _ManagedEventItem {
     required this.description,
     required this.eventDate,
     required this.venue,
+    required this.venueMapUrl,
     required this.city,
     required this.eventKind,
     required this.ticketSalesEnabled,
+    required this.repeatWeekly,
+    required this.repeatWeekday,
     required this.organizerName,
     required this.programText,
     required this.entryFee,
@@ -889,9 +934,12 @@ class _ManagedEventItem {
       description: (json['description'] ?? '').toString(),
       eventDate: (json['event_date'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
+      venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
+      repeatWeekly: (json['repeat_weekly'] == true) || (json['repeat_weekly'] == 1),
+      repeatWeekday: (json['repeat_weekday'] as num?)?.toInt(),
       organizerName: (json['organizer_name'] ?? '').toString(),
       programText: (json['program_text'] ?? '').toString(),
       entryFee: (json['entry_fee'] ?? '0').toString(),
@@ -918,34 +966,47 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   static const String _base = 'https://api2.dansmagazin.net';
   late final TextEditingController _descCtrl;
   late final TextEditingController _dateCtrl;
-  late final TextEditingController _venueCtrl;
+  late final TextEditingController _venueNameCtrl;
+  late final TextEditingController _venueMapCtrl;
   late final TextEditingController _orgCtrl;
   late final TextEditingController _programCtrl;
   final List<String> _cities = kTurkiyeCitiesWithUnknown;
   String _city = 'İstanbul';
   String _eventKind = 'dance_night';
   bool _ticketSalesEnabled = true;
+  bool _repeatWeekly = false;
+  int _repeatWeekday = 0;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    final parts = _splitVenue(widget.item.venue, mapUrl: widget.item.venueMapUrl);
+    final parsedDate = _parseEventDate(widget.item.eventDate);
     _descCtrl = TextEditingController(text: widget.item.description);
     _dateCtrl = TextEditingController(text: _toDisplayDate(widget.item.eventDate));
-    _venueCtrl = TextEditingController(text: widget.item.venue);
+    _venueNameCtrl = TextEditingController(text: parts.name);
+    _venueMapCtrl = TextEditingController(text: parts.mapUrl);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
     _programCtrl = TextEditingController(text: widget.item.programText);
     _city = widget.item.city.trim().isEmpty ? 'Belirtilmedi' : widget.item.city.trim();
     _eventKind = _normalizeKind(widget.item.eventKind);
     _ticketSalesEnabled = widget.item.ticketSalesEnabled;
+    _repeatWeekly = widget.item.repeatWeekly;
+    final fallbackWeekday = (parsedDate ?? DateTime.now()).weekday - 1;
+    final itemWeekday = widget.item.repeatWeekday;
+    _repeatWeekday = (itemWeekday != null && itemWeekday >= 0 && itemWeekday <= 6)
+        ? itemWeekday
+        : fallbackWeekday.clamp(0, 6).toInt();
   }
 
   @override
   void dispose() {
     _descCtrl.dispose();
     _dateCtrl.dispose();
-    _venueCtrl.dispose();
+    _venueNameCtrl.dispose();
+    _venueMapCtrl.dispose();
     _orgCtrl.dispose();
     _programCtrl.dispose();
     super.dispose();
@@ -964,10 +1025,13 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
-        ..fields['venue'] = _venueCtrl.text.trim()
+        ..fields['venue'] = _venueNameCtrl.text.trim()
+        ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
         ..fields['event_kind'] = _eventKind
         ..fields['ticket_sales_enabled'] = _ticketSalesEnabled ? '1' : '0'
+        ..fields['repeat_weekly'] = _repeatWeekly ? '1' : '0'
+        ..fields['repeat_weekday'] = _repeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim();
       final res = await req.send();
@@ -1013,7 +1077,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               const SizedBox(height: 10),
               _txt(_descCtrl, 'Detaylar', maxLines: 3),
               _txt(_programCtrl, 'Program', maxLines: 3),
-              _txt(_venueCtrl, 'Konum / Mekan'),
+              _txt(_venueNameCtrl, 'Mekan Adı'),
+              _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
               DropdownButtonFormField<String>(
                 value: _cities.contains(_city) ? _city : 'Belirtilmedi',
                 items: _cities
@@ -1053,6 +1118,31 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateField(_dateCtrl, 'Etkinlik Tarihi'),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Tekrarlayan Etkinlik'),
+                subtitle: const Text('Açıkken tarihi geçen etkinlik kapanır, aynı etkinliğin yenisi otomatik açılır.'),
+                value: _repeatWeekly,
+                onChanged: _saving ? null : (v) => setState(() => _repeatWeekly = v),
+              ),
+              if (_repeatWeekly)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: DropdownButtonFormField<int>(
+                    value: _repeatWeekday,
+                    items: List.generate(
+                      _weekdayLabels.length,
+                      (i) => DropdownMenuItem<int>(value: i, child: Text(_weekdayLabels[i])),
+                    ),
+                    onChanged: _saving ? null : (v) => setState(() => _repeatWeekday = v ?? _repeatWeekday),
+                    decoration: InputDecoration(
+                      labelText: 'Tekrar Günü',
+                      filled: true,
+                      fillColor: const Color(0xFF111827),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Text(_error!, style: const TextStyle(color: Colors.redAccent)),
@@ -1072,45 +1162,27 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     );
   }
 
-  Widget _txt(TextEditingController c, String label, {int maxLines = 1}) {
-    final isVenue = label == 'Konum / Mekan';
+  Widget _txt(
+    TextEditingController c,
+    String label, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: c,
         maxLines: maxLines,
-        keyboardType: maxLines > 1 ? TextInputType.multiline : TextInputType.text,
+        keyboardType: keyboardType ?? (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
         textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
         enableInteractiveSelection: true,
         decoration: InputDecoration(
           labelText: label,
-          hintText: isVenue ? 'Mekan adı + Google Maps paylaşım linki yapıştırabilirsiniz' : null,
           filled: true,
           fillColor: const Color(0xFF111827),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          suffixIcon: IconButton(
-            tooltip: 'Yapıştır',
-            icon: const Icon(Icons.content_paste_rounded),
-            onPressed: () => _pasteFromClipboard(c),
-          ),
         ),
       ),
-    );
-  }
-
-  Future<void> _pasteFromClipboard(TextEditingController c) async {
-    final data = await Clipboard.getData('text/plain');
-    final clip = (data?.text ?? '').trim();
-    if (clip.isEmpty || !mounted) return;
-    final value = c.value;
-    final text = value.text;
-    final sel = value.selection;
-    final start = sel.isValid ? sel.start.clamp(0, text.length).toInt() : text.length;
-    final end = sel.isValid ? sel.end.clamp(0, text.length).toInt() : text.length;
-    final next = text.replaceRange(start, end, clip);
-    c.value = TextEditingValue(
-      text: next,
-      selection: TextSelection.collapsed(offset: start + clip.length),
     );
   }
 
@@ -1130,6 +1202,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     );
     if (date == null || !mounted) return;
     ctrl.text = _toDisplayDate(date.toIso8601String());
+    if (_repeatWeekly) {
+      setState(() => _repeatWeekday = date.weekday - 1);
+    }
   }
 
   Widget _dateField(TextEditingController c, String label) {
@@ -1166,14 +1241,17 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final _eventCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _programCtrl = TextEditingController();
-  final _venueCtrl = TextEditingController();
+  final _venueNameCtrl = TextEditingController();
+  final _venueMapCtrl = TextEditingController();
   final _orgCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
   final List<String> _cities = kTurkiyeCities;
   String _city = 'İstanbul';
   String _eventKind = 'dance_night';
-  bool _ticketSalesEnabled = true;
+  bool _ticketSalesEnabled = false;
+  bool _repeatWeekly = false;
+  int _repeatWeekday = DateTime.now().weekday - 1;
 
   final _picker = ImagePicker();
   XFile? _image;
@@ -1185,7 +1263,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     _eventCtrl.dispose();
     _descCtrl.dispose();
     _programCtrl.dispose();
-    _venueCtrl.dispose();
+    _venueNameCtrl.dispose();
+    _venueMapCtrl.dispose();
     _orgCtrl.dispose();
     _dateCtrl.dispose();
     _feeCtrl.dispose();
@@ -1202,6 +1281,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
     if (date == null || !mounted) return;
     ctrl.text = _toDisplayDate(date.toIso8601String());
+    if (_repeatWeekly) {
+      setState(() => _repeatWeekday = date.weekday - 1);
+    }
   }
 
   Future<void> _submit() async {
@@ -1218,10 +1300,13 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['event_name'] = _eventCtrl.text.trim()
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim()
-        ..fields['venue'] = _venueCtrl.text.trim()
+        ..fields['venue'] = _venueNameCtrl.text.trim()
+        ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
         ..fields['event_kind'] = _eventKind
         ..fields['ticket_sales_enabled'] = _ticketSalesEnabled ? '1' : '0'
+        ..fields['repeat_weekly'] = _repeatWeekly ? '1' : '0'
+        ..fields['repeat_weekday'] = _repeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
         ..fields['entry_fee'] = _feeCtrl.text.trim();
@@ -1269,7 +1354,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               _txt(_eventCtrl, 'Etkinlik Adı'),
               _txt(_descCtrl, 'Detaylar', maxLines: 3),
               _txt(_programCtrl, 'Program', maxLines: 3),
-              _txt(_venueCtrl, 'Konum / Mekan'),
+              _txt(_venueNameCtrl, 'Mekan Adı'),
+              _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
               DropdownButtonFormField<String>(
                 value: _city,
                 items: _cities
@@ -1309,6 +1395,31 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateField(_dateCtrl, 'Etkinlik Tarihi'),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Tekrarlayan Etkinlik'),
+                subtitle: const Text('Açıkken tarihi geçen etkinlik kapanır, aynı etkinliğin yenisi otomatik açılır.'),
+                value: _repeatWeekly,
+                onChanged: _sending ? null : (v) => setState(() => _repeatWeekly = v),
+              ),
+              if (_repeatWeekly)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: DropdownButtonFormField<int>(
+                    value: _repeatWeekday,
+                    items: List.generate(
+                      _weekdayLabels.length,
+                      (i) => DropdownMenuItem<int>(value: i, child: Text(_weekdayLabels[i])),
+                    ),
+                    onChanged: _sending ? null : (v) => setState(() => _repeatWeekday = v ?? _repeatWeekday),
+                    decoration: InputDecoration(
+                      labelText: 'Tekrar Günü',
+                      filled: true,
+                      fillColor: const Color(0xFF111827),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
               _txt(_feeCtrl, 'Bilet Ücreti (TL)'),
               const SizedBox(height: 8),
               Row(
@@ -1373,45 +1484,27 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
   }
 
-  Widget _txt(TextEditingController c, String label, {int maxLines = 1}) {
-    final isVenue = label == 'Konum / Mekan';
+  Widget _txt(
+    TextEditingController c,
+    String label, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: c,
         maxLines: maxLines,
-        keyboardType: maxLines > 1 ? TextInputType.multiline : TextInputType.text,
+        keyboardType: keyboardType ?? (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
         textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
         enableInteractiveSelection: true,
         decoration: InputDecoration(
           labelText: label,
-          hintText: isVenue ? 'Mekan adı + Google Maps paylaşım linki yapıştırabilirsiniz' : null,
           filled: true,
           fillColor: const Color(0xFF111827),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          suffixIcon: IconButton(
-            tooltip: 'Yapıştır',
-            icon: const Icon(Icons.content_paste_rounded),
-            onPressed: () => _pasteFromClipboard(c),
-          ),
         ),
       ),
-    );
-  }
-
-  Future<void> _pasteFromClipboard(TextEditingController c) async {
-    final data = await Clipboard.getData('text/plain');
-    final clip = (data?.text ?? '').trim();
-    if (clip.isEmpty || !mounted) return;
-    final value = c.value;
-    final text = value.text;
-    final sel = value.selection;
-    final start = sel.isValid ? sel.start.clamp(0, text.length).toInt() : text.length;
-    final end = sel.isValid ? sel.end.clamp(0, text.length).toInt() : text.length;
-    final next = text.replaceRange(start, end, clip);
-    c.value = TextEditingValue(
-      text: next,
-      selection: TextSelection.collapsed(offset: start + clip.length),
     );
   }
 

@@ -185,6 +185,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         description: items[i].description,
                         eventDate: items[i].eventDate,
                         venue: items[i].venue,
+                        venueMapUrl: items[i].venueMapUrl,
                         organizer: items[i].organizer,
                         program: items[i].program,
                         entryFee: items[i].entryFee,
@@ -227,6 +228,7 @@ class _EventItem {
   final String cover;
   final String eventDate;
   final String venue;
+  final String venueMapUrl;
   final String organizer;
   final String program;
   final double entryFee;
@@ -243,6 +245,7 @@ class _EventItem {
     required this.cover,
     required this.eventDate,
     required this.venue,
+    required this.venueMapUrl,
     required this.organizer,
     required this.program,
     required this.entryFee,
@@ -277,6 +280,7 @@ class _EventItem {
       cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),
       eventDate: (json['event_date'] ?? json['start_at'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
+      venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       organizer: (json['organizer_name'] ?? '').toString(),
       program: (json['program_text'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
