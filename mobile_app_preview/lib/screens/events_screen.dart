@@ -179,7 +179,7 @@ class _EventItem {
       name: (json['name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),
-      eventDate: (json['event_date'] ?? json['start_at'] ?? '').toString(),
+      eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
       ticketUrl: absUrl(json['ticket_url'] ?? json['link'] ?? '', host: 'https://www.dansmagazin.net'),
       venue: (json['venue'] ?? '').toString(),

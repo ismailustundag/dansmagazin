@@ -278,7 +278,7 @@ class _EventItem {
       name: (json['name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),
-      eventDate: (json['event_date'] ?? json['start_at'] ?? '').toString(),
+      eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       organizer: (json['organizer_name'] ?? '').toString(),

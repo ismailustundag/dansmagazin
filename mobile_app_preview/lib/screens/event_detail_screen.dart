@@ -234,7 +234,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   String _contentText() {
     if (_tab == 1) return widget.program.trim().isEmpty ? 'Program bilgisi girilmedi.' : widget.program.trim();
-    if (_tab == 2) return widget.venue.trim().isEmpty ? 'Konum bilgisi girilmedi.' : widget.venue.trim();
+    if (_tab == 2) return _venueLabel().trim().isEmpty ? 'Konum bilgisi girilmedi.' : _venueLabel().trim();
     return widget.description.trim().isEmpty ? 'Detay bilgisi girilmedi.' : widget.description.trim();
   }
 
@@ -276,15 +276,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               children: [
                 _line(Icons.calendar_month, _fmtDate(widget.eventDate)),
                 if (venueLabel.isNotEmpty) _line(Icons.location_on, venueLabel),
-                if (canOpenMaps)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 22, bottom: 6),
-                    child: TextButton.icon(
-                      onPressed: _openVenueInMaps,
-                      icon: const Icon(Icons.map_outlined, size: 18),
-                      label: const Text('Haritada Aç / Yol Tarifi Al'),
-                    ),
-                  ),
                 if (widget.organizer.trim().isNotEmpty) _line(Icons.public, widget.organizer.trim()),
               ],
             ),
@@ -413,10 +404,37 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.white12),
             ),
-            child: Text(
-              _contentText(),
-              style: TextStyle(color: Colors.white.withOpacity(0.92), height: 1.4),
-            ),
+            child: _tab == 2
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _contentText(),
+                        style: TextStyle(color: Colors.white.withOpacity(0.92), height: 1.4),
+                      ),
+                      if (canOpenMaps) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _openVenueInMaps,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE53935),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text(
+                              'HARITADA AÇ',
+                              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                : Text(
+                    _contentText(),
+                    style: TextStyle(color: Colors.white.withOpacity(0.92), height: 1.4),
+                  ),
           ),
           ],
         ),

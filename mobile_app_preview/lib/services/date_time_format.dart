@@ -32,6 +32,10 @@ String formatDateDdMmYyyy(String raw, {String fallback = '-'}) {
 }
 
 String formatDateTimeDdMmYyyyHmDot(String raw, {String fallback = '-'}) {
+  final v = raw.trim();
+  final onlyDate = RegExp(r'^\d{4}-\d{1,2}-\d{1,2}$').hasMatch(v) ||
+      RegExp(r'^\d{1,2}[-\.]\d{1,2}[-\.]\d{4}$').hasMatch(v);
+  if (onlyDate) return formatDateDdMmYyyy(v, fallback: fallback);
   final dt = _parseFlexible(raw);
   if (dt == null) return raw.trim().isEmpty ? fallback : raw.trim().replaceAll('T', ' ');
   return DateFormat('dd.MM.yyyy HH.mm').format(dt.toLocal());

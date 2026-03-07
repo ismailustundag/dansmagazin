@@ -48,6 +48,48 @@ String _toApiDate(String raw) {
   return '$y-$m-$d';
 }
 
+TimeOfDay? _parseTimeOfDay(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return null;
+  final m = RegExp(r'^(\d{1,2})[.:](\d{1,2})$').firstMatch(v);
+  if (m == null) return null;
+  final hh = int.tryParse(m.group(1) ?? '');
+  final mm = int.tryParse(m.group(2) ?? '');
+  if (hh == null || mm == null) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return TimeOfDay(hour: hh, minute: mm);
+}
+
+String _toDisplayTime(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return '';
+  final direct = _parseTimeOfDay(v);
+  if (direct != null) {
+    final h = direct.hour.toString().padLeft(2, '0');
+    final m = direct.minute.toString().padLeft(2, '0');
+    return '$h.$m';
+  }
+  final isOnlyDate = RegExp(r'^\d{4}-\d{1,2}-\d{1,2}$').hasMatch(v) ||
+      RegExp(r'^\d{1,2}[-\.]\d{1,2}[-\.]\d{4}$').hasMatch(v);
+  if (isOnlyDate) return '';
+  final dt = _parseEventDate(v);
+  if (dt == null) return '';
+  final h = dt.hour.toString().padLeft(2, '0');
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '$h.$m';
+}
+
+String _toApiDateTime(String dateRaw, String timeRaw) {
+  final d = _parseEventDate(dateRaw.trim());
+  if (d == null) return dateRaw.trim();
+  final day = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  final t = _parseTimeOfDay(timeRaw.trim());
+  if (t == null) return day;
+  final hh = t.hour.toString().padLeft(2, '0');
+  final mm = t.minute.toString().padLeft(2, '0');
+  return '$day $hh:$mm:00';
+}
+
 class _VenueParts {
   final String name;
   final String mapUrl;
@@ -329,7 +371,7 @@ class _ScannableEvent {
     return _ScannableEvent(
       submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
       eventName: (json['event_name'] ?? '').toString(),
-      eventDate: (json['event_date'] ?? '').toString(),
+      eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
     );
   }
@@ -932,7 +974,7 @@ class _ManagedEventItem {
       submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
-      eventDate: (json['event_date'] ?? '').toString(),
+      eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
@@ -966,6 +1008,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   static const String _base = 'https://api2.dansmagazin.net';
   late final TextEditingController _descCtrl;
   late final TextEditingController _dateCtrl;
+  late final TextEditingController _timeCtrl;
   late final TextEditingController _venueNameCtrl;
   late final TextEditingController _venueMapCtrl;
   late final TextEditingController _orgCtrl;
@@ -986,6 +1029,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     final parsedDate = _parseEventDate(widget.item.eventDate);
     _descCtrl = TextEditingController(text: widget.item.description);
     _dateCtrl = TextEditingController(text: _toDisplayDate(widget.item.eventDate));
+    _timeCtrl = TextEditingController(text: _toDisplayTime(widget.item.eventDate));
     _venueNameCtrl = TextEditingController(text: parts.name);
     _venueMapCtrl = TextEditingController(text: parts.mapUrl);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
@@ -1005,6 +1049,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   void dispose() {
     _descCtrl.dispose();
     _dateCtrl.dispose();
+    _timeCtrl.dispose();
     _venueNameCtrl.dispose();
     _venueMapCtrl.dispose();
     _orgCtrl.dispose();
@@ -1025,6 +1070,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
+        ..fields['start_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
+        ..fields['end_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
         ..fields['venue'] = _venueNameCtrl.text.trim()
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
@@ -1117,7 +1164,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                 onChanged: _saving ? null : (v) => setState(() => _ticketSalesEnabled = v),
               ),
               _txt(_orgCtrl, 'Organizatör'),
-              _dateField(_dateCtrl, 'Etkinlik Tarihi'),
+              _dateTimeRow(_dateCtrl, _timeCtrl),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Tekrarlayan Etkinlik'),
@@ -1207,6 +1254,48 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     }
   }
 
+  Future<void> _pickTime(TextEditingController ctrl) async {
+    final initial = _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 21, minute: 0);
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked == null || !mounted) return;
+    final h = picked.hour.toString().padLeft(2, '0');
+    final m = picked.minute.toString().padLeft(2, '0');
+    ctrl.text = '$h.$m';
+  }
+
+  Widget _dateTimeRow(TextEditingController dateCtrl, TextEditingController timeCtrl) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: _dateField(dateCtrl, 'Etkinlik Tarihi'),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _timeField(timeCtrl, 'Saat'),
+        ),
+      ],
+    );
+  }
+
+  Widget _timeField(TextEditingController c, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: c,
+        readOnly: true,
+        onTap: () => _pickTime(c),
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: const Color(0xFF111827),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: const Icon(Icons.access_time),
+        ),
+      ),
+    );
+  }
+
   Widget _dateField(TextEditingController c, String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -1245,6 +1334,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final _venueMapCtrl = TextEditingController();
   final _orgCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
+  final _timeCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
   final List<String> _cities = kTurkiyeCities;
   String _city = 'İstanbul';
@@ -1267,6 +1357,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     _venueMapCtrl.dispose();
     _orgCtrl.dispose();
     _dateCtrl.dispose();
+    _timeCtrl.dispose();
     _feeCtrl.dispose();
     super.dispose();
   }
@@ -1284,6 +1375,15 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     if (_repeatWeekly) {
       setState(() => _repeatWeekday = date.weekday - 1);
     }
+  }
+
+  Future<void> _pickTime(TextEditingController ctrl) async {
+    final initial = _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 21, minute: 0);
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked == null || !mounted) return;
+    final h = picked.hour.toString().padLeft(2, '0');
+    final m = picked.minute.toString().padLeft(2, '0');
+    ctrl.text = '$h.$m';
   }
 
   Future<void> _submit() async {
@@ -1309,6 +1409,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['repeat_weekday'] = _repeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
+        ..fields['start_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
+        ..fields['end_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
         ..fields['entry_fee'] = _feeCtrl.text.trim();
       final token = widget.sessionToken.trim();
       if (token.isNotEmpty) req.headers['Authorization'] = 'Bearer $token';
@@ -1394,7 +1496,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                 onChanged: _sending ? null : (v) => setState(() => _ticketSalesEnabled = v),
               ),
               _txt(_orgCtrl, 'Organizatör'),
-              _dateField(_dateCtrl, 'Etkinlik Tarihi'),
+              _dateTimeRow(_dateCtrl, _timeCtrl),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Tekrarlayan Etkinlik'),
@@ -1503,6 +1605,39 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
           filled: true,
           fillColor: const Color(0xFF111827),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  Widget _dateTimeRow(TextEditingController dateCtrl, TextEditingController timeCtrl) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: _dateField(dateCtrl, 'Etkinlik Tarihi'),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _timeField(timeCtrl, 'Saat'),
+        ),
+      ],
+    );
+  }
+
+  Widget _timeField(TextEditingController c, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: c,
+        readOnly: true,
+        onTap: () => _pickTime(c),
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: const Color(0xFF111827),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: const Icon(Icons.access_time),
         ),
       ),
     );
