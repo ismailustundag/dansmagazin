@@ -31,31 +31,33 @@ class DansMagazinApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Dansmagazin',
-      builder: (context, child) {
-        final media = MediaQuery.of(context);
-        final appScale = AppSettings.textScale.value;
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: TextScaler.linear(appScale),
+    return ValueListenableBuilder<double>(
+      valueListenable: AppSettings.textScale,
+      builder: (context, appScale, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Dansmagazin',
+        builder: (context, child) {
+          final media = MediaQuery.of(context);
+          return MediaQuery(
+            data: media.copyWith(
+              textScaler: TextScaler.linear(appScale),
+            ),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: const Color(0xFF080B14),
+          visualDensity: VisualDensity.compact,
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFFE53935),
+            secondary: Color(0xFFFF5A5F),
+            surface: Color(0xFF111827),
           ),
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF080B14),
-        visualDensity: VisualDensity.compact,
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFE53935),
-          secondary: Color(0xFFFF5A5F),
-          surface: Color(0xFF111827),
         ),
+        home: const RootScreen(),
       ),
-      home: const RootScreen(),
     );
   }
 }
@@ -100,7 +102,6 @@ class _RootScreenState extends State<RootScreen> {
   void initState() {
     super.initState();
     AppSettings.language.addListener(_onLanguageChanged);
-    AppSettings.textScale.addListener(_onLanguageChanged);
     NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
     _initDeepLinks();
     unawaited(PushNotificationsService.primeSystemPermissionPrompt());
@@ -115,7 +116,6 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void dispose() {
     AppSettings.language.removeListener(_onLanguageChanged);
-    AppSettings.textScale.removeListener(_onLanguageChanged);
     NotificationCenter.totalCount.removeListener(_onNotificationCountChanged);
     _notifTimer?.cancel();
     _deepLinkSub?.cancel();

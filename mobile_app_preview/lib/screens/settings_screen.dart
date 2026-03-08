@@ -723,13 +723,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onChanged: _saving
                               ? null
                               : (v) {
-                                  setState(() => _textScale = v);
+                                  final normalized = v.clamp(0.90, 1.35).toDouble();
+                                  setState(() => _textScale = normalized);
+                                  AppSettings.textScale.value = normalized;
                                 },
                           onChangeEnd: _saving ? null : _saveTextScale,
                         ),
                         Text(
-                          'Mesajlar ve emojiler bu ayara gore buyuyup kuculur.',
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          'Ornek: Mesajlar ve emojiler 😀💬',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12 * _textScale,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
