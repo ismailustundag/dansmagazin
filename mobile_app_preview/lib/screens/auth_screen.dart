@@ -156,6 +156,11 @@ class _AuthScreenState extends State<AuthScreen> {
         // iOS dışında clientId gönderilirse Android'de sign_in_failed (code 10) oluşabiliyor.
         clientId: isIOS ? iosClientId : null,
       );
+      // Farkli hesapla giris yapabilmek icin onceki Google oturumunu temizle.
+      // Boylece Android tarafinda son hesapla otomatik giris yerine hesap secimi acilir.
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {}
       final account = await googleSignIn.signIn();
       if (account == null) {
         if (!mounted) return;
