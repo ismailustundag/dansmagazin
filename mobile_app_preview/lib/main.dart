@@ -15,6 +15,7 @@ import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/event_detail_screen.dart';
 import 'screens/events_store_hub_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/social_screen.dart';
@@ -407,6 +408,13 @@ class _RootScreenState extends State<RootScreen> {
     if (raw == '/profile/notifications') {
       if (!mounted) return;
       setState(() => _index = 4);
+      if (_sessionToken.trim().isEmpty) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => NotificationsScreen(sessionToken: _sessionToken),
+        ),
+      );
+      return;
     }
   }
 

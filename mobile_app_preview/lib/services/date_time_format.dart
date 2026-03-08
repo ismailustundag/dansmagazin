@@ -1,11 +1,37 @@
 import 'package:intl/intl.dart';
 
+bool _looksLikeNaiveDateTime(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return false;
+  final hasDateTime = RegExp(r'^\d{4}-\d{1,2}-\d{1,2}[ T]\d{1,2}:\d{1,2}').hasMatch(v);
+  if (!hasDateTime) return false;
+  final hasExplicitZone = RegExp(r'(Z|[+\-]\d{2}:\d{2})$').hasMatch(v);
+  return !hasExplicitZone;
+}
+
 DateTime? _parseFlexible(String raw) {
   final v = raw.trim();
   if (v.isEmpty) return null;
 
-  final direct = DateTime.tryParse(v) ?? DateTime.tryParse(v.replaceAll(' ', 'T'));
-  if (direct != null) return direct;
+  final normalized = v.replaceAll(' ', 'T');
+  final direct = DateTime.tryParse(v) ?? DateTime.tryParse(normalized);
+  if (direct != null) {
+    // Backend cogu alanda timezone eklemeden UTC timestamp donuyor.
+    // Bu durumda cihaz local saat diye yorumlamasin; UTC kabul edip locale cevir.
+    if (_looksLikeNaiveDateTime(v)) {
+      return DateTime.utc(
+        direct.year,
+        direct.month,
+        direct.day,
+        direct.hour,
+        direct.minute,
+        direct.second,
+        direct.millisecond,
+        direct.microsecond,
+      );
+    }
+    return direct;
+  }
 
   final ddMmYyyy = RegExp(r'^(\d{1,2})[-\.](\d{1,2})[-\.](\d{4})$').firstMatch(v);
   if (ddMmYyyy != null) {
