@@ -100,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         notificationsEnabled: notifications,
         avatarUrl: avatarUrl,
       );
-      if (!mounted) return;
+      if (!mounted) return true;
       setState(() {
         _notificationsEnabled = saved.notificationsEnabled;
         _language = saved.language == 'en' ? 'en' : 'tr';
