@@ -103,7 +103,7 @@ class PushNotificationsService {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       final iosPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<
-              DarwinFlutterLocalNotificationsPlugin>();
+              IOSFlutterLocalNotificationsPlugin>();
       final granted = await iosPlugin?.requestPermissions(
         alert: true,
         badge: true,
