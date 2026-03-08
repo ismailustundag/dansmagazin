@@ -260,6 +260,13 @@ class PushNotificationsService {
 
   static String _routeFromMessage(RemoteMessage message) {
     final data = message.data;
+    final type = (data['type'] ?? '').toString().trim().toLowerCase();
+    if (type == 'message') {
+      final fromId = int.tryParse((data['from_account_id'] ?? '').toString()) ?? 0;
+      if (fromId > 0) {
+        return '/messages/$fromId';
+      }
+    }
     final route = (data['route'] ?? '').toString().trim();
     if (route.isNotEmpty) return route;
     final eventId = int.tryParse((data['event_submission_id'] ?? data['event_id'] ?? '').toString()) ?? 0;

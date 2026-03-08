@@ -15,6 +15,7 @@ import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/event_detail_screen.dart';
 import 'screens/events_store_hub_screen.dart';
+import 'screens/chat_thread_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
@@ -397,7 +398,9 @@ class _RootScreenState extends State<RootScreen> {
   Future<void> _openFromPushRoute(String route) async {
     final raw = route.trim();
     if (raw.isEmpty || !mounted) return;
-    final eventMatch = RegExp(r'^/events/(\d+)$').firstMatch(raw);
+    final uri = Uri.tryParse(raw);
+    final path = (uri?.path ?? raw).trim();
+    final eventMatch = RegExp(r'^/events/(\d+)$').firstMatch(path);
     if (eventMatch != null) {
       final id = int.tryParse(eventMatch.group(1) ?? '') ?? 0;
       if (id > 0) {
@@ -405,7 +408,25 @@ class _RootScreenState extends State<RootScreen> {
         return;
       }
     }
-    if (raw == '/profile/notifications') {
+    final messageMatch = RegExp(r'^/messages/(\d+)$').firstMatch(path);
+    if (messageMatch != null) {
+      final peerId = int.tryParse(messageMatch.group(1) ?? '') ?? 0;
+      if (peerId > 0 && _sessionToken.trim().isNotEmpty) {
+        if (!mounted) return;
+        setState(() => _index = 3);
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatThreadScreen(
+              sessionToken: _sessionToken,
+              peerAccountId: peerId,
+              peerName: I18n.t('user'),
+            ),
+          ),
+        );
+        return;
+      }
+    }
+    if (path == '/profile/notifications') {
       if (!mounted) return;
       setState(() => _index = 4);
       if (_sessionToken.trim().isEmpty) return;
