@@ -36,9 +36,10 @@ class DansMagazinApp extends StatelessWidget {
       title: 'Dansmagazin',
       builder: (context, child) {
         final media = MediaQuery.of(context);
+        final appScale = AppSettings.textScale.value;
         return MediaQuery(
           data: media.copyWith(
-            textScaler: media.textScaler.clamp(minScaleFactor: 0.92, maxScaleFactor: 1.0),
+            textScaler: TextScaler.linear(appScale),
           ),
           child: child ?? const SizedBox.shrink(),
         );
@@ -99,6 +100,7 @@ class _RootScreenState extends State<RootScreen> {
   void initState() {
     super.initState();
     AppSettings.language.addListener(_onLanguageChanged);
+    AppSettings.textScale.addListener(_onLanguageChanged);
     NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
     _initDeepLinks();
     unawaited(PushNotificationsService.primeSystemPermissionPrompt());
@@ -113,6 +115,7 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void dispose() {
     AppSettings.language.removeListener(_onLanguageChanged);
+    AppSettings.textScale.removeListener(_onLanguageChanged);
     NotificationCenter.totalCount.removeListener(_onNotificationCountChanged);
     _notifTimer?.cancel();
     _deepLinkSub?.cancel();

@@ -35,6 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _usernameCtrl = TextEditingController();
   bool _notificationsEnabled = true;
   String _language = 'tr';
+  double _textScale = 1.0;
   String _city = 'İstanbul';
   String _birthDate = '';
   String _avatarPath = '';
@@ -61,6 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     final avatar = prefs.getString(_kAvatarPath) ?? '';
     try {
+      _textScale = AppSettings.textScale.value;
       if (widget.sessionToken.trim().isNotEmpty) {
         final remote = await ProfileApi.settings(widget.sessionToken);
         _notificationsEnabled = remote.notificationsEnabled;
@@ -129,6 +131,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _language = v);
     await AppSettings.setLanguage(v);
     await _saveRemote(language: v);
+  }
+
+  Future<void> _saveTextScale(double v) async {
+    final normalized = v.clamp(0.90, 1.35).toDouble();
+    setState(() => _textScale = normalized);
+    await AppSettings.setTextScale(normalized);
+  }
+
+  String _textScaleLabel(double v) {
+    if (v <= 0.95) return 'Küçük';
+    if (v >= 1.22) return 'Büyük';
+    return 'Normal';
   }
 
   Future<void> _saveCity(String v) async {
@@ -670,6 +684,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             isDense: true,
                             border: OutlineInputBorder(),
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Yazı Boyutu',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            Text(
+                              '${(_textScale * 100).round()}% (${_textScaleLabel(_textScale)})',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Slider(
+                          value: _textScale,
+                          min: 0.90,
+                          max: 1.35,
+                          divisions: 9,
+                          label: '${(_textScale * 100).round()}%',
+                          onChanged: _saving
+                              ? null
+                              : (v) {
+                                  setState(() => _textScale = v);
+                                },
+                          onChangeEnd: _saving ? null : _saveTextScale,
+                        ),
+                        Text(
+                          'Mesajlar ve emojiler bu ayara gore buyuyup kuculur.',
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
                     ),
