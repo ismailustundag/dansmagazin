@@ -35,8 +35,13 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   bool _loading = true;
   String? _error;
   int _meAccountId = 0;
+  int _peerLastReadMessageId = 0;
+  bool _peerTyping = false;
   List<_MsgItem> _items = const [];
   Timer? _pollTimer;
+  Timer? _typingIdleTimer;
+  bool _typingActive = false;
+  DateTime _lastTypingSignalAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -50,6 +55,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _typingIdleTimer?.cancel();
+    if (_typingActive) {
+      unawaited(_setTyping(false));
+    }
     _scrollCtrl.dispose();
     _msgCtrl.dispose();
     super.dispose();
@@ -66,10 +75,17 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     final meId = (body['me_account_id'] as num?)?.toInt() ?? 0;
+    final peerLastReadMessageId = (body['peer_last_read_message_id'] as num?)?.toInt() ?? 0;
+    final peerTyping = body['peer_typing'] == true;
     final items = (body['items'] as List<dynamic>? ?? [])
         .map((e) => _MsgItem.fromJson(e as Map<String, dynamic>))
         .toList();
-    return _ThreadData(meAccountId: meId, items: items);
+    return _ThreadData(
+      meAccountId: meId,
+      items: items,
+      peerLastReadMessageId: peerLastReadMessageId,
+      peerTyping: peerTyping,
+    );
   }
 
   Future<void> _refreshThread({bool silent = false, bool scrollToBottom = false}) async {
@@ -84,6 +100,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       if (!mounted) return;
       setState(() {
         _meAccountId = data.meAccountId;
+        _peerLastReadMessageId = data.peerLastReadMessageId;
+        _peerTyping = data.peerTyping;
         _items = data.items;
         _loading = false;
         _error = null;
@@ -107,6 +125,11 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   Future<void> _send() async {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty || _sending) return;
+    _typingIdleTimer?.cancel();
+    if (_typingActive) {
+      _typingActive = false;
+      unawaited(_setTyping(false));
+    }
     setState(() => _sending = true);
     try {
       final resp = await http.post(
@@ -134,6 +157,52 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Future<void> _setTyping(bool isTyping) async {
+    final t = widget.sessionToken.trim();
+    if (t.isEmpty) return;
+    try {
+      await http.post(
+        Uri.parse('$_base/messages/typing'),
+        headers: {
+          'Authorization': 'Bearer $t',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'to_account_id': widget.peerAccountId,
+          'is_typing': isTyping,
+        }),
+      );
+    } catch (_) {
+      // Yaziyor guncellemesi kritik degil; sessiz gec.
+    }
+  }
+
+  void _onDraftChanged(String value) {
+    final hasText = value.trim().isNotEmpty;
+    if (!hasText) {
+      _typingIdleTimer?.cancel();
+      if (_typingActive) {
+        _typingActive = false;
+        unawaited(_setTyping(false));
+      }
+      return;
+    }
+
+    final now = DateTime.now();
+    if (!_typingActive || now.difference(_lastTypingSignalAt) >= const Duration(seconds: 2)) {
+      _typingActive = true;
+      _lastTypingSignalAt = now;
+      unawaited(_setTyping(true));
+    }
+
+    _typingIdleTimer?.cancel();
+    _typingIdleTimer = Timer(const Duration(seconds: 2), () {
+      if (!_typingActive) return;
+      _typingActive = false;
+      unawaited(_setTyping(false));
+    });
   }
 
   void _showAvatarPreview() {
@@ -217,6 +286,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             itemBuilder: (_, i) {
                               final m = _items[i];
                               final mine = m.senderAccountId == _meAccountId;
+                              final seenByPeer = mine && m.id > 0 && _peerLastReadMessageId >= m.id;
                               return Align(
                                 alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                                 child: Container(
@@ -238,12 +308,25 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      Text(
-                                        formatDateTimeDdMmYyyyHmDot(m.createdAt),
-                                        style: TextStyle(
-                                          color: Colors.white.withOpacity(0.7),
-                                          fontSize: 11 * messageScale,
-                                        ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            formatDateTimeDdMmYyyyHmDot(m.createdAt),
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.7),
+                                              fontSize: 11 * messageScale,
+                                            ),
+                                          ),
+                                          if (mine) ...[
+                                            const SizedBox(width: 4),
+                                            Icon(
+                                              Icons.done_all,
+                                              size: 14 * messageScale,
+                                              color: seenByPeer ? const Color(0xFF22C55E) : Colors.white70,
+                                            ),
+                                          ],
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -257,29 +340,48 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             child: Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               color: const Color(0xFF0F172A),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _msgCtrl,
-                      minLines: 1,
-                      maxLines: 4,
-                      onSubmitted: (_) => _send(),
-                      style: TextStyle(fontSize: 15 * messageScale),
-                      decoration: InputDecoration(
-                        hintText: 'Mesaj yaz... 😀',
-                        hintStyle: TextStyle(fontSize: 14 * messageScale),
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                  if (_peerTyping)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '${widget.peerName} yazıyor...',
+                        style: TextStyle(
+                          fontSize: 12 * messageScale,
+                          color: const Color(0xFF93C5FD),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _sending ? null : _send,
-                    child: _sending
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _msgCtrl,
+                          minLines: 1,
+                          maxLines: 4,
+                          onChanged: _onDraftChanged,
+                          onSubmitted: (_) => _send(),
+                          style: TextStyle(fontSize: 15 * messageScale),
+                          decoration: InputDecoration(
+                            hintText: 'Mesaj yaz... 😀',
+                            hintStyle: TextStyle(fontSize: 14 * messageScale),
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _sending ? null : _send,
+                        child: _sending
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -293,18 +395,27 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
 class _ThreadData {
   final int meAccountId;
+  final int peerLastReadMessageId;
+  final bool peerTyping;
   final List<_MsgItem> items;
 
-  const _ThreadData({required this.meAccountId, required this.items});
+  const _ThreadData({
+    required this.meAccountId,
+    required this.peerLastReadMessageId,
+    required this.peerTyping,
+    required this.items,
+  });
 }
 
 class _MsgItem {
+  final int id;
   final int senderAccountId;
   final int receiverAccountId;
   final String body;
   final String createdAt;
 
   const _MsgItem({
+    required this.id,
     required this.senderAccountId,
     required this.receiverAccountId,
     required this.body,
@@ -313,6 +424,7 @@ class _MsgItem {
 
   factory _MsgItem.fromJson(Map<String, dynamic> json) {
     return _MsgItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
       senderAccountId: (json['sender_account_id'] as num?)?.toInt() ?? 0,
       receiverAccountId: (json['receiver_account_id'] as num?)?.toInt() ?? 0,
       body: (json['body'] ?? '').toString(),
