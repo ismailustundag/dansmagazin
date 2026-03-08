@@ -489,12 +489,10 @@ def update_profile_settings(
     conn = _db_conn()
     try:
         account_id = _require_account_id(conn, authorization)
-        username = (payload.username or "").strip()
+        username = " ".join((payload.username or "").split())
         language = (payload.language or "").strip().lower()
         if username and (len(username) < 3 or len(username) > 40):
             raise HTTPException(status_code=400, detail="Kullanıcı adı 3-40 karakter olmalı")
-        if username and any(ch.isspace() for ch in username):
-            raise HTTPException(status_code=400, detail="Kullanıcı adı boşluk içeremez")
         if language and language not in {"tr", "en"}:
             raise HTTPException(status_code=400, detail="Geçersiz dil seçimi")
 

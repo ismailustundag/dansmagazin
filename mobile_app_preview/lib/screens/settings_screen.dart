@@ -80,7 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _saveRemote({
+  Future<bool> _saveRemote({
     String? username,
     String? city,
     String? birthDate,
@@ -88,7 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     bool? notifications,
     String? avatarUrl,
   }) async {
-    if (widget.sessionToken.trim().isEmpty) return;
+    if (widget.sessionToken.trim().isEmpty) return false;
     setState(() => _saving = true);
     try {
       final saved = await ProfileApi.updateSettings(
@@ -113,11 +113,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (language != null) {
         await AppSettings.setLanguage(_language);
       }
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -286,7 +288,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveUsername() async {
     final u = _usernameCtrl.text.trim();
-    await _saveRemote(username: u);
+    final ok = await _saveRemote(username: u);
+    if (!ok) return;
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(I18n.t('username_updated'))),
