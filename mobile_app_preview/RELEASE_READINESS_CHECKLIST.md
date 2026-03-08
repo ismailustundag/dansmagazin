@@ -21,7 +21,7 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 - [x] Her build’de commit SHA göm:
   - `--dart-define=APP_BUILD_SHA=$(git rev-parse --short HEAD)`
 - [x] Google native login define değerleri:
-  - `--dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com`
+  - `--dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com`
   - `--dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com`
 
 ## 4) Android Yayın Kontrolü

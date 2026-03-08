@@ -48,6 +48,8 @@ class _AuthScreenState extends State<AuthScreen> {
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
   static const String _googleServerClientId =
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
+  static const String _googleServerClientIdFallback =
+      '715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com';
   static const String _googleIosClientId =
       String.fromEnvironment('GOOGLE_IOS_CLIENT_ID', defaultValue: '');
   static const String _googleIosClientIdFallback =
@@ -142,14 +144,11 @@ class _AuthScreenState extends State<AuthScreen> {
       _error = null;
     });
     try {
-      final serverClientId = _googleServerClientId.trim();
+      final serverClientId = _googleServerClientId.trim().isNotEmpty
+          ? _googleServerClientId.trim()
+          : _googleServerClientIdFallback;
       final iosClientId =
           _googleIosClientId.trim().isNotEmpty ? _googleIosClientId.trim() : _googleIosClientIdFallback;
-      if (serverClientId.isEmpty) {
-        if (!mounted) return;
-        setState(() => _error = 'Google yapılandırması eksik: server client id');
-        return;
-      }
       final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
       final googleSignIn = GoogleSignIn(
         scopes: const ['email', 'profile'],

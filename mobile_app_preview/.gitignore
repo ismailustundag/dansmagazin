@@ -32,6 +32,9 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+_safety_backup_*/
 
 # Symbolication related
 app.*.symbols
