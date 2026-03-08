@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 
 import '../services/auth_api.dart';
 import '../services/legal_links.dart';
@@ -62,6 +63,8 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _loading = false;
   bool _acceptedLegal = false;
   String? _error;
+  VideoPlayerController? _bgVideoController;
+  bool _bgVideoReady = false;
 
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -69,7 +72,33 @@ class _AuthScreenState extends State<AuthScreen> {
   final _passwordAgainCtrl = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _initBackgroundVideo();
+  }
+
+  Future<void> _initBackgroundVideo() async {
+    final controller = VideoPlayerController.asset('assets/video/dm_teaser.mp4');
+    _bgVideoController = controller;
+    try {
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      await controller.play();
+      setState(() => _bgVideoReady = true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _bgVideoReady = false);
+    }
+  }
+
+  @override
   void dispose() {
+    _bgVideoController?.dispose();
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
@@ -226,27 +255,51 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bgVideo = _bgVideoController;
     return Scaffold(
-      backgroundColor: const Color(0xFF080B14),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-                child: Card(
-                  color: const Color(0xFF121826),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    side: const BorderSide(color: Colors.white12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (bgVideo != null && _bgVideoReady && bgVideo.value.isInitialized)
+            FittedBox(
+              fit: BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: bgVideo.value.size.width,
+                height: bgVideo.value.size.height,
+                child: VideoPlayer(bgVideo),
+              ),
+            )
+          else
+            const ColoredBox(color: Color(0xFF080B14)),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x99080B14), Color(0xD9080B14)],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Card(
+                    color: const Color(0xCC121826),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: const BorderSide(color: Colors.white12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                         Center(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(16),
@@ -443,14 +496,16 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: const Text('Kayıt olmadan devam et'),
                           ),
                         ],
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
