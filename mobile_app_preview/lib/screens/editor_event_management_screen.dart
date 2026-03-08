@@ -1021,6 +1021,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   int _repeatWeekday = 0;
   bool _saving = false;
   String? _error;
+  bool get _isPromoLesson => _eventKind == 'promo_lesson';
 
   @override
   void initState() {
@@ -1043,6 +1044,10 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     _repeatWeekday = (itemWeekday != null && itemWeekday >= 0 && itemWeekday <= 6)
         ? itemWeekday
         : fallbackWeekday.clamp(0, 6).toInt();
+    if (_isPromoLesson) {
+      _ticketSalesEnabled = false;
+      _repeatWeekly = false;
+    }
   }
 
   @override
@@ -1063,6 +1068,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       _error = null;
     });
     try {
+      final effectiveTicketSales = !_isPromoLesson && _ticketSalesEnabled;
+      final effectiveRepeatWeekly = !_isPromoLesson && _repeatWeekly;
       final req = http.MultipartRequest(
         'POST',
         Uri.parse('$_base/events/manage/items/${widget.item.submissionId}/update'),
@@ -1076,9 +1083,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
         ..fields['event_kind'] = _eventKind
-        ..fields['ticket_sales_enabled'] = _ticketSalesEnabled ? '1' : '0'
-        ..fields['repeat_weekly'] = _repeatWeekly ? '1' : '0'
-        ..fields['repeat_weekday'] = _repeatWeekly ? _repeatWeekday.toString() : ''
+        ..fields['ticket_sales_enabled'] = effectiveTicketSales ? '1' : '0'
+        ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
+        ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim();
       final res = await req.send();
@@ -1148,7 +1155,15 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                   DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
                   DropdownMenuItem(value: 'promo_lesson', child: Text('Tanıtım Dersi')),
                 ],
-                onChanged: _saving ? null : (v) => setState(() => _eventKind = v ?? _eventKind),
+                onChanged: _saving
+                    ? null
+                    : (v) => setState(() {
+                          _eventKind = v ?? _eventKind;
+                          if (_isPromoLesson) {
+                            _ticketSalesEnabled = false;
+                            _repeatWeekly = false;
+                          }
+                        }),
                 decoration: InputDecoration(
                   labelText: 'Etkinlik Türü',
                   filled: true,
@@ -1160,20 +1175,28 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Bilet Satışına Aç'),
-                subtitle: const Text('Kapalıysa etkinlik yalnızca uygulamada görünür'),
-                value: _ticketSalesEnabled,
-                onChanged: _saving ? null : (v) => setState(() => _ticketSalesEnabled = v),
+                subtitle: Text(
+                  _isPromoLesson
+                      ? 'Tanıtım derslerinde bilet satışı her zaman kapalıdır'
+                      : 'Kapalıysa etkinlik yalnızca uygulamada görünür',
+                ),
+                value: _isPromoLesson ? false : _ticketSalesEnabled,
+                onChanged: (_saving || _isPromoLesson) ? null : (v) => setState(() => _ticketSalesEnabled = v),
               ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateTimeRow(_dateCtrl, _timeCtrl),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Tekrarlayan Etkinlik'),
-                subtitle: const Text('Açıkken tarihi geçen etkinlik kapanır, aynı etkinliğin yenisi otomatik açılır.'),
-                value: _repeatWeekly,
-                onChanged: _saving ? null : (v) => setState(() => _repeatWeekly = v),
+                subtitle: Text(
+                  _isPromoLesson
+                      ? 'Tanıtım derslerinde tekrarlayan etkinlik kapalıdır'
+                      : 'Açıkken tarihi geçen etkinlik kapanır, aynı etkinliğin yenisi otomatik açılır.',
+                ),
+                value: _isPromoLesson ? false : _repeatWeekly,
+                onChanged: (_saving || _isPromoLesson) ? null : (v) => setState(() => _repeatWeekly = v),
               ),
-              if (_repeatWeekly)
+              if (!_isPromoLesson && _repeatWeekly)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: DropdownButtonFormField<int>(
@@ -1250,7 +1273,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     );
     if (date == null || !mounted) return;
     ctrl.text = _toDisplayDate(date.toIso8601String());
-    if (_repeatWeekly) {
+    if (_repeatWeekly && !_isPromoLesson) {
       setState(() => _repeatWeekday = date.weekday - 1);
     }
   }
@@ -1348,6 +1371,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   XFile? _image;
   bool _sending = false;
   String? _error;
+  bool get _isPromoLesson => _eventKind == 'promo_lesson';
 
   @override
   void dispose() {
@@ -1373,7 +1397,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
     if (date == null || !mounted) return;
     ctrl.text = _toDisplayDate(date.toIso8601String());
-    if (_repeatWeekly) {
+    if (_repeatWeekly && !_isPromoLesson) {
       setState(() => _repeatWeekday = date.weekday - 1);
     }
   }
@@ -1397,6 +1421,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       _error = null;
     });
     try {
+      final effectiveTicketSales = !_isPromoLesson && _ticketSalesEnabled;
+      final effectiveRepeatWeekly = !_isPromoLesson && _repeatWeekly;
       final req = http.MultipartRequest('POST', Uri.parse(_submitUrl))
         ..fields['event_name'] = _eventCtrl.text.trim()
         ..fields['description'] = _descCtrl.text.trim()
@@ -1405,9 +1431,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
         ..fields['event_kind'] = _eventKind
-        ..fields['ticket_sales_enabled'] = _ticketSalesEnabled ? '1' : '0'
-        ..fields['repeat_weekly'] = _repeatWeekly ? '1' : '0'
-        ..fields['repeat_weekday'] = _repeatWeekly ? _repeatWeekday.toString() : ''
+        ..fields['ticket_sales_enabled'] = effectiveTicketSales ? '1' : '0'
+        ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
+        ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
         ..fields['start_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
@@ -1481,7 +1507,15 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                   DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
                   DropdownMenuItem(value: 'promo_lesson', child: Text('Tanıtım Dersi')),
                 ],
-                onChanged: _sending ? null : (v) => setState(() => _eventKind = v ?? _eventKind),
+                onChanged: _sending
+                    ? null
+                    : (v) => setState(() {
+                          _eventKind = v ?? _eventKind;
+                          if (_isPromoLesson) {
+                            _ticketSalesEnabled = false;
+                            _repeatWeekly = false;
+                          }
+                        }),
                 decoration: InputDecoration(
                   labelText: 'Etkinlik Türü',
                   filled: true,
@@ -1493,20 +1527,28 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Bilet Satışına Aç'),
-                subtitle: const Text('Kapalıysa etkinlik sadece uygulamada görünür'),
-                value: _ticketSalesEnabled,
-                onChanged: _sending ? null : (v) => setState(() => _ticketSalesEnabled = v),
+                subtitle: Text(
+                  _isPromoLesson
+                      ? 'Tanıtım derslerinde bilet satışı her zaman kapalıdır'
+                      : 'Kapalıysa etkinlik sadece uygulamada görünür',
+                ),
+                value: _isPromoLesson ? false : _ticketSalesEnabled,
+                onChanged: (_sending || _isPromoLesson) ? null : (v) => setState(() => _ticketSalesEnabled = v),
               ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateTimeRow(_dateCtrl, _timeCtrl),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Tekrarlayan Etkinlik'),
-                subtitle: const Text('Açıkken tarihi geçen etkinlik kapanır, aynı etkinliğin yenisi otomatik açılır.'),
-                value: _repeatWeekly,
-                onChanged: _sending ? null : (v) => setState(() => _repeatWeekly = v),
+                subtitle: Text(
+                  _isPromoLesson
+                      ? 'Tanıtım derslerinde tekrarlayan etkinlik kapalıdır'
+                      : 'Açıkken tarihi geçen etkinlik kapanır, aynı etkinliğin yenisi otomatik açılır.',
+                ),
+                value: _isPromoLesson ? false : _repeatWeekly,
+                onChanged: (_sending || _isPromoLesson) ? null : (v) => setState(() => _repeatWeekly = v),
               ),
-              if (_repeatWeekly)
+              if (!_isPromoLesson && _repeatWeekly)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: DropdownButtonFormField<int>(
