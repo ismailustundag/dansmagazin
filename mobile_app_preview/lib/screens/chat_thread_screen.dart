@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/app_settings.dart';
 import '../services/date_time_format.dart';
 import '../services/notification_center.dart';
 
@@ -169,6 +170,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final messageScale = AppSettings.textScale.value.clamp(0.90, 1.35).toDouble();
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(
@@ -228,11 +230,20 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(m.body),
+                                      Text(
+                                        m.body,
+                                        style: TextStyle(
+                                          fontSize: 15 * messageScale,
+                                          height: 1.35,
+                                        ),
+                                      ),
                                       const SizedBox(height: 4),
                                       Text(
                                         formatDateTimeDdMmYyyyHmDot(m.createdAt),
-                                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.7),
+                                          fontSize: 11 * messageScale,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -254,8 +265,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                       minLines: 1,
                       maxLines: 4,
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: 'Mesaj yaz...',
+                      style: TextStyle(fontSize: 15 * messageScale),
+                      decoration: InputDecoration(
+                        hintText: 'Mesaj yaz... 😀',
+                        hintStyle: TextStyle(fontSize: 14 * messageScale),
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -266,7 +279,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     onPressed: _sending ? null : _send,
                     child: _sending
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Gönder'),
+                        : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                   ),
                 ],
               ),

@@ -703,7 +703,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Yazı Boyutu',
+                                'Mesaj Yazı Boyutu',
                                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                               ),
                             ),

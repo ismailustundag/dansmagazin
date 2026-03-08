@@ -31,33 +31,21 @@ class DansMagazinApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<double>(
-      valueListenable: AppSettings.textScale,
-      builder: (context, appScale, _) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Dansmagazin',
-        builder: (context, child) {
-          final media = MediaQuery.of(context);
-          return MediaQuery(
-            data: media.copyWith(
-              textScaler: TextScaler.linear(appScale),
-            ),
-            child: child ?? const SizedBox.shrink(),
-          );
-        },
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: const Color(0xFF080B14),
-          visualDensity: VisualDensity.compact,
-          colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFE53935),
-            secondary: Color(0xFFFF5A5F),
-            surface: Color(0xFF111827),
-          ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Dansmagazin',
+      theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF080B14),
+        visualDensity: VisualDensity.compact,
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFE53935),
+          secondary: Color(0xFFFF5A5F),
+          surface: Color(0xFF111827),
         ),
-        home: const RootScreen(),
       ),
+      home: const RootScreen(),
     );
   }
 }
