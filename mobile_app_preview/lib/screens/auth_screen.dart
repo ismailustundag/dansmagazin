@@ -485,15 +485,32 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         if (widget.allowGuest) ...[
                           const SizedBox(height: 4),
-                          OutlinedButton(
-                            onPressed: _loading
-                                ? null
-                                : () {
-                              Navigator.of(context).pop(
-                                const AuthResult(action: AuthAction.guest),
-                              );
-                            },
-                            child: const Text('Kayıt olmadan devam et'),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1F2937),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: const BorderSide(color: Colors.white24),
+                                ),
+                              ),
+                              onPressed: _loading
+                                  ? null
+                                  : () {
+                                      Navigator.of(context).pop(
+                                        const AuthResult(action: AuthAction.guest),
+                                      );
+                                    },
+                              icon: const Icon(Icons.explore_outlined),
+                              label: const Text(
+                                'Kayıt Olmadan Devam Et',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
                           ),
                         ],
                           ],
