@@ -1146,6 +1146,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                   DropdownMenuItem(value: 'dance_night', child: Text('Dans Gecesi')),
                   DropdownMenuItem(value: 'festival', child: Text('Festival')),
                   DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
+                  DropdownMenuItem(value: 'promo_lesson', child: Text('Tanıtım Dersi')),
                 ],
                 onChanged: _saving ? null : (v) => setState(() => _eventKind = v ?? _eventKind),
                 decoration: InputDecoration(
@@ -1235,7 +1236,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
 
   String _normalizeKind(String raw) {
     final v = raw.trim().toLowerCase();
-    if (v == 'festival' || v == 'competition' || v == 'dance_night') return v;
+    if (v == 'festival' || v == 'competition' || v == 'dance_night' || v == 'promo_lesson') return v;
     return 'dance_night';
   }
 
@@ -1478,6 +1479,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                   DropdownMenuItem(value: 'dance_night', child: Text('Dans Gecesi')),
                   DropdownMenuItem(value: 'festival', child: Text('Festival')),
                   DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
+                  DropdownMenuItem(value: 'promo_lesson', child: Text('Tanıtım Dersi')),
                 ],
                 onChanged: _sending ? null : (v) => setState(() => _eventKind = v ?? _eventKind),
                 decoration: InputDecoration(

@@ -264,7 +264,7 @@ async def create_submission(
     if not city_val:
         raise HTTPException(status_code=400, detail="Şehir zorunlu")
     kind_val = (event_kind or "").strip().lower() or "dance_night"
-    if kind_val not in {"dance_night", "festival", "competition"}:
+    if kind_val not in {"dance_night", "festival", "competition", "promo_lesson"}:
         raise HTTPException(status_code=400, detail="Geçersiz etkinlik türü")
     ticket_sales_val = (ticket_sales_enabled or "").strip().lower() in {
         "1",
@@ -272,6 +272,9 @@ async def create_submission(
         "yes",
         "on",
     }
+    if kind_val == "promo_lesson":
+        # Tanitim dersi uygulamaya ozeldir; bilet/woo akisini acmaz.
+        ticket_sales_val = False
     try:
         fee_val = Decimal(entry_fee or "0")
     except InvalidOperation:

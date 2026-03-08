@@ -208,6 +208,8 @@ class _EventCard extends StatelessWidget {
         return 'Festival';
       case 'competition':
         return 'Yarışma';
+      case 'promo_lesson':
+        return 'Tanıtım Dersi';
       default:
         return '';
     }

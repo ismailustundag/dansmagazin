@@ -49,7 +49,7 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
-  static const List<String> _tabs = ['all', 'dance_night', 'festival', 'competition'];
+  static const List<String> _tabs = ['all', 'dance_night', 'festival', 'competition', 'promo_lesson'];
 
   late Future<List<_EventItem>> _future;
   int _tabIndex = 0;
@@ -114,6 +114,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               _tabChip(2, 'Festivaller'),
               const SizedBox(width: 8),
               _tabChip(3, 'Yarışmalar'),
+              const SizedBox(width: 8),
+              _tabChip(4, 'Tanıtım Dersleri'),
             ],
           ),
         ),
