@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class TicketsScreen extends StatefulWidget {
   final String sessionToken;
@@ -132,6 +135,11 @@ class _TicketsScreenState extends State<TicketsScreen> {
                                   'Sipariş: #${t.wooOrderId}',
                                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                                 ),
+                              if (t.eventDate.isNotEmpty)
+                                Text(
+                                  'Tarih: ${t.eventDateLabel}',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
                             ],
                           ),
                         ),
@@ -154,6 +162,100 @@ class TicketQrScreen extends StatelessWidget {
   final _TicketItem ticket;
 
   const TicketQrScreen({super.key, required this.ticket});
+
+  DateTime? _parseEventDate(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return null;
+    final normalized = v.replaceAll(' ', 'T');
+    final direct = DateTime.tryParse(v) ?? DateTime.tryParse(normalized);
+    if (direct != null) return direct;
+    final yMd = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(v);
+    if (yMd != null) {
+      final y = int.tryParse(yMd.group(1)!);
+      final m = int.tryParse(yMd.group(2)!);
+      final d = int.tryParse(yMd.group(3)!);
+      if (y != null && m != null && d != null) return DateTime(y, m, d);
+    }
+    return null;
+  }
+
+  bool _hasTime(String raw) => RegExp(r'\d{1,2}:\d{1,2}').hasMatch(raw);
+
+  Uri? _calendarUri() {
+    final start = _parseEventDate(ticket.eventDate);
+    if (start == null) return null;
+    final hasTime = _hasTime(ticket.eventDate);
+    String dates;
+    if (hasTime) {
+      final end = start.add(const Duration(hours: 2));
+      final f = DateFormat("yyyyMMdd'T'HHmmss'Z'");
+      dates = '${f.format(start.toUtc())}/${f.format(end.toUtc())}';
+    } else {
+      final dayStart = DateTime(start.year, start.month, start.day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      final f = DateFormat('yyyyMMdd');
+      dates = '${f.format(dayStart)}/${f.format(dayEnd)}';
+    }
+    return Uri.https('calendar.google.com', '/calendar/render', {
+      'action': 'TEMPLATE',
+      'text': ticket.eventName,
+      'dates': dates,
+      'details': 'Bilet Kodu: ${ticket.ticketId}',
+      'location': ticket.venue,
+    });
+  }
+
+  String _walletUrl() {
+    if (Platform.isIOS && ticket.appleWalletUrl.trim().isNotEmpty) {
+      return ticket.appleWalletUrl.trim();
+    }
+    if (Platform.isAndroid && ticket.googleWalletUrl.trim().isNotEmpty) {
+      return ticket.googleWalletUrl.trim();
+    }
+    final any = ticket.appleWalletUrl.trim().isNotEmpty
+        ? ticket.appleWalletUrl.trim()
+        : ticket.googleWalletUrl.trim();
+    return any;
+  }
+
+  Future<void> _openCalendar(BuildContext context) async {
+    final uri = _calendarUri();
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Takvim için etkinlik tarihi bulunamadı.')),
+      );
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Takvim açılamadı.')),
+      );
+    }
+  }
+
+  Future<void> _openWallet(BuildContext context) async {
+    final url = _walletUrl();
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bu bilet için cüzdan bağlantısı henüz tanımlı değil.')),
+      );
+      return;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cüzdan bağlantısı geçersiz.')),
+      );
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cüzdan bağlantısı açılamadı.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -190,11 +292,36 @@ class TicketQrScreen extends StatelessWidget {
                 'Bilet Kodu: ${ticket.ticketId}',
                 style: const TextStyle(color: Colors.white70),
               ),
+              if (ticket.eventDate.trim().isNotEmpty)
+                Text(
+                  'Etkinlik: ${ticket.eventDateLabel}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
               if (ticket.usedAt.isNotEmpty)
                 Text(
                   'Kullanım: ${ticket.usedAt}',
                   style: const TextStyle(color: Color(0xFFF59E0B)),
                 ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openCalendar(context),
+                      icon: const Icon(Icons.event_available),
+                      label: const Text('Takvime Ekle'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openWallet(context),
+                      icon: const Icon(Icons.account_balance_wallet),
+                      label: const Text('Cüzdana Ekle'),
+                    ),
+                  ),
+                ],
+              ),
               ],
             ),
           ),
@@ -214,6 +341,10 @@ class _TicketItem {
   final String status;
   final String usedAt;
   final bool isUsed;
+  final String eventDate;
+  final String venue;
+  final String googleWalletUrl;
+  final String appleWalletUrl;
 
   _TicketItem({
     required this.ticketId,
@@ -225,6 +356,10 @@ class _TicketItem {
     required this.status,
     required this.usedAt,
     required this.isUsed,
+    required this.eventDate,
+    required this.venue,
+    required this.googleWalletUrl,
+    required this.appleWalletUrl,
   });
 
   factory _TicketItem.fromJson(Map<String, dynamic> json) {
@@ -238,7 +373,20 @@ class _TicketItem {
       status: (json['status'] ?? '').toString(),
       usedAt: (json['used_at'] ?? '').toString(),
       isUsed: (json['is_used'] == true) || ((json['used_at'] ?? '').toString().trim().isNotEmpty),
+      eventDate: (json['event_date'] ?? '').toString(),
+      venue: (json['venue'] ?? '').toString(),
+      googleWalletUrl: (json['google_wallet_url'] ?? '').toString(),
+      appleWalletUrl: (json['apple_wallet_url'] ?? '').toString(),
     );
+  }
+
+  String get eventDateLabel {
+    final raw = eventDate.trim();
+    if (raw.isEmpty) return '-';
+    final dt = DateTime.tryParse(raw) ?? DateTime.tryParse(raw.replaceAll(' ', 'T'));
+    if (dt == null) return raw;
+    final hasTime = raw.contains(':');
+    return hasTime ? DateFormat('dd.MM.yyyy HH.mm').format(dt.toLocal()) : DateFormat('dd.MM.yyyy').format(dt.toLocal());
   }
 
   String get statusLabel {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/checkout_api.dart';
@@ -174,6 +175,70 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     if (!ok) _showMsg('Harita açılamadı.');
   }
 
+  DateTime? _parseEventDateForCalendar(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return null;
+    final normalized = v.replaceAll(' ', 'T');
+    final direct = DateTime.tryParse(v) ?? DateTime.tryParse(normalized);
+    if (direct != null) return direct;
+
+    final yMd = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(v);
+    if (yMd != null) {
+      final y = int.tryParse(yMd.group(1)!);
+      final m = int.tryParse(yMd.group(2)!);
+      final d = int.tryParse(yMd.group(3)!);
+      if (y != null && m != null && d != null) return DateTime(y, m, d);
+    }
+
+    final dmy = RegExp(r'^(\d{1,2})[.\-](\d{1,2})[.\-](\d{4})$').firstMatch(v);
+    if (dmy != null) {
+      final d = int.tryParse(dmy.group(1)!);
+      final m = int.tryParse(dmy.group(2)!);
+      final y = int.tryParse(dmy.group(3)!);
+      if (y != null && m != null && d != null) return DateTime(y, m, d);
+    }
+    return null;
+  }
+
+  bool _eventHasTime(String raw) {
+    return RegExp(r'\d{1,2}:\d{1,2}').hasMatch(raw);
+  }
+
+  Uri? _calendarUri() {
+    final start = _parseEventDateForCalendar(widget.eventDate);
+    if (start == null) return null;
+    final hasTime = _eventHasTime(widget.eventDate);
+    String dates;
+    if (hasTime) {
+      final end = start.add(const Duration(hours: 2));
+      final f = DateFormat("yyyyMMdd'T'HHmmss'Z'");
+      dates = '${f.format(start.toUtc())}/${f.format(end.toUtc())}';
+    } else {
+      final dayStart = DateTime(start.year, start.month, start.day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      final f = DateFormat('yyyyMMdd');
+      dates = '${f.format(dayStart)}/${f.format(dayEnd)}';
+    }
+    final details = widget.description.trim().isEmpty ? widget.title.trim() : widget.description.trim();
+    return Uri.https('calendar.google.com', '/calendar/render', {
+      'action': 'TEMPLATE',
+      'text': widget.title.trim(),
+      'dates': dates,
+      'details': details,
+      'location': _venueLabel().trim(),
+    });
+  }
+
+  Future<void> _addToCalendar() async {
+    final uri = _calendarUri();
+    if (uri == null) {
+      _showMsg('Etkinlik tarihi geçersiz.');
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) _showMsg('Takvim açılamadı.');
+  }
+
   Future<void> _toggleAttend() async {
     final token = widget.sessionToken.trim();
     if (token.isEmpty) {
@@ -243,6 +308,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final buyUrl = _buyUrl();
     final venueLabel = _venueLabel();
     final canOpenMaps = _mapsUri() != null;
+    final canAddToCalendar = _calendarUri() != null;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(
@@ -281,6 +347,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          if (canAddToCalendar)
+            SizedBox(
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: _addToCalendar,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white24),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.event_available),
+                label: const Text(
+                  'Takvime Ekle',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          if (canAddToCalendar) const SizedBox(height: 12),
           SizedBox(
             height: 52,
             child: OutlinedButton(

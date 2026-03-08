@@ -130,56 +130,102 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   Future<void> _handleDeepLink(Uri uri) async {
-    if (uri.scheme != 'dansmagazin' || uri.host != 'auth-callback') return;
-    final sessionToken = (uri.queryParameters['session_token'] ?? '').trim();
-    if (sessionToken.isEmpty) return;
-    final accountId = int.tryParse((uri.queryParameters['account_id'] ?? '0').trim()) ?? 0;
-    final wpUserIdRaw = (uri.queryParameters['wp_user_id'] ?? '').trim();
-    final wpUserId = wpUserIdRaw.isEmpty ? null : int.tryParse(wpUserIdRaw);
-    final wpRolesRaw = (uri.queryParameters['wp_roles'] ?? '').trim();
-    final wpRoles = wpRolesRaw.isEmpty
-        ? const <String>[]
-        : wpRolesRaw
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList(growable: false);
-    final appRole = (uri.queryParameters['app_role'] ?? 'customer').trim();
-    final canCreate = _readBoolParam(uri.queryParameters['can_create_mobile_event']);
-    final email = (uri.queryParameters['email'] ?? '').trim();
-    final name = (uri.queryParameters['name'] ?? '').trim();
+    final scheme = uri.scheme.toLowerCase();
+    final host = uri.host.toLowerCase();
 
-    await _persist(
-      remember: true,
-      loggedIn: true,
-      name: name,
-      email: email,
-      sessionToken: sessionToken,
-      accountId: accountId,
-      wpUserId: wpUserId,
-      wpRoles: wpRoles,
-      appRole: appRole,
-      canCreateMobileEvent: canCreate,
-    );
-    if (!mounted) return;
-    setState(() {
-      _guestMode = false;
-      _isLoggedIn = true;
-      _userName = name;
-      _userEmail = email;
-      _sessionToken = sessionToken;
-      _accountId = accountId;
-      _wpUserId = wpUserId;
-      _wpRoles = wpRoles;
-      _appRole = appRole.isEmpty ? 'customer' : appRole;
-      _canCreateMobileEvent = canCreate;
-      _index = 0;
-    });
-    _startNotificationsPolling();
-    unawaited(PushNotificationsService.initForSession(
-      _sessionToken,
-      onRouteTap: _openFromPushRoute,
-    ));
+    if (scheme == 'dansmagazin' && host == 'auth-callback') {
+      final sessionToken = (uri.queryParameters['session_token'] ?? '').trim();
+      if (sessionToken.isEmpty) return;
+      final accountId = int.tryParse((uri.queryParameters['account_id'] ?? '0').trim()) ?? 0;
+      final wpUserIdRaw = (uri.queryParameters['wp_user_id'] ?? '').trim();
+      final wpUserId = wpUserIdRaw.isEmpty ? null : int.tryParse(wpUserIdRaw);
+      final wpRolesRaw = (uri.queryParameters['wp_roles'] ?? '').trim();
+      final wpRoles = wpRolesRaw.isEmpty
+          ? const <String>[]
+          : wpRolesRaw
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList(growable: false);
+      final appRole = (uri.queryParameters['app_role'] ?? 'customer').trim();
+      final canCreate = _readBoolParam(uri.queryParameters['can_create_mobile_event']);
+      final email = (uri.queryParameters['email'] ?? '').trim();
+      final name = (uri.queryParameters['name'] ?? '').trim();
+
+      await _persist(
+        remember: true,
+        loggedIn: true,
+        name: name,
+        email: email,
+        sessionToken: sessionToken,
+        accountId: accountId,
+        wpUserId: wpUserId,
+        wpRoles: wpRoles,
+        appRole: appRole,
+        canCreateMobileEvent: canCreate,
+      );
+      if (!mounted) return;
+      setState(() {
+        _guestMode = false;
+        _isLoggedIn = true;
+        _userName = name;
+        _userEmail = email;
+        _sessionToken = sessionToken;
+        _accountId = accountId;
+        _wpUserId = wpUserId;
+        _wpRoles = wpRoles;
+        _appRole = appRole.isEmpty ? 'customer' : appRole;
+        _canCreateMobileEvent = canCreate;
+        _index = 0;
+      });
+      _startNotificationsPolling();
+      unawaited(PushNotificationsService.initForSession(
+        _sessionToken,
+        onRouteTap: _openFromPushRoute,
+      ));
+      return;
+    }
+
+    final route = _routeFromIncomingUri(uri);
+    if (route.isNotEmpty) {
+      await _openFromPushRoute(route);
+    }
+  }
+
+  String _routeFromIncomingUri(Uri uri) {
+    final qRoute = (uri.queryParameters['route'] ?? '').trim();
+    if (qRoute.startsWith('/')) return qRoute;
+
+    final host = uri.host.toLowerCase();
+    final path = uri.path.trim();
+    final segments = uri.pathSegments.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
+    if (path.startsWith('/events/') || path.startsWith('/messages/') || path == '/profile/notifications') {
+      return path;
+    }
+
+    if (uri.scheme.toLowerCase() == 'dansmagazin') {
+      if ((host == 'events' || host == 'event') && segments.isNotEmpty) {
+        final id = int.tryParse(segments.first) ?? 0;
+        if (id > 0) return '/events/$id';
+      }
+      if ((host == 'messages' || host == 'message' || host == 'chat') && segments.isNotEmpty) {
+        final id = int.tryParse(segments.first) ?? 0;
+        if (id > 0) return '/messages/$id';
+      }
+      if (host == 'notifications' || host == 'notification') {
+        return '/profile/notifications';
+      }
+    }
+
+    if (host.endsWith('dansmagazin.net')) {
+      if (path == '/notifications' || path == '/bildirimler') {
+        return '/profile/notifications';
+      }
+      final eId = int.tryParse((uri.queryParameters['event_submission_id'] ?? uri.queryParameters['event_id'] ?? '').trim()) ?? 0;
+      if (eId > 0) return '/events/$eId';
+    }
+    return '';
   }
 
   void _onNotificationCountChanged() {
@@ -390,7 +436,9 @@ class _RootScreenState extends State<RootScreen> {
     final raw = route.trim();
     if (raw.isEmpty || !mounted) return;
     final uri = Uri.tryParse(raw);
-    final path = (uri?.path ?? raw).trim();
+    final maybeFromLink = uri == null ? '' : _routeFromIncomingUri(uri);
+    final normalized = maybeFromLink.isNotEmpty ? maybeFromLink : raw;
+    final path = (Uri.tryParse(normalized)?.path ?? normalized).trim();
     final eventMatch = RegExp(r'^/events/(\d+)$').firstMatch(path);
     if (eventMatch != null) {
       final id = int.tryParse(eventMatch.group(1) ?? '') ?? 0;
@@ -423,7 +471,10 @@ class _RootScreenState extends State<RootScreen> {
       if (_sessionToken.trim().isEmpty) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => NotificationsScreen(sessionToken: _sessionToken),
+          builder: (_) => NotificationsScreen(
+            sessionToken: _sessionToken,
+            onOpenRoute: _openFromPushRoute,
+          ),
         ),
       );
       return;
@@ -522,6 +573,7 @@ class _RootScreenState extends State<RootScreen> {
         onLogoutTap: () {
           _logout();
         },
+        onOpenRoute: _openFromPushRoute,
       ),
     ];
 

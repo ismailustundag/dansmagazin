@@ -51,3 +51,23 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 
 - [x] Test edilmiş sürüm tag’i: `mobile-tested-20260306-google-native`
 - [ ] Mağazaya gönderilecek sürüm için ayrı release tag aç.
+
+## 8) Ürün İçi Son Dokunuşlar
+
+- [x] Etkinlik detayında `Takvime Ekle` aksiyonu var.
+- [x] Bildirim kartı route içeriyorsa tıklanınca ilgili hedefe gider.
+- [x] Deep link yönlendirme (`/events/:id`, `/messages/:id`, `/profile/notifications`) genişletildi.
+- [ ] Bilet için gerçek `Apple Wallet` / `Google Wallet` pass üretimi aktif (backend imzalama + wallet linkleri).
+
+## 9) iOS App Store Uyum
+
+- [ ] `Sign in with Apple` eklendi ve test edildi (Google login ile birlikte zorunluluk riski için kritik).
+- [ ] App Store Connect > App Privacy alanları eksiksiz dolduruldu.
+- [ ] TestFlight internal + external test turu tamamlandı.
+- [ ] Production APNs tokenlarıyla gerçek cihaz testi tamamlandı.
+
+## 10) Android Play Store Uyum
+
+- [ ] AAB çıktısı alındı ve Play App Signing aktif.
+- [ ] Play Console Data Safety formu eksiksiz dolduruldu.
+- [ ] Account deletion policy ve uygulama içi hesap silme akışı doğrulandı.

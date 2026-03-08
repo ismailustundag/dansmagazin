@@ -22,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
   final bool canCreateMobileEvent;
   final VoidCallback onLoginTap;
   final VoidCallback onLogoutTap;
+  final Future<void> Function(String route)? onOpenRoute;
 
   const ProfileScreen({
     super.key,
@@ -36,6 +37,7 @@ class ProfileScreen extends StatefulWidget {
     required this.canCreateMobileEvent,
     required this.onLoginTap,
     required this.onLogoutTap,
+    this.onOpenRoute,
   });
 
   @override
@@ -150,7 +152,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.notifications,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => NotificationsScreen(sessionToken: widget.sessionToken),
+              builder: (_) => NotificationsScreen(
+                sessionToken: widget.sessionToken,
+                onOpenRoute: widget.onOpenRoute,
+              ),
             ),
           ),
         ),

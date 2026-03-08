@@ -8,8 +8,13 @@ import '../services/date_time_format.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final String sessionToken;
+  final Future<void> Function(String route)? onOpenRoute;
 
-  const NotificationsScreen({super.key, required this.sessionToken});
+  const NotificationsScreen({
+    super.key,
+    required this.sessionToken,
+    this.onOpenRoute,
+  });
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -168,7 +173,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         )
                       else
                         ..._feed.map(
-                          (n) => Container(
+                          (n) {
+                            final route = n.route.trim();
+                            final canOpen = route.startsWith('/') && widget.onOpenRoute != null;
+                            final item = Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -216,7 +224,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 ],
                               ],
                             ),
-                          ),
+                            );
+                            if (!canOpen) return item;
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () async {
+                                await widget.onOpenRoute?.call(route);
+                              },
+                              child: item,
+                            );
+                          },
                         ),
                     ],
                   ),
