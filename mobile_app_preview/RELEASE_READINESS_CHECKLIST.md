@@ -28,6 +28,7 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 
 - [ ] `google-services.json` doğru paket adına ait.
 - [ ] Bildirim izin/teslim testi tamam.
+- [ ] Mesaj geldiğinde push bildirimi ("Yeni bir mesajın var") testi tamam.
 - [ ] Google giriş (mevcut + yeni kullanıcı) test edildi.
 - [ ] Play Store Data Safety formu dolduruldu.
 
@@ -37,6 +38,7 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 - [ ] Xcode Signing & Capabilities tamam.
 - [ ] Google giriş (mevcut + yeni kullanıcı) test edildi.
 - [ ] APNs/Push production testi tamam.
+- [ ] Mesaj geldiğinde push bildirimi ("Yeni bir mesajın var") testi tamam.
 
 ## 6) Store İçerikleri
 

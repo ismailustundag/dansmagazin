@@ -405,12 +405,12 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   bool _loading = false;
   bool _scannerOpen = false;
   String _result = '';
-  Color _resultColor = Colors.white;
+  Color _resultColor = const Color(0xFFB71C1C);
+  bool _resultSuccess = false;
   List<Map<String, dynamic>> _used = const [];
   String _lastToken = '';
   DateTime _lastScanAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _scannerArmedAt = DateTime.fromMillisecondsSinceEpoch(0);
-  String _pendingToken = '';
 
   @override
   void initState() {
@@ -456,29 +456,34 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
       if (res.statusCode == 200 && state == 'accepted') {
         setState(() {
           _result = msg.isNotEmpty ? msg : 'Bilet geçerli.';
-          _resultColor = Colors.greenAccent;
+          _resultColor = const Color(0xFF1B5E20);
+          _resultSuccess = true;
         });
       } else if (res.statusCode == 200 && state == 'already_used') {
         setState(() {
           _result = msg.isNotEmpty ? msg : 'Bilet daha önce kullanılmış.';
-          _resultColor = Colors.amberAccent;
+          _resultColor = const Color(0xFFB71C1C);
+          _resultSuccess = false;
         });
       } else if (res.statusCode == 404) {
         setState(() {
           _result = 'Geçersiz QR.';
-          _resultColor = Colors.redAccent;
+          _resultColor = const Color(0xFFB71C1C);
+          _resultSuccess = false;
         });
       } else {
         setState(() {
           _result = msg.isNotEmpty ? msg : 'Geçersiz QR.';
-          _resultColor = Colors.redAccent;
+          _resultColor = const Color(0xFFB71C1C);
+          _resultSuccess = false;
         });
       }
       await _loadUsed();
     } catch (_) {
       setState(() {
         _result = 'Geçersiz QR.';
-        _resultColor = Colors.redAccent;
+        _resultColor = const Color(0xFFB71C1C);
+        _resultSuccess = false;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -498,7 +503,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_loading || !_scannerOpen || _pendingToken.isNotEmpty) return;
+    if (_loading || !_scannerOpen) return;
     if (DateTime.now().isBefore(_scannerArmedAt)) return;
     String token = '';
     for (final code in capture.barcodes) {
@@ -512,13 +517,12 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
     setState(() => _scannerOpen = false);
     await _scannerController.stop();
     if (!mounted) return;
-    setState(() => _pendingToken = token);
+    await _scanToken(token);
   }
 
   Future<void> _openScanner() async {
     setState(() {
       _scannerOpen = true;
-      _pendingToken = '';
       _lastToken = '';
       _scannerArmedAt = DateTime.now().add(const Duration(milliseconds: 1300));
     });
@@ -532,7 +536,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
       setState(() {
         _scannerOpen = false;
         _result = 'Kamera açılamadı. İzinleri kontrol edip tekrar dene.';
-        _resultColor = Colors.redAccent;
+        _resultColor = const Color(0xFFB71C1C);
+        _resultSuccess = false;
       });
     }
   }
@@ -607,12 +612,17 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
                     color: const Color(0xFF0F172A),
                     alignment: Alignment.center,
                     child: SizedBox(
-                      width: 180,
-                      height: 48,
+                      width: double.infinity,
+                      height: 56,
                       child: ElevatedButton.icon(
                         onPressed: _loading ? null : _openScanner,
                         icon: const Icon(Icons.qr_code_scanner),
                         label: const Text('QR Tara'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        ),
                       ),
                     ),
                   ),
@@ -629,60 +639,9 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
           Text(
             _scannerOpen
                 ? 'QR kodunu kırmızı çerçevenin içine getir. Kamera açıldıktan sonra kısa bir bekleme var.'
-                : 'Bilet doğrulamak için QR Tara butonuna basın.',
+                : 'QR Tara butonuna basıp kodu okutun. Sonuç otomatik gösterilir.',
             style: TextStyle(color: Colors.white70),
           ),
-          if (_pendingToken.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1F2937),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('QR algılandı', style: TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 6),
-                  Text(
-                    _pendingToken.length > 40 ? '${_pendingToken.substring(0, 40)}...' : _pendingToken,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _loading
-                            ? null
-                            : () async {
-                                final t = _pendingToken;
-                                setState(() => _pendingToken = '');
-                                await Future<void>.delayed(const Duration(milliseconds: 350));
-                                await _scanToken(t);
-                              },
-                        icon: const Icon(Icons.check_circle_outline),
-                        label: const Text('Doğrula'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _loading
-                            ? null
-                            : () async {
-                                setState(() => _pendingToken = '');
-                                await _openScanner();
-                              },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Yeniden Tara'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 10),
           OutlinedButton(
             onPressed: _loading ? null : _loadUsed,
@@ -693,18 +652,16 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _resultColor.withOpacity(0.15),
+                color: _resultColor,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _resultColor.withOpacity(0.4)),
+                border: Border.all(color: Colors.white24),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    _resultColor == Colors.greenAccent
-                        ? Icons.check_circle
-                        : (_resultColor == Colors.amberAccent ? Icons.warning_amber_rounded : Icons.cancel),
-                    color: _resultColor,
+                    _resultSuccess ? Icons.check_circle : Icons.cancel,
+                    color: Colors.white,
                     size: 30,
                   ),
                   const SizedBox(width: 10),
@@ -713,7 +670,7 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
                       _result,
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: _resultColor,
+                        color: Colors.white,
                         fontSize: 18,
                         height: 1.25,
                       ),
