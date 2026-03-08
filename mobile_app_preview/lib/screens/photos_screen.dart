@@ -58,8 +58,14 @@ Future<bool> _saveToGallery(String url, Uint8List bytes) async {
 class PhotosScreen extends StatefulWidget {
   final int accountId;
   final String sessionToken;
+  final VoidCallback? onRequireLogin;
 
-  const PhotosScreen({super.key, required this.accountId, required this.sessionToken});
+  const PhotosScreen({
+    super.key,
+    required this.accountId,
+    required this.sessionToken,
+    this.onRequireLogin,
+  });
 
   @override
   State<PhotosScreen> createState() => _PhotosScreenState();
@@ -71,6 +77,24 @@ class _PhotosScreenState extends State<PhotosScreen> {
   late Future<List<_Album>> _albumsFuture;
   int _tab = 0; // 0: Fotograflar, 1: Videolar, 2: Favoriler
   List<_FavoritePhoto> _favorites = [];
+  bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
+
+  void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: widget.onRequireLogin == null
+            ? null
+            : SnackBarAction(
+                label: 'Giriş Yap',
+                onPressed: widget.onRequireLogin!,
+              ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -86,6 +110,10 @@ class _PhotosScreenState extends State<PhotosScreen> {
   }
 
   Future<void> _toggleAlbumLike(_Album album) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Albüm beğenmek için giriş yapın.');
+      return;
+    }
     final endpoint = album.likedByMe ? 'unlike' : 'like';
     try {
       final resp = await http.post(
@@ -153,8 +181,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
       title: I18n.t('photos'),
       icon: Icons.photo_library,
       subtitle: I18n.isEnglish
-          ? 'You can view, download and favorite your photos.'
-          : 'Fotoğraflarınızı görüntüleyebilir, indirebilir ve sonrası için favorileyebilirsiniz.',
+          ? (_isLoggedIn
+              ? 'You can view, download and favorite your photos.'
+              : 'Guest mode: browse albums and thumbnails. Sign in for full photo actions.')
+          : (_isLoggedIn
+              ? 'Fotoğraflarınızı görüntüleyebilir, indirebilir ve sonrası için favorileyebilirsiniz.'
+              : 'Misafir modunda albüm ve küçük görselleri gezebilirsiniz. Tam erişim için giriş yapın.'),
       content: [
         Wrap(
           spacing: 8,
@@ -190,6 +222,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
             }
 
             if (_tab == 2) {
+              if (!_isLoggedIn) {
+                return _LoginRequiredCard(
+                  text: 'Favoriler ve fotoğraf detayları için giriş yapın.',
+                  onLoginTap: widget.onRequireLogin,
+                );
+              }
               return _FavoriteGrid(
                 photos: _favorites,
                 accountId: widget.accountId,
@@ -221,6 +259,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
                                 album: album,
                                 accountId: widget.accountId,
                                 sessionToken: widget.sessionToken,
+                                onRequireLogin: widget.onRequireLogin,
                               ),
                             ),
                           );
@@ -255,8 +294,15 @@ class AlbumPhotosScreen extends StatefulWidget {
   final _Album album;
   final int accountId;
   final String sessionToken;
+  final VoidCallback? onRequireLogin;
 
-  const AlbumPhotosScreen({super.key, required this.album, required this.accountId, required this.sessionToken});
+  const AlbumPhotosScreen({
+    super.key,
+    required this.album,
+    required this.accountId,
+    required this.sessionToken,
+    this.onRequireLogin,
+  });
 
   @override
   State<AlbumPhotosScreen> createState() => _AlbumPhotosScreenState();
@@ -266,6 +312,24 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   late Future<List<_Photo>> _photosFuture;
   List<_FavoritePhoto> _favorites = [];
   bool _showFavoritesOnly = false;
+  bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
+
+  void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: widget.onRequireLogin == null
+            ? null
+            : SnackBarAction(
+                label: 'Giriş Yap',
+                onPressed: widget.onRequireLogin!,
+              ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -319,6 +383,10 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Fotoğraf beğenmek için giriş yapın.');
+      return;
+    }
     final endpoint = photo.likedByMe ? 'unlike' : 'like';
     try {
       final resp = await http.post(
@@ -343,6 +411,10 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   }
 
   Future<void> _toggleFavorite(_Photo photo) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Favorilere eklemek için giriş yapın.');
+      return;
+    }
     final isFav = _isFavorite(photo.url);
     if (isFav) {
       await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
@@ -362,6 +434,10 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   }
 
   Future<void> _openViewer(List<_Photo> photos, int initialIndex) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Fotoğraf detayını açmak için giriş yapın.');
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _PhotoViewerScreen(
@@ -370,6 +446,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           album: widget.album,
           accountId: widget.accountId,
           sessionToken: widget.sessionToken,
+          onRequireLogin: widget.onRequireLogin,
         ),
       ),
     );
@@ -522,6 +599,7 @@ class _PhotoViewerScreen extends StatefulWidget {
   final _Album album;
   final int accountId;
   final String sessionToken;
+  final VoidCallback? onRequireLogin;
 
   const _PhotoViewerScreen({
     required this.photos,
@@ -529,6 +607,7 @@ class _PhotoViewerScreen extends StatefulWidget {
     required this.album,
     required this.accountId,
     required this.sessionToken,
+    this.onRequireLogin,
   });
 
   @override
@@ -540,6 +619,24 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   int _index = 0;
   List<_FavoritePhoto> _favorites = [];
   late List<_Photo> _photos;
+  bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
+
+  void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: widget.onRequireLogin == null
+            ? null
+            : SnackBarAction(
+                label: 'Giriş Yap',
+                onPressed: widget.onRequireLogin!,
+              ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -559,6 +656,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   bool _isFavorite(String url) => _favorites.any((f) => f.url == url);
 
   Future<void> _toggleFavorite(_Photo photo) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Favorilere eklemek için giriş yapın.');
+      return;
+    }
     final isFav = _isFavorite(photo.url);
     if (isFav) {
       await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
@@ -578,6 +679,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   }
 
   Future<void> _download(String url) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Fotoğraf indirmek için giriş yapın.');
+      return;
+    }
     try {
       final bytes = await _downloadImageBytes(url, bearerToken: widget.sessionToken);
       final saved = await _saveToGallery(url, bytes);
@@ -594,6 +699,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Fotoğraf beğenmek için giriş yapın.');
+      return;
+    }
     final endpoint = photo.likedByMe ? 'unlike' : 'like';
     try {
       final resp = await http.post(
@@ -1228,6 +1337,43 @@ class _InfoCard extends StatelessWidget {
         border: Border.all(color: Colors.white12),
       ),
       child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.8))),
+    );
+  }
+}
+
+class _LoginRequiredCard extends StatelessWidget {
+  final String text;
+  final VoidCallback? onLoginTap;
+
+  const _LoginRequiredCard({required this.text, this.onLoginTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF121826),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(text, style: TextStyle(color: Colors.white.withOpacity(0.9))),
+          if (onLoginTap != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: onLoginTap,
+                icon: const Icon(Icons.login),
+                label: const Text('Giriş Yap'),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

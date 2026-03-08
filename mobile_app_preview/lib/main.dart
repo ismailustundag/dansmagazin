@@ -481,7 +481,11 @@ class _RootScreenState extends State<RootScreen> {
         sessionToken: _sessionToken,
         canCreateEvent: _canCreateMobileEvent,
       ),
-      PhotosScreen(accountId: _accountId, sessionToken: _sessionToken),
+      PhotosScreen(
+        accountId: _accountId,
+        sessionToken: _sessionToken,
+        onRequireLogin: () => _openAuth(allowGuest: false, targetIndex: 2),
+      ),
       SocialScreen(sessionToken: _sessionToken),
       ProfileScreen(
         isLoggedIn: _isLoggedIn,
