@@ -101,15 +101,10 @@ class PushNotificationsService {
 
   static Future<bool> _requestPlatformNotificationPermission() async {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
-      final iosPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>();
-      final granted = await iosPlugin?.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      return granted ?? false;
+      // iOS izin istegi FirebaseMessaging.requestPermission ile initForSession
+      // icinde yapiliyor. Burada derleme uyumlulugu icin ekstra plugin tipine
+      // bagimli bir cagri yapmiyoruz.
+      return true;
     }
     if (defaultTargetPlatform == TargetPlatform.android) {
       // Android 13+ icin runtime bildirim izni iste.
