@@ -122,6 +122,11 @@ class PushNotificationsService {
     return true;
   }
 
+  static Future<void> primeSystemPermissionPrompt() async {
+    await _ensureLocalReady();
+    await _requestPlatformNotificationPermission();
+  }
+
   static Future<void> initForSession(
     String sessionToken, {
     bool notificationsEnabled = true,

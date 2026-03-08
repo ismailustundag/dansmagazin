@@ -99,6 +99,7 @@ class _RootScreenState extends State<RootScreen> {
     AppSettings.language.addListener(_onLanguageChanged);
     NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
     _initDeepLinks();
+    unawaited(PushNotificationsService.primeSystemPermissionPrompt());
     _restoreSession();
   }
 
