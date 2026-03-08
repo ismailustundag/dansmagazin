@@ -99,6 +99,29 @@ class PushNotificationsService {
     }
   }
 
+  static Future<bool> _requestPlatformNotificationPermission() async {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final iosPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              DarwinFlutterLocalNotificationsPlugin>();
+      final granted = await iosPlugin?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      return granted ?? false;
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Android 13+ icin runtime bildirim izni iste.
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      final granted = await androidPlugin?.requestNotificationsPermission();
+      return granted != false;
+    }
+    return true;
+  }
+
   static Future<void> initForSession(
     String sessionToken, {
     bool notificationsEnabled = true,
@@ -109,10 +132,18 @@ class PushNotificationsService {
     _sessionToken = token;
     _onRouteTap = onRouteTap;
 
+    await _ensureLocalReady();
+
+    final grantedByPlatform = await _requestPlatformNotificationPermission();
+    if (!grantedByPlatform || !notificationsEnabled) {
+      try {
+        await NotificationsApi.unregisterPushToken(token);
+      } catch (_) {}
+      return;
+    }
+
     final ready = await _ensureFirebaseReady();
     if (!ready) return;
-
-    await _ensureLocalReady();
 
     final messaging = FirebaseMessaging.instance;
     bool isGranted = true;
@@ -129,15 +160,6 @@ class PushNotificationsService {
       isGranted =
           settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      // Android 13+ icin runtime bildirim izni iste.
-      final androidPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      final androidGranted = await androidPlugin?.requestNotificationsPermission();
-      if (androidGranted == false) {
-        isGranted = false;
-      }
     }
 
     if (!isGranted || !notificationsEnabled) {
