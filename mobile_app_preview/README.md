@@ -14,3 +14,14 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Fixed Commands
+
+Use these scripts to avoid `zsh` parse errors and `pull --rebase` blocks:
+
+```bash
+./scripts/safe_sync.sh
+./scripts/safe_push.sh "feat: message"
+./scripts/build_android_release.sh
+./scripts/run_ios_release.sh "Ismail Ustundag"
+```
