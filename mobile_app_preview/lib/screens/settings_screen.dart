@@ -16,12 +16,18 @@ import '../services/legal_links.dart';
 import '../services/profile_api.dart';
 import '../services/push_notifications_service.dart';
 import '../services/turkiye_cities.dart';
+import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String sessionToken;
+  final bool isSuperAdmin;
 
-  const SettingsScreen({super.key, required this.sessionToken});
+  const SettingsScreen({
+    super.key,
+    required this.sessionToken,
+    this.isSuperAdmin = false,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -30,6 +36,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
+  static const String _photoPanelBase = 'https://foto.dansmagazin.net/panel';
 
   final _picker = ImagePicker();
   final _usernameCtrl = TextEditingController();
@@ -316,6 +323,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (ok || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Bağlantı açılamadı')),
+    );
+  }
+
+  void _openPhotoPanel(String path, String title) {
+    final url = '$_photoPanelBase/$path';
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AppWebViewScreen(url: url, title: title),
+      ),
     );
   }
 
@@ -816,6 +832,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
+                  if (widget.isSuperAdmin) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF121826),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Foto Paneli (Super Admin)',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => _openPhotoPanel('overview', 'Foto Paneli · Genel Bakış'),
+                                child: const Text('Genel Bakış'),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => _openPhotoPanel('events', 'Foto Paneli · Etkinlikler'),
+                                child: const Text('Etkinlikler'),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => _openPhotoPanel('credits', 'Foto Paneli · Kredi Satın Al'),
+                                child: const Text('Kredi Satın Al'),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => _openPhotoPanel('history', 'Foto Paneli · Geçmiş İşlemlerim'),
+                                child: const Text('Geçmiş İşlemlerim'),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => _openPhotoPanel('profile', 'Foto Paneli · Profil'),
+                                child: const Text('Profil'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Center(
                     child: Text(

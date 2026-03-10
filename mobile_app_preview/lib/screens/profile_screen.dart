@@ -188,7 +188,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onTap: () async {
             final deleted = await Navigator.of(context).push<bool>(
               MaterialPageRoute(
-                builder: (_) => SettingsScreen(sessionToken: widget.sessionToken),
+                builder: (_) => SettingsScreen(
+                  sessionToken: widget.sessionToken,
+                  isSuperAdmin: widget.appRole == 'super_admin',
+                ),
               ),
             );
             if (deleted == true) {
