@@ -36,7 +36,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
-  static const String _photoPanelBase = 'https://foto.dansmagazin.net/panel';
+  static const String _photoPanelBase = 'https://foto.dansmagazin.net';
 
   final _picker = ImagePicker();
   final _usernameCtrl = TextEditingController();
@@ -326,11 +326,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _openPhotoPanel(String path, String title) {
-    final url = '$_photoPanelBase/$path';
+  Future<void> _openPhotoPanel(String path, String title) async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Panel için önce giriş yapın')),
+      );
+      return;
+    }
+
+    final cleanPath = path.trim().replaceAll(RegExp(r'^/+'), '');
+    final nextPath = '/panel/$cleanPath';
+    final url = '$_photoPanelBase/mobile-sso-login?next=${Uri.encodeQueryComponent(nextPath)}';
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AppWebViewScreen(url: url, title: title),
+        builder: (_) => AppWebViewScreen(
+          url: url,
+          title: title,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
       ),
     );
   }

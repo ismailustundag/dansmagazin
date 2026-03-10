@@ -4,11 +4,13 @@ import 'package:webview_flutter/webview_flutter.dart';
 class AppWebViewScreen extends StatefulWidget {
   final String url;
   final String title;
+  final Map<String, String> headers;
 
   const AppWebViewScreen({
     super.key,
     required this.url,
     required this.title,
+    this.headers = const {},
   });
 
   @override
@@ -37,7 +39,10 @@ class _AppWebViewScreenState extends State<AppWebViewScreen> {
           },
         ),
       )
-      ..loadRequest(Uri.parse(widget.url));
+      ..loadRequest(
+        Uri.parse(widget.url),
+        headers: widget.headers,
+      );
   }
 
   Future<void> _refreshNavState() async {
