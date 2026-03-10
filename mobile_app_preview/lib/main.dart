@@ -85,6 +85,7 @@ class _RootScreenState extends State<RootScreen> {
   int _notificationCount = 0;
   Timer? _notifTimer;
   StreamSubscription<Uri>? _deepLinkSub;
+  bool _authInFlight = false;
 
   @override
   void initState() {
@@ -318,61 +319,102 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   Future<void> _openAuth({required bool allowGuest, int? targetIndex}) async {
-    final result = await Navigator.of(context).push<AuthResult>(
-      MaterialPageRoute(builder: (_) => AuthScreen(allowGuest: allowGuest)),
-    );
-    if (result == null || !mounted) return;
-    if (result.action == AuthAction.guest) {
-      final previousSession = _sessionToken;
+    if (_authInFlight || !mounted) return;
+    _authInFlight = true;
+    try {
+      final result = await Navigator.of(context).push<AuthResult>(
+        MaterialPageRoute(builder: (_) => AuthScreen(allowGuest: allowGuest)),
+      );
+      if (result == null || !mounted) return;
+      if (result.action == AuthAction.guest) {
+        final previousSession = _sessionToken;
+        setState(() {
+          _guestMode = true;
+          _isLoggedIn = false;
+          _sessionToken = '';
+          _accountId = 0;
+          _wpUserId = null;
+          _wpRoles = const [];
+          _appRole = 'customer';
+          _canCreateMobileEvent = false;
+          _index = 0;
+          _notificationCount = 0;
+        });
+        NotificationCenter.clear();
+        _stopNotificationsPolling();
+        unawaited(PushNotificationsService.unregisterForSession(previousSession));
+        unawaited(PushNotificationsService.dispose());
+        return;
+      }
+      await _persist(
+        remember: result.rememberMe,
+        loggedIn: true,
+        name: result.name,
+        email: result.email,
+        sessionToken: result.sessionToken,
+        accountId: result.accountId,
+        wpUserId: result.wpUserId,
+        wpRoles: result.wpRoles,
+        appRole: result.appRole,
+        canCreateMobileEvent: result.canCreateMobileEvent,
+      );
+      if (!mounted) return;
       setState(() {
-        _guestMode = true;
-        _isLoggedIn = false;
-        _sessionToken = '';
-        _accountId = 0;
-        _wpUserId = null;
-        _wpRoles = const [];
-        _appRole = 'customer';
-        _canCreateMobileEvent = false;
-        _index = 0;
-        _notificationCount = 0;
+        _guestMode = false;
+        _isLoggedIn = true;
+        _userName = result.name;
+        _userEmail = result.email;
+        _sessionToken = result.sessionToken;
+        _accountId = result.accountId;
+        _wpUserId = result.wpUserId;
+        _wpRoles = result.wpRoles;
+        _appRole = result.appRole;
+        _canCreateMobileEvent = result.canCreateMobileEvent;
+        if (targetIndex != null) _index = targetIndex;
       });
-      NotificationCenter.clear();
-      _stopNotificationsPolling();
-      unawaited(PushNotificationsService.unregisterForSession(previousSession));
-      unawaited(PushNotificationsService.dispose());
-      return;
+      _startNotificationsPolling();
+      unawaited(PushNotificationsService.initForSession(
+        _sessionToken,
+        onRouteTap: _openFromPushRoute,
+      ));
+    } finally {
+      _authInFlight = false;
     }
-    await _persist(
-      remember: result.rememberMe,
-      loggedIn: true,
-      name: result.name,
-      email: result.email,
-      sessionToken: result.sessionToken,
-      accountId: result.accountId,
-      wpUserId: result.wpUserId,
-      wpRoles: result.wpRoles,
-      appRole: result.appRole,
-      canCreateMobileEvent: result.canCreateMobileEvent,
-    );
-    if (!mounted) return;
-    setState(() {
-      _guestMode = false;
-      _isLoggedIn = true;
-      _userName = result.name;
-      _userEmail = result.email;
-      _sessionToken = result.sessionToken;
-      _accountId = result.accountId;
-      _wpUserId = result.wpUserId;
-      _wpRoles = result.wpRoles;
-      _appRole = result.appRole;
-      _canCreateMobileEvent = result.canCreateMobileEvent;
-      if (targetIndex != null) _index = targetIndex;
-    });
-    _startNotificationsPolling();
-    unawaited(PushNotificationsService.initForSession(
-      _sessionToken,
-      onRouteTap: _openFromPushRoute,
-    ));
+  }
+
+  Future<void> _openAuthIfNeeded({required bool allowGuest, int? targetIndex}) async {
+    if (_authInFlight || !mounted) return;
+    await _openAuth(allowGuest: allowGuest, targetIndex: targetIndex);
+  }
+
+  Future<void> _refreshSessionIdentity() async {
+    final token = _sessionToken.trim();
+    if (!_isLoggedIn || token.isEmpty) return;
+    try {
+      final me = await AuthApi.me(token);
+      if (!mounted) return;
+      final wpRolesChanged = _wpRoles.length != me.wpRoles.length ||
+          _wpRoles.any((r) => !me.wpRoles.contains(r));
+      final needsUpdate = _userName != me.name ||
+          _userEmail != me.email ||
+          _accountId != me.accountId ||
+          _wpUserId != me.wpUserId ||
+          _appRole != me.appRole ||
+          _canCreateMobileEvent != me.canCreateMobileEvent ||
+          wpRolesChanged;
+      if (!needsUpdate) return;
+      setState(() {
+        _userName = me.name;
+        _userEmail = me.email;
+        _accountId = me.accountId;
+        _wpUserId = me.wpUserId;
+        _wpRoles = me.wpRoles;
+        _appRole = me.appRole;
+        _canCreateMobileEvent = me.canCreateMobileEvent;
+      });
+    } catch (_) {
+      // geçici ağ hatalarında sessizce devam et
+    }
   }
 
   Future<void> _logout() async {
@@ -401,10 +443,11 @@ class _RootScreenState extends State<RootScreen> {
 
   void _onNavTap(int i) {
     if ((i == 3 || i == 4) && !_isLoggedIn) {
-      _openAuth(allowGuest: false, targetIndex: i);
+      unawaited(_openAuthIfNeeded(allowGuest: false, targetIndex: i));
       return;
     }
     setState(() => _index = i);
+    unawaited(_refreshSessionIdentity());
   }
 
   void _stopNotificationsPolling() {
@@ -540,7 +583,7 @@ class _RootScreenState extends State<RootScreen> {
     }
     if (!_guestMode && !_isLoggedIn) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openAuth(allowGuest: true);
+        unawaited(_openAuthIfNeeded(allowGuest: true));
       });
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -556,7 +599,7 @@ class _RootScreenState extends State<RootScreen> {
       PhotosScreen(
         accountId: _accountId,
         sessionToken: _sessionToken,
-        onRequireLogin: () => _openAuth(allowGuest: false, targetIndex: 2),
+        onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
       ),
       SocialScreen(sessionToken: _sessionToken),
       ProfileScreen(
@@ -569,7 +612,7 @@ class _RootScreenState extends State<RootScreen> {
         wpRoles: _wpRoles,
         appRole: _appRole,
         canCreateMobileEvent: _canCreateMobileEvent,
-        onLoginTap: () => _openAuth(allowGuest: false, targetIndex: 4),
+        onLoginTap: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 4),
         onLogoutTap: () {
           _logout();
         },

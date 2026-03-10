@@ -471,13 +471,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Row(
             children: [
-              SizedBox(width: 110, child: _tabBtn(0, 'Detaylar')),
-              SizedBox(width: 110, child: _tabBtn(1, 'Program')),
-              SizedBox(width: 110, child: _tabBtn(2, 'Konum')),
+              Expanded(child: _tabBtn(0, 'Detaylar')),
+              const SizedBox(width: 8),
+              Expanded(child: _tabBtn(1, 'Program')),
+              const SizedBox(width: 8),
+              Expanded(child: _tabBtn(2, 'Konum')),
             ],
           ),
           const SizedBox(height: 12),
@@ -547,9 +547,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         side: BorderSide(color: active ? const Color(0xFFE53935) : Colors.white12),
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       ),
       onPressed: () => setState(() => _tab = val),
-      child: Text(title),
+      child: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
+        textAlign: TextAlign.center,
+      ),
     );
   }
 }

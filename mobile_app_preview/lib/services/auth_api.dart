@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -59,6 +61,35 @@ class AuthSession {
 
 class AuthApi {
   static const String _base = 'https://api2.dansmagazin.net';
+
+  static Future<http.Response> _postJsonWithRetry(
+    Uri uri, {
+    required Map<String, dynamic> body,
+    int attempts = 2,
+  }) async {
+    Object? lastError;
+    for (var i = 0; i < attempts; i++) {
+      try {
+        return await http
+            .post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+            .timeout(const Duration(seconds: 18));
+      } on SocketException catch (e) {
+        lastError = e;
+      } on TimeoutException catch (e) {
+        lastError = e;
+      } on http.ClientException catch (e) {
+        lastError = e;
+      }
+      if (i < attempts - 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+      }
+    }
+    throw lastError ?? AuthApiException('İstek başarısız');
+  }
 
   static Future<AuthSession> login({
     required String usernameOrEmail,
@@ -142,13 +173,12 @@ class AuthApi {
     required String idToken,
     required bool rememberMe,
   }) async {
-    final resp = await http.post(
+    final resp = await _postJsonWithRetry(
       Uri.parse('$_base/auth/google/native'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
+      body: {
         'id_token': idToken.trim(),
         'remember_me': rememberMe,
-      }),
+      },
     );
     return _parseSession(resp);
   }
