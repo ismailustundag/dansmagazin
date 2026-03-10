@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'event_detail_screen.dart';
+import 'news_detail_screen.dart';
 import 'screen_shell.dart';
 
 String _formatEventDate(String raw) {
@@ -51,14 +52,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   static const List<String> _tabs = ['all', 'dance_night', 'festival', 'competition', 'promo_lesson'];
 
-  late Future<List<_EventItem>> _future;
+  late Future<List<_EventItem>> _eventsFuture;
+  late Future<List<_NewsItem>> _newsFuture;
   int _tabIndex = 0;
   String _selectedCity = 'Tümü';
 
   @override
   void initState() {
     super.initState();
-    _future = _fetchEvents();
+    _eventsFuture = _fetchEvents();
+    _newsFuture = _fetchNews();
   }
 
   Future<List<_EventItem>> _fetchEvents() async {
@@ -89,9 +92,36 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     return rows;
   }
 
+  Future<List<_NewsItem>> _fetchNews() async {
+    final uri = Uri.parse('$_base/discover').replace(
+      queryParameters: const {
+        'news_limit': '60',
+        'events_limit': '1',
+        'albums_limit': '1',
+      },
+    );
+    final resp = await http.get(uri);
+    if (resp.statusCode != 200) {
+      throw Exception('Haberler alınamadı (${resp.statusCode})');
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final rows = (body['news'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(_NewsItem.fromJson)
+        .toList();
+    rows.sort((a, b) => b.sortKey.compareTo(a.sortKey));
+    return rows;
+  }
+
   Future<void> _refresh() async {
+    if (_tabIndex == 0) {
+      final f = _fetchNews();
+      setState(() => _newsFuture = f);
+      await f;
+      return;
+    }
     final f = _fetchEvents();
-    setState(() => _future = f);
+    setState(() => _eventsFuture = f);
     await f;
   }
 
@@ -120,89 +150,133 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        FutureBuilder<List<_EventItem>>(
-          future: _future,
-          builder: (context, snapshot) {
-            final data = snapshot.data ?? const <_EventItem>[];
-            final cities = <String>{'Tümü'};
-            for (final e in data) {
-              if (e.city.trim().isNotEmpty) cities.add(e.city.trim());
-            }
-            return DropdownButtonFormField<String>(
-              value: cities.contains(_selectedCity) ? _selectedCity : 'Tümü',
-              items: cities.map((c) => DropdownMenuItem(value: c, child: Text('Şehir: $c'))).toList(),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _selectedCity = v);
-                _refresh();
-              },
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: const Color(0xFF111827),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        FutureBuilder<List<_EventItem>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 30),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            if (snapshot.hasError) {
-              return _InfoCard(
-                text: 'Liste yüklenemedi, tekrar deneyin.',
-                actionText: 'Yenile',
-                onTap: _refresh,
-              );
-            }
-            final items = snapshot.data ?? const <_EventItem>[];
-            if (items.isEmpty) {
-              return const _InfoCard(text: 'Filtreye uygun etkinlik bulunamadı.');
-            }
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: items.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 0.72,
-              ),
-              itemBuilder: (_, i) => _EventCard(
-                item: items[i],
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => EventDetailScreen(
-                        title: items[i].name,
-                        submissionId: items[i].id,
-                        cover: items[i].cover,
-                        description: items[i].description,
-                        eventDate: items[i].eventDate,
-                        venue: items[i].venue,
-                        venueMapUrl: items[i].venueMapUrl,
-                        organizer: items[i].organizer,
-                        program: items[i].program,
-                        entryFee: items[i].entryFee,
-                        ticketUrl: items[i].ticketUrl,
-                        wooProductId: items[i].wooProductId,
-                        ticketSalesEnabled: items[i].ticketSalesEnabled,
-                        sessionToken: widget.sessionToken,
-                      ),
-                    ),
-                  );
+        if (_tabIndex != 0)
+          FutureBuilder<List<_EventItem>>(
+            future: _eventsFuture,
+            builder: (context, snapshot) {
+              final data = snapshot.data ?? const <_EventItem>[];
+              final cities = <String>{'Tümü'};
+              for (final e in data) {
+                if (e.city.trim().isNotEmpty) cities.add(e.city.trim());
+              }
+              return DropdownButtonFormField<String>(
+                value: cities.contains(_selectedCity) ? _selectedCity : 'Tümü',
+                items: cities.map((c) => DropdownMenuItem(value: c, child: Text('Şehir: $c'))).toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() => _selectedCity = v);
+                  _refresh();
                 },
-              ),
-            );
-          },
-        ),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFF111827),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              );
+            },
+          ),
+        const SizedBox(height: 12),
+        if (_tabIndex == 0)
+          FutureBuilder<List<_NewsItem>>(
+            future: _newsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 30),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return _InfoCard(
+                  text: 'Haberler yüklenemedi, tekrar deneyin.',
+                  actionText: 'Yenile',
+                  onTap: _refresh,
+                );
+              }
+              final items = snapshot.data ?? const <_NewsItem>[];
+              if (items.isEmpty) {
+                return const _InfoCard(text: 'Henüz haber bulunamadı.');
+              }
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) => _NewsCard(
+                  item: items[i],
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => NewsDetailScreen(
+                          postId: items[i].id,
+                          sessionToken: widget.sessionToken,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          )
+        else
+          FutureBuilder<List<_EventItem>>(
+            future: _eventsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 30),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return _InfoCard(
+                  text: 'Liste yüklenemedi, tekrar deneyin.',
+                  actionText: 'Yenile',
+                  onTap: _refresh,
+                );
+              }
+              final items = snapshot.data ?? const <_EventItem>[];
+              if (items.isEmpty) {
+                return const _InfoCard(text: 'Filtreye uygun etkinlik bulunamadı.');
+              }
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: items.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 0.72,
+                ),
+                itemBuilder: (_, i) => _EventCard(
+                  item: items[i],
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => EventDetailScreen(
+                          title: items[i].name,
+                          submissionId: items[i].id,
+                          cover: items[i].cover,
+                          description: items[i].description,
+                          eventDate: items[i].eventDate,
+                          venue: items[i].venue,
+                          venueMapUrl: items[i].venueMapUrl,
+                          organizer: items[i].organizer,
+                          program: items[i].program,
+                          entryFee: items[i].entryFee,
+                          ticketUrl: items[i].ticketUrl,
+                          wooProductId: items[i].wooProductId,
+                          ticketSalesEnabled: items[i].ticketSalesEnabled,
+                          sessionToken: widget.sessionToken,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -295,6 +369,37 @@ class _EventItem {
   }
 }
 
+class _NewsItem {
+  final int id;
+  final String title;
+  final String excerpt;
+  final String date;
+  final String image;
+  final String author;
+
+  const _NewsItem({
+    required this.id,
+    required this.title,
+    required this.excerpt,
+    required this.date,
+    required this.image,
+    required this.author,
+  });
+
+  DateTime get sortKey => DateTime.tryParse(date.trim()) ?? DateTime.fromMillisecondsSinceEpoch(0);
+
+  factory _NewsItem.fromJson(Map<String, dynamic> json) {
+    return _NewsItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      title: (json['title'] ?? '').toString(),
+      excerpt: (json['excerpt'] ?? '').toString(),
+      date: (json['date'] ?? '').toString(),
+      image: (json['image'] ?? '').toString(),
+      author: (json['author'] ?? '').toString(),
+    );
+  }
+}
+
 class _EventCard extends StatelessWidget {
   final _EventItem item;
   final VoidCallback onTap;
@@ -331,6 +436,77 @@ class _EventCard extends StatelessWidget {
                   if (item.city.trim().isNotEmpty)
                     Text(item.city.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                   Text(_formatEventDate(item.eventDate), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsCard extends StatelessWidget {
+  final _NewsItem item;
+  final VoidCallback onTap;
+
+  const _NewsCard({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF121826),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (item.image.isNotEmpty)
+              Image.network(
+                item.image,
+                width: double.infinity,
+                height: 170,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 170,
+                  color: const Color(0xFF1F2937),
+                ),
+              )
+            else
+              Container(height: 120, color: const Color(0xFF1F2937)),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                  if (item.excerpt.trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      item.excerpt.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_formatEventDate(item.date)}${item.author.trim().isNotEmpty ? ' • ${item.author.trim()}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
                 ],
               ),
             ),

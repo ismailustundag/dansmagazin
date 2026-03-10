@@ -184,10 +184,15 @@ def _upsert_local_account(conn, email: str, name: str, role: str, raw_password: 
             SET name=COALESCE(NULLIF(%s,''), name),
                 role=CASE WHEN role='super_admin' THEN role ELSE COALESCE(NULLIF(%s,''), role) END,
                 is_active=1,
-                can_create_mobile_event=CASE WHEN role='super_admin' THEN 1 ELSE %s END
+                can_create_mobile_event=
+                    CASE
+                        WHEN role='super_admin' THEN 1
+                        WHEN COALESCE(can_create_mobile_event,0)=1 AND COALESCE(NULLIF(%s,''),'customer')='customer' THEN 1
+                        ELSE %s
+                    END
             WHERE id=%s
             """,
-            (name.strip(), role_norm, can_create, aid),
+            (name.strip(), role_norm, role_norm, can_create, aid),
         )
         return aid
 
@@ -346,7 +351,9 @@ def _get_account_permissions(conn, account_id: int) -> tuple[str, bool]:
     c = conn.cursor()
     c.execute(
         """
-        SELECT COALESCE(role,'customer') AS role
+        SELECT
+            COALESCE(role,'customer') AS role,
+            COALESCE(can_create_mobile_event,0) AS can_create_mobile_event
         FROM accounts
         WHERE id=%s
         LIMIT 1
@@ -355,8 +362,8 @@ def _get_account_permissions(conn, account_id: int) -> tuple[str, bool]:
     )
     row = c.fetchone() or {}
     role = str(row.get("role") or "customer").strip().lower() or "customer"
-    # Tek kaynak politikasi: etkinlik olusturma yetkisi yalnızca WP role map'ten gelir.
-    can_create = role in {"editor", "super_admin"}
+    can_create_flag = bool(int(row.get("can_create_mobile_event") or 0))
+    can_create = role in {"editor", "super_admin"} or can_create_flag
     return role, can_create
 
 
