@@ -106,10 +106,11 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     page = 1
     remaining = max(1, min(limit, 60))
+    max_scan = 200
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            while remaining > 0:
-                per_page = 20 if remaining > 20 else remaining
+            while remaining > 0 and max_scan > 0:
+                per_page = 20
                 url = f"{WP_BASE}/wp-json/wp/v2/posts"
                 params = {"_embed": "1", "orderby": "date", "order": "desc", "page": page, "per_page": per_page}
                 resp = await client.get(url, params=params)
@@ -118,9 +119,16 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
                 arr = resp.json()
                 if not arr:
                     break
-                parsed = [_parse_wp_item(x) for x in arr]
-                items.extend(parsed)
-                remaining -= len(parsed)
+                for raw in arr:
+                    max_scan -= 1
+                    if max_scan <= 0:
+                        break
+                    if _is_event_post(raw):
+                        continue
+                    items.append(_parse_wp_item(raw))
+                    remaining -= 1
+                    if remaining <= 0:
+                        break
                 if len(arr) < per_page:
                     break
                 page += 1

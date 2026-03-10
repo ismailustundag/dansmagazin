@@ -39,6 +39,44 @@ String _normTr(String raw) {
       .replaceAll('Ç', 'c');
 }
 
+bool _looksLikeEventContent(String title, String excerpt) {
+  final txt = _normTr('$title $excerpt');
+  const eventishKeywords = <String>[
+    'festival',
+    'dans gecesi',
+    'dance night',
+    'yarisma',
+    'competition',
+    'workshop',
+    'kongre',
+    'congress',
+    'kamp',
+    'promo lesson',
+    'tanitim dersi',
+    'etkinlik',
+    'bilet',
+  ];
+  for (final kw in eventishKeywords) {
+    if (txt.contains(_normTr(kw))) return true;
+  }
+  return false;
+}
+
+String _eventKindLabel(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'dance_night':
+      return 'Dans Gecesi';
+    case 'festival':
+      return 'Festival';
+    case 'competition':
+      return 'Yarışma';
+    case 'promo_lesson':
+      return 'Tanıtım Dersi';
+    default:
+      return '';
+  }
+}
+
 class DiscoverScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -108,6 +146,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final rows = (body['news'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(_NewsItem.fromJson)
+        .where((n) => !_looksLikeEventContent(n.title, n.excerpt))
         .toList();
     rows.sort((a, b) => b.sortKey.compareTo(a.sortKey));
     return rows;
@@ -201,7 +240,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) => _NewsCard(
                   item: items[i],
                   onTap: () {
@@ -239,16 +278,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               if (items.isEmpty) {
                 return const _InfoCard(text: 'Filtreye uygun etkinlik bulunamadı.');
               }
-              return GridView.builder(
+              return ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: items.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 0.72,
-                ),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) => _EventCard(
                   item: items[i],
                   onTap: () {
@@ -408,34 +442,70 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final kindLabel = _eventKindLabel(item.eventKind);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
+        height: 108,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: const Color(0xFF121826),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white12),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Expanded(
-              child: item.cover.isNotEmpty
-                  ? Image.network(item.cover, width: double.infinity, fit: BoxFit.cover)
-                  : Container(color: const Color(0xFF1F2937)),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 92,
+                height: 92,
+                child: item.cover.isNotEmpty
+                    ? Image.network(
+                        item.cover,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                      )
+                    : Container(color: const Color(0xFF1F2937)),
+              ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8),
+            const SizedBox(width: 10),
+            Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
+                  Text(
+                    item.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                  const SizedBox(height: 6),
                   if (item.city.trim().isNotEmpty)
-                    Text(item.city.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  Text(_formatEventDate(item.eventDate), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text(
+                      item.city.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  Text(
+                    _formatEventDate(item.eventDate),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  if (kindLabel.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        kindLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Color(0xFFE53935), fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -458,31 +528,33 @@ class _NewsCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
+        height: 108,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: const Color(0xFF121826),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white12),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            if (item.image.isNotEmpty)
-              Image.network(
-                item.image,
-                width: double.infinity,
-                height: 170,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 170,
-                  color: const Color(0xFF1F2937),
-                ),
-              )
-            else
-              Container(height: 120, color: const Color(0xFF1F2937)),
-            Padding(
-              padding: const EdgeInsets.all(10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 92,
+                height: 92,
+                child: item.image.isNotEmpty
+                    ? Image.network(
+                        item.image,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                      )
+                    : Container(color: const Color(0xFF1F2937)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -492,7 +564,7 @@ class _NewsCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                   if (item.excerpt.trim().isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       item.excerpt.trim(),
                       maxLines: 2,
