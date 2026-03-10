@@ -78,6 +78,24 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     return _NewsDetail.fromJson(body);
   }
 
+  Future<void> _shareNews(_NewsDetail item) async {
+    final shareText = item.link.isNotEmpty ? '${item.title}\n${item.link}' : item.title;
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+    try {
+      await Share.share(
+        shareText,
+        subject: item.title,
+        sharePositionOrigin: origin,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paylaşım açılamadı, tekrar deneyin.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,12 +169,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        final shareText = item.link.isNotEmpty
-                            ? '${item.title}\n${item.link}'
-                            : item.title;
-                        Share.share(shareText, subject: item.title);
-                      },
+                      onPressed: () => _shareNews(item),
                       icon: const Icon(Icons.share),
                       label: const Text('Paylaş'),
                     ),
