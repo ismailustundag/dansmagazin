@@ -133,9 +133,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Future<List<_NewsItem>> _fetchNews() async {
     final uri = Uri.parse('$_base/discover').replace(
       queryParameters: const {
-        'news_limit': '60',
-        'events_limit': '1',
-        'albums_limit': '1',
+        'news_limit': '24',
+        'events_limit': '0',
+        'albums_limit': '0',
       },
     );
     final resp = await http.get(uri);

@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import datetime
+import time
 from typing import Any, Dict, List
 
 import httpx
@@ -17,6 +18,10 @@ PUBLIC_WEB_BASE = os.getenv("PUBLIC_WEB_BASE", "https://foto.dansmagazin.net").r
 PUBLIC_API_BASE = os.getenv("PUBLIC_API_BASE", "https://api2.dansmagazin.net").rstrip("/")
 MOBILE_UPLOAD_DIR = "/home/ubuntu/mobil_backend/media/submission_covers"
 ALT_UPLOAD_DIR = "/home/ubuntu/etkinlik_fotograf_projesi/media/submission_covers"
+DISCOVER_NEWS_CACHE_TTL_SEC = int(os.getenv("DISCOVER_NEWS_CACHE_TTL_SEC", "120"))
+_NEWS_CACHE: Dict[int, Dict[str, Any]] = {}
+DISCOVER_HOME_CACHE_TTL_SEC = int(os.getenv("DISCOVER_HOME_CACHE_TTL_SEC", "90"))
+_DISCOVER_HOME_CACHE: Dict[str, Any] = {"ts": 0.0, "items": {}}
 
 
 def _strip_html(text: str) -> str:
@@ -103,6 +108,11 @@ def _is_event_post(item: Dict[str, Any]) -> bool:
 
 
 async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
+    now = time.time()
+    cache = _NEWS_CACHE.get(int(limit))
+    if cache and now - float(cache.get("ts", 0)) <= DISCOVER_NEWS_CACHE_TTL_SEC:
+        return list(cache.get("items", []))
+
     items: List[Dict[str, Any]] = []
     page = 1
     remaining = max(1, min(limit, 60))
@@ -110,7 +120,7 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             while remaining > 0 and max_scan > 0:
-                per_page = 20
+                per_page = 30
                 url = f"{WP_BASE}/wp-json/wp/v2/posts"
                 params = {"_embed": "1", "orderby": "date", "order": "desc", "page": page, "per_page": per_page}
                 resp = await client.get(url, params=params)
@@ -133,7 +143,11 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
                     break
                 page += 1
     except Exception:
+        if cache and cache.get("items"):
+            return list(cache["items"])
         return items
+    if items:
+        _NEWS_CACHE[int(limit)] = {"ts": now, "items": list(items)}
     return items
 
 
@@ -454,24 +468,39 @@ async def news_unlike(post_id: int):
 @router.get("", summary="Keşfet ana içerikleri")
 async def discover_home(
     news_limit: int = Query(default=24, ge=1, le=60),
-    events_limit: int = Query(default=12, ge=1, le=30),
-    albums_limit: int = Query(default=6, ge=1, le=12),
+    events_limit: int = Query(default=12, ge=0, le=30),
+    albums_limit: int = Query(default=6, ge=0, le=12),
 ):
+    now = time.time()
+    cache_key = f"{news_limit}:{events_limit}:{albums_limit}"
+    cache_items = _DISCOVER_HOME_CACHE.get("items") or {}
+    if now - float(_DISCOVER_HOME_CACHE.get("ts", 0)) <= DISCOVER_HOME_CACHE_TTL_SEC:
+        cached = cache_items.get(cache_key)
+        if isinstance(cached, dict):
+            return cached
+
     news = await _fetch_wp_news(limit=news_limit)
-    try:
-        events = await _fetch_wp_events(limit=events_limit)
-    except Exception:
+    if events_limit > 0:
+        try:
+            events = await _fetch_wp_events(limit=events_limit)
+        except Exception:
+            events = []
+        if not events:
+            events = _fetch_upcoming_events_db(limit=events_limit)
+    else:
         events = []
-    if not events:
-        events = _fetch_upcoming_events_db(limit=events_limit)
-    albums = _fetch_latest_albums(limit=albums_limit)
-    return {
+    albums = _fetch_latest_albums(limit=albums_limit) if albums_limit > 0 else []
+    payload = {
         "section": "kesfet",
         "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "news": news,
         "upcoming_events": events,
         "latest_albums": albums,
     }
+    cache_items[cache_key] = payload
+    _DISCOVER_HOME_CACHE["items"] = cache_items
+    _DISCOVER_HOME_CACHE["ts"] = now
+    return payload
 
 
 @router.get("/news/{post_id}", summary="WordPress haber detayı")
