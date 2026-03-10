@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/turkiye_cities.dart';
+import 'editor_news_management_screen.dart';
 
 DateTime? _parseEventDate(String raw) {
   final v = raw.trim();
@@ -158,6 +159,32 @@ class EditorEventManagementScreen extends StatelessWidget {
                       child: _CreateEventSheet(sessionToken: sessionToken),
                     ),
                   ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          _ActionCard(
+            title: 'Haber Oluştur',
+            subtitle: 'Yeni haberi onaya gönder.',
+            icon: Icons.newspaper_outlined,
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EditorNewsCreateScreen(sessionToken: sessionToken),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          _ActionCard(
+            title: 'Haberleri Yönet',
+            subtitle: 'Haber taleplerini görüntüle ve düzenle.',
+            icon: Icons.fact_check_outlined,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ManageNewsScreen(sessionToken: sessionToken),
                 ),
               );
             },
