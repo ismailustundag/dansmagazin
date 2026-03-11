@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/checkout_api.dart';
@@ -204,39 +204,31 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return RegExp(r'\d{1,2}:\d{1,2}').hasMatch(raw);
   }
 
-  Uri? _calendarUri() {
-    final start = _parseEventDateForCalendar(widget.eventDate);
-    if (start == null) return null;
-    final hasTime = _eventHasTime(widget.eventDate);
-    String dates;
-    if (hasTime) {
-      final end = start.add(const Duration(hours: 2));
-      final f = DateFormat("yyyyMMdd'T'HHmmss'Z'");
-      dates = '${f.format(start.toUtc())}/${f.format(end.toUtc())}';
-    } else {
-      final dayStart = DateTime(start.year, start.month, start.day);
-      final dayEnd = dayStart.add(const Duration(days: 1));
-      final f = DateFormat('yyyyMMdd');
-      dates = '${f.format(dayStart)}/${f.format(dayEnd)}';
-    }
-    final details = widget.description.trim().isEmpty ? widget.title.trim() : widget.description.trim();
-    return Uri.https('calendar.google.com', '/calendar/render', {
-      'action': 'TEMPLATE',
-      'text': widget.title.trim(),
-      'dates': dates,
-      'details': details,
-      'location': _venueLabel().trim(),
-    });
-  }
-
   Future<void> _addToCalendar() async {
-    final uri = _calendarUri();
-    if (uri == null) {
+    final start = _parseEventDateForCalendar(widget.eventDate);
+    if (start == null) {
       _showMsg('Etkinlik tarihi geçersiz.');
       return;
     }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) _showMsg('Takvim açılamadı.');
+    final hasTime = _eventHasTime(widget.eventDate);
+    final startDate = hasTime ? start : DateTime(start.year, start.month, start.day, 10, 0);
+    final endDate = hasTime ? startDate.add(const Duration(hours: 2)) : startDate.add(const Duration(hours: 1));
+    final details = widget.description.trim().isEmpty ? widget.title.trim() : widget.description.trim();
+    final event = Event(
+      title: widget.title.trim().isEmpty ? 'Etkinlik' : widget.title.trim(),
+      description: details,
+      location: _venueLabel().trim(),
+      startDate: startDate,
+      endDate: endDate,
+      allDay: !hasTime,
+      iosParams: const IOSParams(reminder: Duration(minutes: 30)),
+      androidParams: const AndroidParams(emailInvites: <String>[]),
+    );
+    try {
+      await Add2Calendar.addEvent2Cal(event);
+    } catch (_) {
+      _showMsg('Takvim açılamadı.');
+    }
   }
 
   Future<void> _toggleAttend() async {
@@ -308,7 +300,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final buyUrl = _buyUrl();
     final venueLabel = _venueLabel();
     final canOpenMaps = _mapsUri() != null;
-    final canAddToCalendar = _calendarUri() != null;
+    final canAddToCalendar = _parseEventDateForCalendar(widget.eventDate) != null;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
       appBar: AppBar(

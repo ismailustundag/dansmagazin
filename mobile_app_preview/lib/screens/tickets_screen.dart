@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -181,28 +182,22 @@ class TicketQrScreen extends StatelessWidget {
 
   bool _hasTime(String raw) => RegExp(r'\d{1,2}:\d{1,2}').hasMatch(raw);
 
-  Uri? _calendarUri() {
+  Event? _calendarEvent() {
     final start = _parseEventDate(ticket.eventDate);
     if (start == null) return null;
     final hasTime = _hasTime(ticket.eventDate);
-    String dates;
-    if (hasTime) {
-      final end = start.add(const Duration(hours: 2));
-      final f = DateFormat("yyyyMMdd'T'HHmmss'Z'");
-      dates = '${f.format(start.toUtc())}/${f.format(end.toUtc())}';
-    } else {
-      final dayStart = DateTime(start.year, start.month, start.day);
-      final dayEnd = dayStart.add(const Duration(days: 1));
-      final f = DateFormat('yyyyMMdd');
-      dates = '${f.format(dayStart)}/${f.format(dayEnd)}';
-    }
-    return Uri.https('calendar.google.com', '/calendar/render', {
-      'action': 'TEMPLATE',
-      'text': ticket.eventName,
-      'dates': dates,
-      'details': 'Bilet Kodu: ${ticket.ticketId}',
-      'location': ticket.venue,
-    });
+    final startDate = hasTime ? start : DateTime(start.year, start.month, start.day, 10, 0);
+    final endDate = hasTime ? startDate.add(const Duration(hours: 2)) : startDate.add(const Duration(hours: 1));
+    return Event(
+      title: ticket.eventName.trim().isEmpty ? 'Etkinlik' : ticket.eventName.trim(),
+      description: 'Bilet Kodu: ${ticket.ticketId}',
+      location: ticket.venue.trim(),
+      startDate: startDate,
+      endDate: endDate,
+      allDay: !hasTime,
+      iosParams: const IOSParams(reminder: Duration(minutes: 30)),
+      androidParams: const AndroidParams(emailInvites: <String>[]),
+    );
   }
 
   String _walletUrl() {
@@ -219,15 +214,16 @@ class TicketQrScreen extends StatelessWidget {
   }
 
   Future<void> _openCalendar(BuildContext context) async {
-    final uri = _calendarUri();
-    if (uri == null) {
+    final event = _calendarEvent();
+    if (event == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Takvim için etkinlik tarihi bulunamadı.')),
       );
       return;
     }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && context.mounted) {
+    try {
+      await Add2Calendar.addEvent2Cal(event);
+    } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Takvim açılamadı.')),
       );
@@ -259,6 +255,7 @@ class TicketQrScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canOpenWallet = _walletUrl().isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: Text(ticket.eventName)),
       body: SafeArea(
@@ -306,18 +303,38 @@ class TicketQrScreen extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openCalendar(context),
-                      icon: const Icon(Icons.event_available),
-                      label: const Text('Takvime Ekle'),
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1D4ED8),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        onPressed: () => _openCalendar(context),
+                        icon: const Icon(Icons.event_available),
+                        label: const Text('Takvime Ekle'),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openWallet(context),
-                      icon: const Icon(Icons.account_balance_wallet),
-                      label: const Text('Cüzdana Ekle'),
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE53935),
+                          disabledBackgroundColor: const Color(0xFF374151),
+                          foregroundColor: Colors.white,
+                          disabledForegroundColor: Colors.white70,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        onPressed: canOpenWallet ? () => _openWallet(context) : null,
+                        icon: const Icon(Icons.account_balance_wallet),
+                        label: Text(canOpenWallet ? 'Cüzdana Ekle' : 'Cüzdan Yakında'),
+                      ),
                     ),
                   ),
                 ],
