@@ -67,6 +67,12 @@
 	<string>Etkinlik kapak fotoğrafı seçebilmek için galeri erişimi gerekir.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Seçilen fotoğrafları uygulamada kullanabilmek için izin gerekir.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Etkinlikleri yerel takviminize ekleyebilmek için takvim erişimi gerekir.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Etkinlikleri yerel takviminize ekleyebilmek için takvim erişimi gerekir.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Etkinlikleri yerel takviminize ekleyebilmek için takvim erişimi gerekir.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
