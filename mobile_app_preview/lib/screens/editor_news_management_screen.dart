@@ -553,6 +553,53 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
     }
   }
 
+  Future<void> _deleteSubmission() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Haberi Sil'),
+        content: const Text(
+          'Bu haber kaydı uygulamadan silinecek. WP’de yayınlandıysa oradan da kalıcı olarak kaldırılacak. Devam edilsin mi?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final req = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_base/news/manage/items/${widget.item.submissionId}/delete'),
+      )..headers['Authorization'] = 'Bearer ${widget.sessionToken}';
+      final res = await req.send();
+      final raw = await res.stream.bytesToString();
+      if (!mounted) return;
+      if (res.statusCode != 200) {
+        setState(() => _error = _errorFromBody(raw, res.statusCode));
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Silme hatası: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _openWpPost() async {
     final url = widget.item.wpPostUrl.trim();
     if (url.isEmpty) return;
@@ -653,6 +700,18 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
                         )
                       : const Icon(Icons.save_outlined),
                   label: const Text('Değişiklikleri Kaydet'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _deleteSubmission,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                  ),
+                  icon: const Icon(Icons.delete_forever_outlined),
+                  label: const Text('Haberi Sil'),
                 ),
               ),
               if (widget.isSuperAdmin) ...[
