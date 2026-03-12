@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/calendar_service.dart';
+
 class TicketsScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -222,7 +224,7 @@ class TicketQrScreen extends StatelessWidget {
       return;
     }
     try {
-      await Add2Calendar.addEvent2Cal(event);
+      await CalendarService.addEvent(event);
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Takvim açılamadı.')),

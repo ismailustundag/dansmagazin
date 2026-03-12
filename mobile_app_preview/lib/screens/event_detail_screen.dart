@@ -3,6 +3,7 @@ import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/checkout_api.dart';
+import '../services/calendar_service.dart';
 import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import 'app_webview_screen.dart';
@@ -225,7 +226,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       androidParams: const AndroidParams(emailInvites: <String>[]),
     );
     try {
-      await Add2Calendar.addEvent2Cal(event);
+      await CalendarService.addEvent(event);
     } catch (_) {
       _showMsg('Takvim açılamadı.');
     }
