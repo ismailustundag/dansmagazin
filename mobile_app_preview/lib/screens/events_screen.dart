@@ -36,6 +36,7 @@ class _EventsScreenState extends State<EventsScreen> {
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
         .map((e) => _EventItem.fromJson(e as Map<String, dynamic>))
+        .where((e) => e.ticketSalesEnabled)
         .toList();
   }
 
