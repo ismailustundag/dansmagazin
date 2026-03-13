@@ -89,11 +89,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final greetingName = _displayName.trim().isEmpty ? widget.userName : _displayName;
     final initials = greetingName.trim().isNotEmpty ? greetingName.trim().substring(0, 1).toUpperCase() : 'U';
+    final emailText = widget.userEmail.trim();
+    final idLabel = I18n.isEnglish ? 'User ID: ${widget.accountId}' : 'Kullanıcı ID: ${widget.accountId}';
 
     return ScreenShell(
       title: t('profile'),
       icon: Icons.person,
-      subtitle: widget.userEmail,
+      subtitle: '',
+      headerTrailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (emailText.isNotEmpty)
+            Text(
+              emailText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.78),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          Text(
+            idLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.58),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
       content: [
         Container(
           margin: const EdgeInsets.only(bottom: 12),

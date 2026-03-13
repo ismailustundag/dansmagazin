@@ -4,6 +4,7 @@ class ScreenShell extends StatelessWidget {
   final String title;
   final IconData icon;
   final String subtitle;
+  final Widget? headerTrailing;
   final List<Widget> content;
   final Future<void> Function()? onRefresh;
 
@@ -12,6 +13,7 @@ class ScreenShell extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.subtitle,
+    this.headerTrailing,
     required this.content,
     this.onRefresh,
   });
@@ -26,6 +28,7 @@ class ScreenShell extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
@@ -38,6 +41,10 @@ class ScreenShell extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (headerTrailing != null) ...[
+                  const SizedBox(width: 12),
+                  Flexible(child: headerTrailing!),
+                ],
               ],
             ),
           ),
