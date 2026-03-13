@@ -9,6 +9,7 @@ class ProfileSettingsData {
   final String birthDate;
   final String language;
   final bool notificationsEnabled;
+  final Map<String, bool> notificationPreferences;
   final String avatarUrl;
 
   const ProfileSettingsData({
@@ -18,8 +19,29 @@ class ProfileSettingsData {
     required this.birthDate,
     required this.language,
     required this.notificationsEnabled,
+    required this.notificationPreferences,
     required this.avatarUrl,
   });
+
+  static Map<String, bool> _parseNotificationPreferences(Map<String, dynamic> json) {
+    const defaults = <String, bool>{
+      'news': true,
+      'dance_night': true,
+      'festival': true,
+      'competition': true,
+      'promo_lesson': true,
+      'system': true,
+    };
+    final raw = json['notification_preferences'];
+    if (raw is! Map) return Map<String, bool>.from(defaults);
+    final out = Map<String, bool>.from(defaults);
+    for (final key in defaults.keys) {
+      if (raw.containsKey(key)) {
+        out[key] = raw[key] == true;
+      }
+    }
+    return out;
+  }
 
   factory ProfileSettingsData.fromJson(Map<String, dynamic> json) {
     return ProfileSettingsData(
@@ -29,6 +51,7 @@ class ProfileSettingsData {
       birthDate: (json['birth_date'] ?? '').toString(),
       language: (json['language'] ?? 'tr').toString(),
       notificationsEnabled: json['notifications_enabled'] == true,
+      notificationPreferences: _parseNotificationPreferences(json),
       avatarUrl: (json['avatar_url'] ?? '').toString(),
     );
   }
@@ -67,6 +90,7 @@ class ProfileApi {
     String? birthDate,
     String? language,
     bool? notificationsEnabled,
+    Map<String, bool>? notificationPreferences,
     String? avatarUrl,
   }) async {
     final body = <String, dynamic>{};
@@ -75,6 +99,7 @@ class ProfileApi {
     if (birthDate != null) body['birth_date'] = birthDate;
     if (language != null) body['language'] = language;
     if (notificationsEnabled != null) body['notifications_enabled'] = notificationsEnabled;
+    if (notificationPreferences != null) body['notification_preferences'] = notificationPreferences;
     if (avatarUrl != null) body['avatar_url'] = avatarUrl;
     final resp = await http.put(
       Uri.parse('$_base/profile/settings'),

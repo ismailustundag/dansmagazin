@@ -37,10 +37,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
   static const String _photoPanelBase = 'https://foto.dansmagazin.net';
+  static const Map<String, bool> _defaultNotificationPreferences = {
+    'news': true,
+    'dance_night': true,
+    'festival': true,
+    'competition': true,
+    'promo_lesson': true,
+    'system': true,
+  };
+  static const List<MapEntry<String, String>> _notificationPreferenceLabels = [
+    MapEntry('news', 'Haberler'),
+    MapEntry('dance_night', 'Dans Geceleri'),
+    MapEntry('festival', 'Festivaller'),
+    MapEntry('competition', 'Yarışmalar'),
+    MapEntry('promo_lesson', 'Tanıtım Dersleri'),
+    MapEntry('system', 'Sistem Bildirimleri'),
+  ];
 
   final _picker = ImagePicker();
   final _usernameCtrl = TextEditingController();
   bool _notificationsEnabled = true;
+  Map<String, bool> _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences);
+  bool _notificationsExpanded = false;
   String _language = 'tr';
   double _textScale = 1.0;
   String _city = 'İstanbul';
@@ -73,6 +91,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (widget.sessionToken.trim().isNotEmpty) {
         final remote = await ProfileApi.settings(widget.sessionToken);
         _notificationsEnabled = remote.notificationsEnabled;
+        _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences)
+          ..addAll(remote.notificationPreferences);
         _language = remote.language == 'en' ? 'en' : 'tr';
         _city = remote.city.trim().isEmpty ? 'İstanbul' : remote.city.trim();
         _birthDate = remote.birthDate.trim();
@@ -95,6 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? birthDate,
     String? language,
     bool? notifications,
+    Map<String, bool>? notificationPreferences,
     String? avatarUrl,
   }) async {
     if (widget.sessionToken.trim().isEmpty) return false;
@@ -107,11 +128,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         birthDate: birthDate,
         language: language,
         notificationsEnabled: notifications,
+        notificationPreferences: notificationPreferences,
         avatarUrl: avatarUrl,
       );
       if (!mounted) return true;
       setState(() {
         _notificationsEnabled = saved.notificationsEnabled;
+        _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences)
+          ..addAll(saved.notificationPreferences);
         _language = saved.language == 'en' ? 'en' : 'tr';
         _city = saved.city.trim().isEmpty ? _city : saved.city.trim();
         _birthDate = saved.birthDate.trim();
@@ -302,9 +326,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveNotif(bool v) async {
-    setState(() => _notificationsEnabled = v);
-    await _saveRemote(notifications: v);
+    final nextPrefs = v
+        ? Map<String, bool>.from(_notificationPreferences)
+        : Map<String, bool>.from(_notificationPreferences);
+    setState(() {
+      _notificationsEnabled = v;
+      _notificationsExpanded = true;
+      if (v) {
+        for (final key in _defaultNotificationPreferences.keys) {
+          nextPrefs[key] = true;
+        }
+        _notificationPreferences = nextPrefs;
+      }
+    });
+    await _saveRemote(
+      notifications: v,
+      notificationPreferences: v ? nextPrefs : _notificationPreferences,
+    );
     await PushNotificationsService.syncPreference(widget.sessionToken, v);
+  }
+
+  Future<void> _saveNotificationPreference(String key, bool value) async {
+    final nextPrefs = Map<String, bool>.from(_notificationPreferences)..[key] = value;
+    setState(() => _notificationPreferences = nextPrefs);
+    await _saveRemote(notificationPreferences: nextPrefs);
   }
 
   Future<void> _saveUsername() async {
@@ -780,18 +825,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.white12),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: Text(t('notifications'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                        ),
-                        Transform.scale(
-                          scale: 0.80,
-                          child: Switch(
-                            value: _notificationsEnabled,
-                            onChanged: _saving ? null : _saveNotif,
+                        InkWell(
+                          onTap: () => setState(() => _notificationsExpanded = !_notificationsExpanded),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(t('notifications'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Tümü aç/kapat',
+                                      style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                _notificationsExpanded ? Icons.expand_less : Icons.expand_more,
+                                color: Colors.white70,
+                              ),
+                              const SizedBox(width: 6),
+                              Transform.scale(
+                                scale: 0.80,
+                                child: Switch(
+                                  value: _notificationsEnabled,
+                                  onChanged: _saving ? null : _saveNotif,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                        if (_notificationsExpanded) ...[
+                          const Divider(height: 16, color: Colors.white12),
+                          ..._notificationPreferenceLabels.map(
+                            (entry) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      entry.value,
+                                      style: TextStyle(
+                                        color: _notificationsEnabled ? Colors.white : Colors.white38,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  Transform.scale(
+                                    scale: 0.80,
+                                    child: Switch(
+                                      value: _notificationPreferences[entry.key] ?? true,
+                                      onChanged: (_saving || !_notificationsEnabled)
+                                          ? null
+                                          : (v) => _saveNotificationPreference(entry.key, v),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
