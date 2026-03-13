@@ -293,20 +293,6 @@ class _PhotosScreenState extends State<PhotosScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (topLiked.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      I18n.t('top_liked_photos'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  _TopLikedGrid(
-                    photos: topLiked,
-                    onTap: (index) => _openTopLikedViewer(topLiked, index),
-                  ),
-                  const SizedBox(height: 14),
-                ],
                 ...list.map(
                   (album) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -330,6 +316,21 @@ class _PhotosScreenState extends State<PhotosScreen> {
                     ),
                   ),
                 ),
+                if (topLiked.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      I18n.t('top_liked_photos'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  _TopLikedGrid(
+                    photos: topLiked,
+                    onTap: (index) => _openTopLikedViewer(topLiked, index),
+                  ),
+                  const SizedBox(height: 14),
+                ],
               ],
             );
           },
@@ -366,15 +367,15 @@ class _AlbumDetailFeed {
   final List<_Photo> photos;
   final List<_Album> subalbums;
   final int total;
-  final bool hasMore;
-  final int offset;
+  final int page;
+  final int pageSize;
 
   const _AlbumDetailFeed({
     this.photos = const [],
     this.subalbums = const [],
     this.total = 0,
-    this.hasMore = false,
-    this.offset = 0,
+    this.page = 1,
+    this.pageSize = 200,
   });
 }
 
@@ -400,7 +401,6 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   late Future<_AlbumDetailFeed> _photosFuture;
   List<_FavoritePhoto> _favorites = [];
   bool _showFavoritesOnly = false;
-  bool _isLoadingMore = false;
   static const int _pageSize = 200;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
 
@@ -438,7 +438,9 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
     return _favorites.any((f) => f.url == url);
   }
 
-  Future<_AlbumDetailFeed> _fetchPhotos({int offset = 0}) async {
+  Future<_AlbumDetailFeed> _fetchPhotos({int page = 1}) async {
+    final safePage = page < 1 ? 1 : page;
+    final offset = (safePage - 1) * _pageSize;
     final url =
         'https://api2.dansmagazin.net/photos/albums/${widget.album.slug}?limit=$_pageSize&offset=$offset';
     final resp = await http.get(
@@ -483,33 +485,9 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
       photos: photos,
       subalbums: subalbums,
       total: (raw is Map<String, dynamic>) ? ((raw['total'] as num?)?.toInt() ?? photos.length) : photos.length,
-      hasMore: (raw is Map<String, dynamic>) ? (raw['has_more'] == true) : false,
-      offset: (raw is Map<String, dynamic>) ? ((raw['offset'] as num?)?.toInt() ?? offset) : offset,
+      page: safePage,
+      pageSize: _pageSize,
     );
-  }
-
-  Future<void> _loadMore(_AlbumDetailFeed current) async {
-    if (_isLoadingMore || !current.hasMore) return;
-    setState(() => _isLoadingMore = true);
-    try {
-      final next = await _fetchPhotos(offset: current.photos.length);
-      if (!mounted) return;
-      setState(() {
-        _photosFuture = Future.value(
-          _AlbumDetailFeed(
-            photos: [...current.photos, ...next.photos],
-            subalbums: next.subalbums.isNotEmpty ? next.subalbums : current.subalbums,
-            total: next.total,
-            hasMore: next.hasMore,
-            offset: next.offset,
-          ),
-        );
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingMore = false);
-      }
-    }
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
@@ -530,7 +508,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _photosFuture = _fetchPhotos();
+        _photosFuture = _fetchPhotos(page: 1);
       });
     } catch (_) {
       if (!mounted) return;
@@ -581,7 +559,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _photosFuture = _fetchPhotos();
+        _photosFuture = _fetchPhotos(page: 1);
       });
     } catch (_) {
       if (!mounted) return;
@@ -655,6 +633,8 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           final feed = snapshot.data ?? const _AlbumDetailFeed();
           final photos = feed.photos;
           final subalbums = feed.subalbums;
+          final totalPages =
+              feed.pageSize > 0 ? ((feed.total + feed.pageSize - 1) ~/ feed.pageSize) : 1;
           final shown = _showFavoritesOnly
               ? photos.where((p) => _isFavorite(p.url)).toList()
               : photos;
@@ -702,7 +682,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                         );
                         if (!mounted) return;
                         setState(() {
-                          _photosFuture = _fetchPhotos();
+                          _photosFuture = _fetchPhotos(page: 1);
                         });
                         await _loadFavorites();
                       },
@@ -792,12 +772,37 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                     );
                   },
                 ),
-              if (!_showFavoritesOnly && feed.hasMore) ...[
+              if (!_showFavoritesOnly && totalPages > 1) ...[
                 const SizedBox(height: 14),
                 Center(
-                  child: OutlinedButton(
-                    onPressed: _isLoadingMore ? null : () => _loadMore(feed),
-                    child: Text(_isLoadingMore ? 'Yükleniyor...' : 'Daha Fazla Yükle'),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: List.generate(
+                      totalPages,
+                      (index) {
+                        final pageNum = index + 1;
+                        final selected = pageNum == feed.page;
+                        return OutlinedButton(
+                          onPressed: selected
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _photosFuture = _fetchPhotos(page: pageNum);
+                                  });
+                                },
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor:
+                                selected ? const Color(0xFFE53935) : Colors.transparent,
+                          ),
+                          child: Text(
+                            '$pageNum',
+                            style: TextStyle(color: selected ? Colors.white : null),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],
