@@ -544,6 +544,8 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                         child: Image.network(
                           p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
                           fit: BoxFit.cover,
+                          cacheWidth: 420,
+                          filterQuality: FilterQuality.low,
                           errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
                         ),
                       ),
@@ -857,6 +859,7 @@ class _AlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final previewUrl = album.coverThumbUrl.isNotEmpty ? album.coverThumbUrl : album.coverUrl;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -872,10 +875,12 @@ class _AlbumCard extends StatelessWidget {
           children: [
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: album.coverUrl.isNotEmpty
+              child: previewUrl.isNotEmpty
                   ? Image.network(
-                      album.coverUrl,
+                      previewUrl,
                       fit: BoxFit.cover,
+                      cacheWidth: 960,
+                      filterQuality: FilterQuality.low,
                       errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
                     )
                   : Container(color: const Color(0xFF1F2937)),
@@ -970,6 +975,8 @@ class _FavoriteGrid extends StatelessWidget {
                   child: Image.network(
                     p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
                     fit: BoxFit.cover,
+                    cacheWidth: 420,
+                    filterQuality: FilterQuality.low,
                     errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
                   ),
                 ),
@@ -1001,6 +1008,7 @@ class _Album {
   final String slug;
   final String name;
   final String coverUrl;
+  final String coverThumbUrl;
   final String createdAt;
   final int photoCount;
   final int likeCount;
@@ -1010,6 +1018,7 @@ class _Album {
     required this.slug,
     required this.name,
     required this.coverUrl,
+    required this.coverThumbUrl,
     required this.createdAt,
     required this.photoCount,
     required this.likeCount,
@@ -1027,6 +1036,15 @@ class _Album {
             json['cover_path'] ??
             json['album_cover'] ??
             json['latest_photo'] ??
+            '',
+      ),
+      coverThumbUrl: _absUrl(
+        json['cover_thumb_url'] ??
+            json['thumb_url'] ??
+            json['thumbnail_url'] ??
+            json['preview_url'] ??
+            json['cover_url'] ??
+            json['cover'] ??
             '',
       ),
       createdAt: _fmtDate(
