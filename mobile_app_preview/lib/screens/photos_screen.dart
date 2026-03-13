@@ -151,9 +151,15 @@ class _PhotosScreenState extends State<PhotosScreen> {
         (map['items'] as List<dynamic>?) ??
         (map['results'] as List<dynamic>?) ??
         <dynamic>[];
+    final batchAlbumRows = (map['batch_albums'] as List<dynamic>?) ?? <dynamic>[];
     final topLikedRows = (map['top_liked'] as List<dynamic>?) ?? <dynamic>[];
 
     final albums = albumRows
+        .whereType<Map<String, dynamic>>()
+        .map(_Album.fromJson)
+        .where((a) => a.slug.isNotEmpty)
+        .toList();
+    final batchAlbums = batchAlbumRows
         .whereType<Map<String, dynamic>>()
         .map(_Album.fromJson)
         .where((a) => a.slug.isNotEmpty)
@@ -166,6 +172,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
     return _PhotosFeed(
       albums: albums,
+      batchAlbums: batchAlbums,
       topLiked: topLiked,
     );
   }
@@ -185,6 +192,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
     final album = _Album(
       slug: 'top-liked',
       name: I18n.t('top_liked_photos'),
+      albumType: 'top_liked',
       coverUrl: '',
       coverThumbUrl: '',
       createdAt: '',
@@ -260,6 +268,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
             final feed = snapshot.data ?? const _PhotosFeed();
             final albums = feed.albums;
+            final batchAlbums = feed.batchAlbums;
             final topLiked = feed.topLiked;
             if (_tab == 1) {
               return _InfoCard(
@@ -285,7 +294,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             }
 
             final list = albums;
-            if (list.isEmpty && topLiked.isEmpty) {
+            if (list.isEmpty && batchAlbums.isEmpty && topLiked.isEmpty) {
               return _InfoCard(text: I18n.t('no_albums_found'));
             }
 
@@ -305,6 +314,39 @@ class _PhotosScreenState extends State<PhotosScreen> {
                     onTap: (index) => _openTopLikedViewer(topLiked, index),
                   ),
                   const SizedBox(height: 14),
+                ],
+                if (batchAlbums.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      I18n.t('upload_parts'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  ...batchAlbums.map(
+                    (album) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _AlbumCard(
+                        album: album,
+                        liked: album.likedByMe,
+                        onLikeTap: () => _toggleAlbumLike(album),
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AlbumPhotosScreen(
+                                album: album,
+                                accountId: widget.accountId,
+                                sessionToken: widget.sessionToken,
+                                onRequireLogin: widget.onRequireLogin,
+                              ),
+                            ),
+                          );
+                          await _loadFavorites();
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                 ],
                 ...list.map(
                   (album) => Padding(
@@ -353,10 +395,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
 class _PhotosFeed {
   final List<_Album> albums;
+  final List<_Album> batchAlbums;
   final List<_Photo> topLiked;
 
   const _PhotosFeed({
     this.albums = const [],
+    this.batchAlbums = const [],
     this.topLiked = const [],
   });
 }
@@ -1143,6 +1187,7 @@ class _FavoriteGrid extends StatelessWidget {
 class _Album {
   final String slug;
   final String name;
+  final String albumType;
   final String coverUrl;
   final String coverThumbUrl;
   final String createdAt;
@@ -1153,6 +1198,7 @@ class _Album {
   const _Album({
     required this.slug,
     required this.name,
+    required this.albumType,
     required this.coverUrl,
     required this.coverThumbUrl,
     required this.createdAt,
@@ -1166,6 +1212,7 @@ class _Album {
     return _Album(
       slug: slug,
       name: (json['name'] ?? json['event_name'] ?? slug).toString(),
+      albumType: (json['album_type'] ?? 'event').toString(),
       coverUrl: _absUrl(
         json['cover_url'] ??
             json['cover'] ??
