@@ -895,6 +895,18 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     _photos = List<_Photo>.from(widget.photos);
     _controller = PageController(initialPage: widget.initialIndex);
     _loadFavorites();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warmViewerImages(_index));
+  }
+
+  void _warmViewerImages(int index) {
+    if (!mounted || _photos.isEmpty) return;
+    for (final neighbor in [index - 1, index, index + 1]) {
+      if (neighbor < 0 || neighbor >= _photos.length) continue;
+      final photo = _photos[neighbor];
+      final url = photo.viewerUrl.isNotEmpty ? photo.viewerUrl : photo.url;
+      if (url.isEmpty) continue;
+      precacheImage(CachedNetworkImageProvider(url), context);
+    }
   }
 
   Future<void> _loadFavorites() async {
@@ -1006,15 +1018,21 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
               child: PageView.builder(
                 controller: _controller,
                 itemCount: _photos.length,
-                onPageChanged: (v) => setState(() => _index = v),
+                onPageChanged: (v) {
+                  setState(() => _index = v);
+                  _warmViewerImages(v);
+                },
                 itemBuilder: (context, i) {
                   final p = _photos[i];
                   return InteractiveViewer(
                     child: Center(
-                      child: Image.network(
-                        p.url,
+                      child: CachedNetworkImage(
+                        imageUrl: p.viewerUrl.isNotEmpty ? p.viewerUrl : p.url,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                        fadeInDuration: Duration.zero,
+                        placeholderFadeInDuration: Duration.zero,
+                        errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                        placeholder: (_, __) => Container(color: const Color(0xFF111827)),
                       ),
                     ),
                   );
@@ -1382,6 +1400,7 @@ class _Photo {
   final String url;
   final String thumbUrl;
   final String gridThumbUrl;
+  final String viewerUrl;
   final String createdAt;
   final int likeCount;
   final bool likedByMe;
@@ -1391,6 +1410,7 @@ class _Photo {
     required this.url,
     required this.thumbUrl,
     required this.gridThumbUrl,
+    required this.viewerUrl,
     required this.createdAt,
     required this.likeCount,
     required this.likedByMe,
@@ -1406,11 +1426,15 @@ class _Photo {
     final gridThumb = _absUrl(
       json['grid_thumb_url'] ?? json['small_thumb_url'] ?? json['thumb_small_url'] ?? thumb,
     );
+    final viewerUrl = _absUrl(
+      json['viewer_url'] ?? json['large_thumb_url'] ?? json['preview_large_url'] ?? url,
+    );
     return _Photo(
       id: (json['id'] as num?)?.toInt() ?? 0,
       url: url,
       thumbUrl: thumb,
       gridThumbUrl: gridThumb,
+      viewerUrl: viewerUrl,
       createdAt: _fmtDate((json['created_at'] ?? json['date'] ?? '').toString()),
       likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
       likedByMe: json['liked_by_me'] == true,
@@ -1422,6 +1446,7 @@ class _Photo {
     String? url,
     String? thumbUrl,
     String? gridThumbUrl,
+    String? viewerUrl,
     String? createdAt,
     int? likeCount,
     bool? likedByMe,
@@ -1431,6 +1456,7 @@ class _Photo {
       url: url ?? this.url,
       thumbUrl: thumbUrl ?? this.thumbUrl,
       gridThumbUrl: gridThumbUrl ?? this.gridThumbUrl,
+      viewerUrl: viewerUrl ?? this.viewerUrl,
       createdAt: createdAt ?? this.createdAt,
       likeCount: likeCount ?? this.likeCount,
       likedByMe: likedByMe ?? this.likedByMe,
