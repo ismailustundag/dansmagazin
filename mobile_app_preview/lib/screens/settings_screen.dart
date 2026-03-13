@@ -37,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
   static const String _photoPanelBase = 'https://foto.dansmagazin.net';
+  static const String _defaultCity = 'İstanbul';
   static const Map<String, bool> _defaultNotificationPreferences = {
     'news': true,
     'dance_night': true,
@@ -46,12 +47,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'system': true,
   };
   static const List<MapEntry<String, String>> _notificationPreferenceLabels = [
-    MapEntry('news', 'Haberler'),
-    MapEntry('dance_night', 'Dans Geceleri'),
-    MapEntry('festival', 'Festivaller'),
-    MapEntry('competition', 'Yarışmalar'),
-    MapEntry('promo_lesson', 'Tanıtım Dersleri'),
-    MapEntry('system', 'Sistem Bildirimleri'),
+    MapEntry('news', 'notification_news'),
+    MapEntry('dance_night', 'notification_dance_night'),
+    MapEntry('festival', 'notification_festival'),
+    MapEntry('competition', 'notification_competition'),
+    MapEntry('promo_lesson', 'notification_promo_lesson'),
+    MapEntry('system', 'notification_system'),
   ];
 
   final _picker = ImagePicker();
@@ -61,7 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsExpanded = false;
   String _language = 'tr';
   double _textScale = 1.0;
-  String _city = 'İstanbul';
+  String _city = _defaultCity;
   String _birthDate = '';
   String _avatarPath = '';
   String _avatarUrl = '';
@@ -94,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences)
           ..addAll(remote.notificationPreferences);
         _language = remote.language == 'en' ? 'en' : 'tr';
-        _city = remote.city.trim().isEmpty ? 'İstanbul' : remote.city.trim();
+        _city = remote.city.trim().isEmpty ? _defaultCity : remote.city.trim();
         _birthDate = remote.birthDate.trim();
         _avatarUrl = remote.avatarUrl;
         _email = remote.email;
@@ -171,9 +172,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String _textScaleLabel(double v) {
-    if (v <= 0.95) return 'Küçük';
-    if (v >= 1.22) return 'Büyük';
-    return 'Normal';
+    if (v <= 0.95) return I18n.t('small');
+    if (v >= 1.22) return I18n.t('large');
+    return I18n.t('normal');
   }
 
   Future<void> _saveCity(String v) async {
@@ -183,7 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _birthDateUi() {
     final raw = _birthDate.trim();
-    if (raw.isEmpty) return 'Seçilmedi';
+    if (raw.isEmpty) return I18n.t('not_selected');
     final dt = _parseBirthDate(raw);
     if (dt == null) return raw;
     return DateFormat('dd.MM.yyyy').format(dt);
@@ -225,20 +226,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int month = initial.month;
     int day = initial.day;
     final years = [for (int y = last.year; y >= first.year; y--) y];
-    const months = [
-      'Ocak',
-      'Şubat',
-      'Mart',
-      'Nisan',
-      'Mayıs',
-      'Haziran',
-      'Temmuz',
-      'Ağustos',
-      'Eylül',
-      'Ekim',
-      'Kasım',
-      'Aralık',
-    ];
+    final months = I18n.isEnglish
+        ? const [
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ]
+        : const [
+            'Ocak',
+            'Şubat',
+            'Mart',
+            'Nisan',
+            'Mayıs',
+            'Haziran',
+            'Temmuz',
+            'Ağustos',
+            'Eylül',
+            'Ekim',
+            'Kasım',
+            'Aralık',
+          ];
 
     return showDialog<DateTime>(
       context: context,
@@ -250,7 +266,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final days = [for (int d = 1; d <= maxDay; d++) d];
             return AlertDialog(
               backgroundColor: Colors.white,
-              title: const Text('Doğum Tarihi', style: TextStyle(color: Colors.black)),
+              title: Text(I18n.t('birth_date_title'), style: const TextStyle(color: Colors.black)),
               content: SizedBox(
                 width: 420,
                 child: Row(
@@ -267,7 +283,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (v == null) return;
                           setModalState(() => day = v);
                         },
-                        decoration: const InputDecoration(labelText: 'Gün', border: OutlineInputBorder()),
+                        decoration: InputDecoration(labelText: I18n.t('day'), border: const OutlineInputBorder()),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -284,7 +300,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (v == null) return;
                           setModalState(() => month = v);
                         },
-                        decoration: const InputDecoration(labelText: 'Ay', border: OutlineInputBorder()),
+                        decoration: InputDecoration(labelText: I18n.t('month'), border: const OutlineInputBorder()),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -298,7 +314,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (v == null) return;
                           setModalState(() => year = v);
                         },
-                        decoration: const InputDecoration(labelText: 'Yıl', border: OutlineInputBorder()),
+                        decoration: InputDecoration(labelText: I18n.t('year'), border: const OutlineInputBorder()),
                       ),
                     ),
                   ],
@@ -307,7 +323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Vazgeç'),
+                  child: Text(I18n.t('cancel')),
                 ),
                 TextButton(
                   onPressed: () {
@@ -315,7 +331,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (selected.isBefore(first) || selected.isAfter(last)) return;
                     Navigator.of(ctx).pop(selected);
                   },
-                  child: const Text('Seç'),
+                  child: Text(I18n.t('select')),
                 ),
               ],
             );
@@ -367,7 +383,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (ok || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Bağlantı açılamadı')),
+      SnackBar(content: Text(I18n.t('link_open_failed'))),
     );
   }
 
@@ -376,7 +392,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (token.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Panel için önce giriş yapın')),
+        SnackBar(content: Text(I18n.t('login_required_for_panel'))),
       );
       return;
     }
@@ -400,7 +416,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (widget.sessionToken.trim().isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Destek için önce giriş yapın')),
+        SnackBar(content: Text(I18n.t('login_required_for_support'))),
       );
       return;
     }
@@ -427,7 +443,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Destek açılamadı: $e')),
+        SnackBar(content: Text('${I18n.t('support_open_failed')}: $e')),
       );
     }
   }
@@ -437,18 +453,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Hesabımı Sil'),
-        content: const Text(
-          'Bu işlem hesabınızı pasife alır ve bu cihazdaki oturumunuz kapanır. Devam etmek istiyor musunuz?',
-        ),
+        title: Text(I18n.t('delete_account')),
+        content: Text(I18n.t('delete_account_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Vazgeç'),
+            child: Text(I18n.t('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Hesabı Sil'),
+            child: Text(I18n.t('delete_account_action')),
           ),
         ],
       ),
@@ -459,7 +473,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await ProfileApi.deleteAccount(widget.sessionToken);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hesabınız pasife alındı')),
+        SnackBar(content: Text(I18n.t('delete_account_done'))),
       );
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -688,10 +702,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Yaşadığınız Şehir', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(I18n.t('city_of_residence'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: kTurkiyeCities.contains(_city) ? _city : 'İstanbul',
+                          value: kTurkiyeCities.contains(_city) ? _city : _defaultCity,
                           items: kTurkiyeCities
                               .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
                               .toList(),
@@ -718,8 +732,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Expanded(
-                          child: Text('Doğum Tarihiniz', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Expanded(
+                          child: Text(I18n.t('birth_date_label'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                         ),
                         Text(
                           _birthDateUi(),
@@ -728,7 +742,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(width: 8),
                         OutlinedButton(
                           onPressed: _saving ? null : _pickBirthDate,
-                          child: const Text('Seç'),
+                          child: Text(I18n.t('select')),
                         ),
                       ],
                     ),
@@ -748,9 +762,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: _language,
-                          items: const [
-                            DropdownMenuItem(value: 'tr', child: Text('Türkçe')),
-                            DropdownMenuItem(value: 'en', child: Text('English')),
+                          items: [
+                            DropdownMenuItem(value: 'tr', child: Text(I18n.isEnglish ? 'Turkish' : 'Türkçe')),
+                            const DropdownMenuItem(value: 'en', child: Text('English')),
                           ],
                           onChanged: _saving
                               ? null
@@ -780,7 +794,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Mesaj Yazı Boyutu',
+                                I18n.t('message_text_size'),
                                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -807,7 +821,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onChangeEnd: _saving ? null : _saveTextScale,
                         ),
                         Text(
-                          'Ornek: Mesajlar ve emojiler 😀💬',
+                          I18n.t('example_messages_emojis'),
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 12 * _textScale,
@@ -838,7 +852,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     Text(t('notifications'), style: const TextStyle(fontWeight: FontWeight.w700)),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Tümü aç/kapat',
+                                      I18n.t('notifications_toggle_all'),
                                       style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12),
                                     ),
                                   ],
@@ -868,7 +882,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      entry.value,
+                                      I18n.t(entry.value),
                                       style: TextStyle(
                                         color: _notificationsEnabled ? Colors.white : Colors.white38,
                                         fontSize: 14,
@@ -903,7 +917,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Yasal', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(I18n.t('legal'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -911,19 +925,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           children: [
                             OutlinedButton(
                               onPressed: () => _openLink(LegalLinks.privacyPolicy),
-                              child: const Text('Gizlilik Politikası'),
+                              child: Text(I18n.t('privacy_policy')),
                             ),
                             OutlinedButton(
                               onPressed: () => _openLink(LegalLinks.kvkkNotice),
-                              child: const Text('KVKK Aydınlatma'),
+                              child: Text(I18n.t('kvkk_notice')),
                             ),
                             OutlinedButton(
                               onPressed: () => _openLink(LegalLinks.terms),
-                              child: const Text('Kullanım Şartları'),
+                              child: Text(I18n.t('terms_of_use')),
                             ),
                             OutlinedButton(
                               onPressed: _openSupportChat,
-                              child: const Text('Destek'),
+                              child: Text(I18n.t('support')),
                             ),
                           ],
                         ),
@@ -938,7 +952,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 )
                               : const Icon(Icons.delete_forever, color: Colors.redAccent),
                           label: const Text(
-                            'Hesabımı Sil',
+                            I18n.t('delete_account'),
                             style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -967,20 +981,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             runSpacing: 8,
                             children: [
                               OutlinedButton(
-                                onPressed: () => _openPhotoPanel('overview', 'Foto Paneli · Genel Bakış'),
-                                child: const Text('Genel Bakış'),
+                                onPressed: () => _openPhotoPanel('overview', I18n.t('photo_panel_overview')),
+                                child: Text(I18n.t('overview')),
                               ),
                               OutlinedButton(
                                 onPressed: () => _openPhotoPanel('events', 'Foto Paneli · Etkinlikler'),
                                 child: const Text('Etkinlikler'),
                               ),
                               OutlinedButton(
-                                onPressed: () => _openPhotoPanel('credits', 'Foto Paneli · Kredi Satın Al'),
-                                child: const Text('Kredi Satın Al'),
+                                onPressed: () => _openPhotoPanel('credits', I18n.t('photo_panel_buy_credits')),
+                                child: Text(I18n.t('buy_credits')),
                               ),
                               OutlinedButton(
-                                onPressed: () => _openPhotoPanel('history', 'Foto Paneli · Geçmiş İşlemlerim'),
-                                child: const Text('Geçmiş İşlemlerim'),
+                                onPressed: () => _openPhotoPanel('history', I18n.t('photo_panel_history')),
+                                child: Text(I18n.t('history')),
                               ),
                               OutlinedButton(
                                 onPressed: () => _openPhotoPanel('profile', 'Foto Paneli · Profil'),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/i18n.dart';
 import 'event_detail_screen.dart';
 import 'news_detail_screen.dart';
 import 'screen_shell.dart';
@@ -55,7 +56,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   late Future<List<_EventItem>> _eventsFuture;
   late Future<List<_NewsItem>> _newsFuture;
   int _tabIndex = 0;
-  String _selectedCity = 'Tümü';
+  String _selectedCity = '';
 
   @override
   void initState() {
@@ -66,7 +67,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Future<List<_EventItem>> _fetchEvents() async {
     final kind = _tabs[_tabIndex];
-    final city = _selectedCity == 'Tümü' ? '' : _selectedCity;
+    final city = _selectedCity;
     final qp = <String, String>{'limit': '300'};
     if (kind != 'all') qp['event_kind'] = kind;
     // Sehir filtresini client-side yapiyoruz; Turkce karakter/kollasyon farklarinda
@@ -91,6 +92,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     rows.sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return rows;
   }
+
+  String _allCitiesLabel() => I18n.isEnglish ? 'All' : 'Tümü';
 
   Future<List<_NewsItem>> _fetchNews() async {
     final uri = Uri.parse('$_base/discover').replace(
@@ -127,8 +130,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = I18n.t;
     return ScreenShell(
-      title: 'Etkinlik Akışı',
+      title: t('discover_title'),
       icon: Icons.local_activity,
       subtitle: '',
       onRefresh: _refresh,
@@ -137,15 +141,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              _tabChip(0, 'Haberler'),
+              _tabChip(0, t('discover_news_tab')),
               const SizedBox(width: 8),
-              _tabChip(1, 'Dans Geceleri'),
+              _tabChip(1, t('discover_dance_nights_tab')),
               const SizedBox(width: 8),
-              _tabChip(2, 'Festivaller'),
+              _tabChip(2, t('discover_festivals_tab')),
               const SizedBox(width: 8),
-              _tabChip(3, 'Yarışmalar'),
+              _tabChip(3, t('discover_competitions_tab')),
               const SizedBox(width: 8),
-              _tabChip(4, 'Tanıtım Dersleri'),
+              _tabChip(4, t('discover_promo_lessons_tab')),
             ],
           ),
         ),
@@ -155,13 +159,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             future: _eventsFuture,
             builder: (context, snapshot) {
               final data = snapshot.data ?? const <_EventItem>[];
-              final cities = <String>{'Tümü'};
+              final cities = <String>{''};
               for (final e in data) {
                 if (e.city.trim().isNotEmpty) cities.add(e.city.trim());
               }
               return DropdownButtonFormField<String>(
-                value: cities.contains(_selectedCity) ? _selectedCity : 'Tümü',
-                items: cities.map((c) => DropdownMenuItem(value: c, child: Text('Şehir: $c'))).toList(),
+                value: cities.contains(_selectedCity) ? _selectedCity : '',
+                items: cities
+                    .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text('${t('city_filter')}: ${c.isEmpty ? _allCitiesLabel() : c}'),
+                        ))
+                    .toList(),
                 onChanged: (v) {
                   if (v == null) return;
                   setState(() => _selectedCity = v);
@@ -188,14 +197,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               }
               if (snapshot.hasError) {
                 return _InfoCard(
-                  text: 'Haberler yüklenemedi, tekrar deneyin.',
-                  actionText: 'Yenile',
+                  text: t('news_load_error'),
+                  actionText: t('retry'),
                   onTap: _refresh,
                 );
               }
               final items = snapshot.data ?? const <_NewsItem>[];
               if (items.isEmpty) {
-                return const _InfoCard(text: 'Henüz haber bulunamadı.');
+                return _InfoCard(text: t('no_news_found'));
               }
               return ListView.separated(
                 shrinkWrap: true,
@@ -230,14 +239,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               }
               if (snapshot.hasError) {
                 return _InfoCard(
-                  text: 'Liste yüklenemedi, tekrar deneyin.',
-                  actionText: 'Yenile',
+                  text: t('list_load_error'),
+                  actionText: t('retry'),
                   onTap: _refresh,
                 );
               }
               final items = snapshot.data ?? const <_EventItem>[];
               if (items.isEmpty) {
-                return const _InfoCard(text: 'Filtreye uygun etkinlik bulunamadı.');
+                return _InfoCard(text: t('no_filtered_events_found'));
               }
               return ListView.separated(
                 shrinkWrap: true,

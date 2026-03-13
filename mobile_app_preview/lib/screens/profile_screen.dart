@@ -144,7 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Merhaba $greetingName',
+                  '${t('hello')} $greetingName',
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -190,8 +190,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         if (widget.appRole == 'super_admin')
           PreviewCard(
-            title: 'Bildirim Gönder',
-            subtitle: 'Kullanıcılara mobil bildirim gönder',
+            title: t('send_notification'),
+            subtitle: t('send_notification_subtitle'),
             icon: Icons.campaign,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
