@@ -94,7 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _notificationsEnabled = remote.notificationsEnabled;
         _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences)
           ..addAll(remote.notificationPreferences);
-        _language = remote.language == 'en' ? 'en' : 'tr';
+        _language = remote.language == 'en' || remote.language == 'es' ? remote.language : 'tr';
         _city = remote.city.trim().isEmpty ? _defaultCity : remote.city.trim();
         _birthDate = remote.birthDate.trim();
         _avatarUrl = remote.avatarUrl;
@@ -137,7 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _notificationsEnabled = saved.notificationsEnabled;
         _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences)
           ..addAll(saved.notificationPreferences);
-        _language = saved.language == 'en' ? 'en' : 'tr';
+        _language = saved.language == 'en' || saved.language == 'es' ? saved.language : 'tr';
         _city = saved.city.trim().isEmpty ? _city : saved.city.trim();
         _birthDate = saved.birthDate.trim();
         _avatarUrl = saved.avatarUrl;
@@ -226,7 +226,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int month = initial.month;
     int day = initial.day;
     final years = [for (int y = last.year; y >= first.year; y--) y];
-    final months = I18n.isEnglish
+    final months = I18n.language == 'es'
+        ? const [
+            'Enero',
+            'Febrero',
+            'Marzo',
+            'Abril',
+            'Mayo',
+            'Junio',
+            'Julio',
+            'Agosto',
+            'Septiembre',
+            'Octubre',
+            'Noviembre',
+            'Diciembre',
+          ]
+        : I18n.isEnglish
         ? const [
             'January',
             'February',
@@ -763,8 +778,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         DropdownButtonFormField<String>(
                           value: _language,
                           items: [
-                            DropdownMenuItem(value: 'tr', child: Text(I18n.isEnglish ? 'Turkish' : 'Türkçe')),
+                            DropdownMenuItem(
+                              value: 'tr',
+                              child: Text(
+                                I18n.language == 'es'
+                                    ? 'Turco'
+                                    : (I18n.isEnglish ? 'Turkish' : 'Türkçe'),
+                              ),
+                            ),
                             const DropdownMenuItem(value: 'en', child: Text('English')),
+                            const DropdownMenuItem(value: 'es', child: Text('Español')),
                           ],
                           onChanged: _saving
                               ? null

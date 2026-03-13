@@ -25,8 +25,8 @@ class EventsStoreHubScreen extends StatelessWidget {
           title: const Text('Dansmagazin'),
           bottom: TabBar(
             tabs: [
-              Tab(icon: const Icon(Icons.event), text: I18n.isEnglish ? 'Events' : 'Etkinlikler'),
-              Tab(icon: const Icon(Icons.storefront), text: I18n.isEnglish ? 'Store' : 'Mağaza'),
+              Tab(icon: const Icon(Icons.event), text: I18n.t('events')),
+              Tab(icon: const Icon(Icons.storefront), text: I18n.t('store')),
             ],
           ),
         ),

@@ -180,21 +180,15 @@ class _PhotosScreenState extends State<PhotosScreen> {
     return ScreenShell(
       title: I18n.t('photos'),
       icon: Icons.photo_library,
-      subtitle: I18n.isEnglish
-          ? (_isLoggedIn
-              ? 'You can view, download and favorite your photos.'
-              : 'Guest mode: browse albums and thumbnails. Sign in for full photo actions.')
-          : (_isLoggedIn
-              ? 'Fotoğraflarınızı görüntüleyebilir, indirebilir ve sonrası için favorileyebilirsiniz.'
-              : 'Misafir modunda albüm ve küçük görselleri gezebilirsiniz. Tam erişim için giriş yapın.'),
+      subtitle: _isLoggedIn ? I18n.t('photos_subtitle_logged_in') : I18n.t('photos_subtitle_guest'),
       content: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            _tabChip(0, I18n.isEnglish ? 'Photos' : 'Fotoğraflar'),
-            _tabChip(1, I18n.isEnglish ? 'Videos' : 'Videolar'),
-            _tabChip(2, I18n.isEnglish ? 'Favorites' : 'Favoriler'),
+            _tabChip(0, I18n.t('photos')),
+            _tabChip(1, I18n.t('videos')),
+            _tabChip(2, I18n.t('favorites')),
           ],
         ),
         const SizedBox(height: 12),
@@ -209,7 +203,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             }
             if (snapshot.hasError) {
               return _ErrorCard(
-                text: I18n.isEnglish ? 'Photo albums could not be loaded.' : 'Fotoğraf albümleri yüklenemedi.',
+                text: I18n.t('photo_albums_load_error'),
                 onRetry: _refresh,
               );
             }
@@ -217,14 +211,14 @@ class _PhotosScreenState extends State<PhotosScreen> {
             final albums = snapshot.data ?? const <_Album>[];
             if (_tab == 1) {
               return _InfoCard(
-                text: I18n.isEnglish ? 'Videos section is coming very soon.' : 'Videolar bölümü çok yakında.',
+                text: I18n.t('videos_coming_soon'),
               );
             }
 
             if (_tab == 2) {
               if (!_isLoggedIn) {
                 return _LoginRequiredCard(
-                  text: 'Favoriler ve fotoğraf detayları için giriş yapın.',
+                  text: I18n.t('favorites_login_required'),
                   onLoginTap: widget.onRequireLogin,
                 );
               }
@@ -240,7 +234,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
             final list = albums;
             if (list.isEmpty) {
-              return _InfoCard(text: I18n.isEnglish ? 'No albums found.' : 'Albüm bulunamadı.');
+              return _InfoCard(text: I18n.t('no_albums_found'));
             }
 
             return Column(

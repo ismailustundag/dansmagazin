@@ -90,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final greetingName = _displayName.trim().isEmpty ? widget.userName : _displayName;
     final initials = greetingName.trim().isNotEmpty ? greetingName.trim().substring(0, 1).toUpperCase() : 'U';
     final emailText = widget.userEmail.trim();
-    final idLabel = I18n.isEnglish ? 'User ID: ${widget.accountId}' : 'Kullanıcı ID: ${widget.accountId}';
+    final idLabel = '${t('user_id')}: ${widget.accountId}';
 
     return ScreenShell(
       title: t('profile'),

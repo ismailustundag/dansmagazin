@@ -58,7 +58,7 @@ class _EventsScreenState extends State<EventsScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      I18n.isEnglish ? 'Events' : 'Etkinlikler',
+                      I18n.t('events'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
@@ -79,16 +79,14 @@ class _EventsScreenState extends State<EventsScreen> {
                     return Center(
                       child: TextButton(
                         onPressed: () => setState(() => _future = _fetchEvents()),
-                        child: Text(I18n.isEnglish
-                            ? 'Failed to load events, try again'
-                            : 'Etkinlikler yüklenemedi, tekrar dene'),
+                        child: Text(I18n.t('events_load_error')),
                       ),
                     );
                   }
                   final items = snapshot.data ?? [];
                   if (items.isEmpty) {
                     return Center(
-                      child: Text(I18n.isEnglish ? 'No approved events yet.' : 'Henüz onaylanmış etkinlik yok.'),
+                      child: Text(I18n.t('no_approved_events')),
                     );
                   }
                   return ListView.builder(

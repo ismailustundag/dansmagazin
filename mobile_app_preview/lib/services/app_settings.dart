@@ -15,7 +15,8 @@ class AppSettings {
   }
 
   static Future<void> setLanguage(String value) async {
-    final v = value.trim().toLowerCase() == 'en' ? 'en' : 'tr';
+    final raw = value.trim().toLowerCase();
+    final v = raw == 'en' || raw == 'es' ? raw : 'tr';
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kLanguage, v);
     language.value = v;
