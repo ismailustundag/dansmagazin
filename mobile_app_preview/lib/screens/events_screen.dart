@@ -34,10 +34,12 @@ class _EventsScreenState extends State<EventsScreen> {
     final resp = await http.get(Uri.parse('$_base/events?limit=300'));
     if (resp.statusCode != 200) throw Exception('Etkinlikler alınamadı');
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    return (body['items'] as List<dynamic>? ?? [])
+    final items = (body['items'] as List<dynamic>? ?? [])
         .map((e) => _EventItem.fromJson(e as Map<String, dynamic>))
         .where((e) => e.ticketSalesEnabled)
         .toList();
+    items.sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    return items;
   }
 
   @override
@@ -163,6 +165,14 @@ class _EventItem {
     required this.eventKind,
     required this.ticketSalesEnabled,
   });
+
+  DateTime get sortKey {
+    final dt = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
+    if (dt == null) return DateTime.utc(9999, 1, 1);
+    final now = DateTime.now();
+    if (dt.isBefore(now)) return DateTime.utc(9999, 1, 1).add(now.difference(dt));
+    return dt;
+  }
 
   factory _EventItem.fromJson(Map<String, dynamic> json) {
     String absUrl(dynamic raw, {String host = 'https://api2.dansmagazin.net'}) {
