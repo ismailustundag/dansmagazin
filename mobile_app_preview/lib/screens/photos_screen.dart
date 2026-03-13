@@ -1275,9 +1275,7 @@ class _FavoriteGrid extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Image.network(
-                    p.gridThumbUrl.isNotEmpty
-                        ? p.gridThumbUrl
-                        : (p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url),
+                    p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
                     fit: BoxFit.cover,
                     cacheWidth: 240,
                     filterQuality: FilterQuality.low,
