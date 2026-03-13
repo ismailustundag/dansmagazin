@@ -365,10 +365,16 @@ class _PhotosFeed {
 class _AlbumDetailFeed {
   final List<_Photo> photos;
   final List<_Album> subalbums;
+  final int total;
+  final bool hasMore;
+  final int offset;
 
   const _AlbumDetailFeed({
     this.photos = const [],
     this.subalbums = const [],
+    this.total = 0,
+    this.hasMore = false,
+    this.offset = 0,
   });
 }
 
@@ -394,6 +400,8 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   late Future<_AlbumDetailFeed> _photosFuture;
   List<_FavoritePhoto> _favorites = [];
   bool _showFavoritesOnly = false;
+  bool _isLoadingMore = false;
+  static const int _pageSize = 200;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
 
   void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
@@ -430,8 +438,9 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
     return _favorites.any((f) => f.url == url);
   }
 
-  Future<_AlbumDetailFeed> _fetchPhotos() async {
-    final url = 'https://api2.dansmagazin.net/photos/albums/${widget.album.slug}';
+  Future<_AlbumDetailFeed> _fetchPhotos({int offset = 0}) async {
+    final url =
+        'https://api2.dansmagazin.net/photos/albums/${widget.album.slug}?limit=$_pageSize&offset=$offset';
     final resp = await http.get(
       Uri.parse(url),
       headers: {
@@ -473,7 +482,34 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
     return _AlbumDetailFeed(
       photos: photos,
       subalbums: subalbums,
+      total: (raw is Map<String, dynamic>) ? ((raw['total'] as num?)?.toInt() ?? photos.length) : photos.length,
+      hasMore: (raw is Map<String, dynamic>) ? (raw['has_more'] == true) : false,
+      offset: (raw is Map<String, dynamic>) ? ((raw['offset'] as num?)?.toInt() ?? offset) : offset,
     );
+  }
+
+  Future<void> _loadMore(_AlbumDetailFeed current) async {
+    if (_isLoadingMore || !current.hasMore) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final next = await _fetchPhotos(offset: current.photos.length);
+      if (!mounted) return;
+      setState(() {
+        _photosFuture = Future.value(
+          _AlbumDetailFeed(
+            photos: [...current.photos, ...next.photos],
+            subalbums: next.subalbums.isNotEmpty ? next.subalbums : current.subalbums,
+            total: next.total,
+            hasMore: next.hasMore,
+            offset: next.offset,
+          ),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
@@ -756,6 +792,15 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                     );
                   },
                 ),
+              if (!_showFavoritesOnly && feed.hasMore) ...[
+                const SizedBox(height: 14),
+                Center(
+                  child: OutlinedButton(
+                    onPressed: _isLoadingMore ? null : () => _loadMore(feed),
+                    child: Text(_isLoadingMore ? 'Yükleniyor...' : 'Daha Fazla Yükle'),
+                  ),
+                ),
+              ],
             ],
           );
           },
