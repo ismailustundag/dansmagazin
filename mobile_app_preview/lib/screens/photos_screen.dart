@@ -182,6 +182,24 @@ class _PhotosScreenState extends State<PhotosScreen> {
       icon: Icons.photo_library,
       subtitle: _isLoggedIn ? I18n.t('photos_subtitle_logged_in') : I18n.t('photos_subtitle_guest'),
       content: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE53935).withOpacity(0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE53935).withOpacity(0.28)),
+          ),
+          child: Text(
+            I18n.t('photos_retention_notice'),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
