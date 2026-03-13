@@ -62,21 +62,6 @@ bool _looksLikeEventContent(String title, String excerpt) {
   return false;
 }
 
-String _eventKindLabel(String raw) {
-  switch (raw.trim().toLowerCase()) {
-    case 'dance_night':
-      return 'Dans Gecesi';
-    case 'festival':
-      return 'Festival';
-    case 'competition':
-      return 'Yarışma';
-    case 'promo_lesson':
-      return 'Tanıtım Dersi';
-    default:
-      return '';
-  }
-}
-
 class DiscoverScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -442,7 +427,6 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kindLabel = _eventKindLabel(item.eventKind);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -496,16 +480,6 @@ class _EventCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
-                  if (kindLabel.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        kindLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFFE53935), fontSize: 12, fontWeight: FontWeight.w700),
-                      ),
-                    ),
                 ],
               ),
             ),

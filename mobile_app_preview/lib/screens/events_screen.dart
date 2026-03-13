@@ -200,24 +200,8 @@ class _EventCard extends StatelessWidget {
 
   const _EventCard({required this.item, required this.onTap});
 
-  String _kindLabel(String v) {
-    switch (v.trim().toLowerCase()) {
-      case 'dance_night':
-        return 'Dans Gecesi';
-      case 'festival':
-        return 'Festival';
-      case 'competition':
-        return 'Yarışma';
-      case 'promo_lesson':
-        return 'Tanıtım Dersi';
-      default:
-        return '';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final kind = _kindLabel(item.eventKind);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -255,8 +239,6 @@ class _EventCard extends StatelessWidget {
                     children: [
                       if (item.city.trim().isNotEmpty)
                         Text(item.city.trim(), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                      if (kind.isNotEmpty)
-                        Text(kind, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                     ],
                   ),
                 ],
