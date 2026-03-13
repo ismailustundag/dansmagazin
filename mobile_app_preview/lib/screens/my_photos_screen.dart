@@ -212,7 +212,7 @@ class _MyPhotoViewerScreenState extends State<_MyPhotoViewerScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(saved ? 'Fotoğraf albüme kaydedildi' : I18n.t('cannot_open_download')),
+          content: Text(saved ? I18n.t('photo_saved_to_gallery') : I18n.t('cannot_open_download')),
         ),
       );
     } catch (e) {

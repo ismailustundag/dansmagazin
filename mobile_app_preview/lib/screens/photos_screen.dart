@@ -624,7 +624,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
               color: _showFavoritesOnly ? const Color(0xFFFFC107) : Colors.white,
             ),
             label: Text(
-              'Favorilerim',
+              I18n.t('my_favorites'),
               style: TextStyle(
                 color: _showFavoritesOnly ? const Color(0xFFFFC107) : Colors.white,
                 fontWeight: FontWeight.w600,
@@ -644,7 +644,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'Albüm yüklenemedi',
+                I18n.t('album_load_failed'),
                 style: TextStyle(color: Colors.white.withOpacity(0.8)),
               ),
             );
@@ -663,8 +663,8 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
             return Center(
               child: Text(
                 _showFavoritesOnly
-                    ? 'Bu albümde favori fotoğraf yok.'
-                    : 'Bu albümde fotoğraf yok.',
+                    ? I18n.t('no_favorite_photo_in_album')
+                    : I18n.t('no_photo_in_album'),
                 style: TextStyle(color: Colors.white.withOpacity(0.8)),
               ),
             );
@@ -976,12 +976,12 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
       final saved = await _saveToGallery(url, bytes);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(saved ? 'Fotoğraf albüme kaydedildi' : 'İndirme açılamadı')),
+        SnackBar(content: Text(saved ? I18n.t('photo_saved_to_gallery') : I18n.t('cannot_open_download'))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('İndirme açılamadı (${e.runtimeType})')),
+        SnackBar(content: Text('${I18n.t('cannot_open_download')} (${e.runtimeType})')),
       );
     }
   }
@@ -1080,12 +1080,12 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(bottom: 10),
                     child: Text(
-                      'Fotografi indirdiginizde tam cozunurlukte cihaziniza kaydedilecektir.',
+                      I18n.t('download_full_resolution_notice'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -1098,13 +1098,13 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                     children: [
                       _iconAction(
                         onTap: () => _togglePhotoLike(photo),
-                        tooltip: 'Beğen (${photo.likeCount})',
+                        tooltip: '${I18n.t('like')} (${photo.likeCount})',
                         icon: photo.likedByMe ? Icons.favorite : Icons.favorite_border,
                         color: photo.likedByMe ? Colors.redAccent : Colors.white,
                       ),
                       _iconAction(
                         onTap: () => _toggleFavorite(photo),
-                        tooltip: fav ? 'Favoriden Çıkar' : 'Favorile',
+                        tooltip: fav ? I18n.t('remove_from_favorites') : I18n.t('add_to_favorites'),
                         icon: fav ? Icons.star : Icons.star_border,
                         color: fav ? const Color(0xFFFFC107) : Colors.white,
                       ),
@@ -1222,7 +1222,7 @@ class _AlbumCard extends StatelessWidget {
                         color: liked ? Colors.redAccent : Colors.white,
                         size: 18,
                       ),
-                      label: Text('Beğen (${album.likeCount})'),
+                      label: Text('${I18n.t('like')} (${album.likeCount})'),
                     ),
                   ),
                 ],
@@ -1325,7 +1325,7 @@ class _FavoriteGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (photos.isEmpty) {
-      return const _InfoCard(text: 'Henüz favori fotoğraf yok.');
+      return _InfoCard(text: I18n.t('no_favorite_photo'));
     }
 
     final sorted = [...photos]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -1664,12 +1664,12 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
       final saved = await _saveToGallery(url, bytes);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(saved ? 'Fotoğraf albüme kaydedildi' : 'İndirme açılamadı')),
+        SnackBar(content: Text(saved ? I18n.t('photo_saved_to_gallery') : I18n.t('cannot_open_download'))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('İndirme açılamadı (${e.runtimeType})')),
+        SnackBar(content: Text('${I18n.t('cannot_open_download')} (${e.runtimeType})')),
       );
     }
   }
@@ -1725,7 +1725,7 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
                         fav ? Icons.favorite : Icons.favorite_border,
                         color: fav ? Colors.redAccent : Colors.white,
                       ),
-                      label: Text(fav ? 'Beğenildi' : 'Beğen'),
+                      label: Text(fav ? I18n.t('liked') : I18n.t('like')),
                     ),
                   ),
                   const SizedBox(width: 10),
