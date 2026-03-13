@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver/image_gallery_saver.dart';
@@ -401,8 +402,8 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   late Future<_AlbumDetailFeed> _photosFuture;
   List<_FavoritePhoto> _favorites = [];
   bool _showFavoritesOnly = false;
-  static const int _pageSize = 200;
-  static const int _prefetchCount = 18;
+  static const int _pageSize = 100;
+  static const int _prefetchCount = 12;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
 
   void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
@@ -498,8 +499,15 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           ? photo.gridThumbUrl
           : (photo.thumbUrl.isNotEmpty ? photo.thumbUrl : '');
       if (url.isEmpty) continue;
-      precacheImage(NetworkImage(url), context);
+      precacheImage(CachedNetworkImageProvider(url), context);
     }
+  }
+
+  Future<void> _refreshAlbum() async {
+    setState(() {
+      _photosFuture = _fetchPhotos(page: 1);
+    });
+    await _photosFuture;
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
@@ -662,166 +670,171 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
             );
           }
 
-          return ListView(
-            padding: const EdgeInsets.all(10),
-            children: [
-              if (subalbums.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    I18n.t('upload_parts'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                ),
-                ...subalbums.map(
-                  (album) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _AlbumCard(
-                      album: album,
-                      liked: album.likedByMe,
-                      onLikeTap: () async {
-                        await _toggleAlbumLike(album);
-                      },
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => AlbumPhotosScreen(
-                              album: album,
-                              accountId: widget.accountId,
-                              sessionToken: widget.sessionToken,
-                              onRequireLogin: widget.onRequireLogin,
-                            ),
-                          ),
-                        );
-                        if (!mounted) return;
-                        setState(() {
-                          _photosFuture = _fetchPhotos(page: 1);
-                        });
-                        await _loadFavorites();
-                      },
+          return RefreshIndicator(
+            onRefresh: _refreshAlbum,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(10),
+              children: [
+                if (subalbums.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      I18n.t('upload_parts'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                     ),
                   ),
-                ),
-                const SizedBox(height: 6),
-              ],
-              if (shown.isNotEmpty)
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 0.8,
-                  ),
-                  itemCount: shown.length,
-                  itemBuilder: (context, i) {
-                    final p = shown[i];
-                    final fav = _isFavorite(p.url);
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Positioned.fill(
-                          child: GestureDetector(
-                            onTap: () => _openViewer(shown, i),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.network(
-                                p.gridThumbUrl.isNotEmpty
-                                    ? p.gridThumbUrl
-                                    : (p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url),
-                                fit: BoxFit.cover,
-                                cacheWidth: 240,
-                                filterQuality: FilterQuality.low,
-                                errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                  ...subalbums.map(
+                    (album) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _AlbumCard(
+                        album: album,
+                        liked: album.likedByMe,
+                        onLikeTap: () async {
+                          await _toggleAlbumLike(album);
+                        },
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AlbumPhotosScreen(
+                                album: album,
+                                accountId: widget.accountId,
+                                sessionToken: widget.sessionToken,
+                                onRequireLogin: widget.onRequireLogin,
                               ),
                             ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: InkWell(
-                            onTap: () => _togglePhotoLike(p),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    p.likedByMe ? Icons.favorite : Icons.favorite_border,
-                                    color: p.likedByMe ? Colors.redAccent : Colors.white,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text('${p.likeCount}', style: const TextStyle(fontSize: 11)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 6,
-                          right: 6,
-                          child: InkWell(
-                            onTap: () => _toggleFavorite(p),
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Icon(
-                                fav ? Icons.star : Icons.star_border,
-                                color: fav ? const Color(0xFFFFC107) : Colors.white,
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              if (!_showFavoritesOnly && totalPages > 1) ...[
-                const SizedBox(height: 14),
-                Center(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: List.generate(
-                      totalPages,
-                      (index) {
-                        final pageNum = index + 1;
-                        final selected = pageNum == feed.page;
-                        return OutlinedButton(
-                          onPressed: selected
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _photosFuture = _fetchPhotos(page: pageNum);
-                                  });
-                                },
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor:
-                                selected ? const Color(0xFFE53935) : Colors.transparent,
-                          ),
-                          child: Text(
-                            '$pageNum',
-                            style: TextStyle(color: selected ? Colors.white : null),
-                          ),
-                        );
-                      },
+                          );
+                          if (!mounted) return;
+                          setState(() {
+                            _photosFuture = _fetchPhotos(page: 1);
+                          });
+                          await _loadFavorites();
+                        },
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                ],
+                if (shown.isNotEmpty)
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 0.8,
+                    ),
+                    itemCount: shown.length,
+                    itemBuilder: (context, i) {
+                      final p = shown[i];
+                      final fav = _isFavorite(p.url);
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onTap: () => _openViewer(shown, i),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: CachedNetworkImage(
+                                  imageUrl: p.gridThumbUrl.isNotEmpty
+                                      ? p.gridThumbUrl
+                                      : (p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url),
+                                  fit: BoxFit.cover,
+                                  fadeInDuration: Duration.zero,
+                                  placeholderFadeInDuration: Duration.zero,
+                                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                                  placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 6,
+                            left: 6,
+                            child: InkWell(
+                              onTap: () => _togglePhotoLike(p),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      p.likedByMe ? Icons.favorite : Icons.favorite_border,
+                                      color: p.likedByMe ? Colors.redAccent : Colors.white,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text('${p.likeCount}', style: const TextStyle(fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: InkWell(
+                              onTap: () => _toggleFavorite(p),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Icon(
+                                  fav ? Icons.star : Icons.star_border,
+                                  color: fav ? const Color(0xFFFFC107) : Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                if (!_showFavoritesOnly && totalPages > 1) ...[
+                  const SizedBox(height: 14),
+                  Center(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: List.generate(
+                        totalPages,
+                        (index) {
+                          final pageNum = index + 1;
+                          final selected = pageNum == feed.page;
+                          return OutlinedButton(
+                            onPressed: selected
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _photosFuture = _fetchPhotos(page: pageNum);
+                                    });
+                                  },
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor:
+                                  selected ? const Color(0xFFE53935) : Colors.transparent,
+                            ),
+                            child: Text(
+                              '$pageNum',
+                              style: TextStyle(color: selected ? Colors.white : null),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           );
           },
         ),
@@ -1181,14 +1194,15 @@ class _TopLikedGrid extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  photo.gridThumbUrl.isNotEmpty
+                child: CachedNetworkImage(
+                  imageUrl: photo.gridThumbUrl.isNotEmpty
                       ? photo.gridThumbUrl
                       : (photo.thumbUrl.isNotEmpty ? photo.thumbUrl : photo.url),
                   fit: BoxFit.cover,
-                  cacheWidth: 240,
-                  filterQuality: FilterQuality.low,
-                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                  fadeInDuration: Duration.zero,
+                  placeholderFadeInDuration: Duration.zero,
+                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                  placeholder: (_, __) => Container(color: const Color(0xFF111827)),
                 ),
               ),
               Positioned(
@@ -1274,12 +1288,13 @@ class _FavoriteGrid extends StatelessWidget {
                 },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
-                    p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
+                  child: CachedNetworkImage(
+                    imageUrl: p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
                     fit: BoxFit.cover,
-                    cacheWidth: 240,
-                    filterQuality: FilterQuality.low,
-                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                    fadeInDuration: Duration.zero,
+                    placeholderFadeInDuration: Duration.zero,
+                    errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                    placeholder: (_, __) => Container(color: const Color(0xFF111827)),
                   ),
                 ),
               ),
