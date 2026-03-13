@@ -1083,7 +1083,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                   Padding(
                     padding: EdgeInsets.only(bottom: 10),
                     child: Text(
-                      I18n.t('download_full_resolution_notice'),
+                      '${I18n.t('download_full_resolution_notice')}\n${I18n.t('download_contact_notice')}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white70,
@@ -1110,7 +1110,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                       ),
                       _iconAction(
                         onTap: () => _download(photo.url),
-                        tooltip: 'İndir',
+                        tooltip: I18n.t('download'),
                         icon: Icons.download,
                         color: Colors.white,
                       ),
