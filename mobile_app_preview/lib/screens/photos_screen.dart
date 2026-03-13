@@ -402,6 +402,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   List<_FavoritePhoto> _favorites = [];
   bool _showFavoritesOnly = false;
   static const int _pageSize = 200;
+  static const int _prefetchCount = 18;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
 
   void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
@@ -488,6 +489,17 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
       page: safePage,
       pageSize: _pageSize,
     );
+  }
+
+  void _warmVisibleThumbs(List<_Photo> photos) {
+    if (!mounted || photos.isEmpty) return;
+    for (final photo in photos.take(_prefetchCount)) {
+      final url = photo.gridThumbUrl.isNotEmpty
+          ? photo.gridThumbUrl
+          : (photo.thumbUrl.isNotEmpty ? photo.thumbUrl : '');
+      if (url.isEmpty) continue;
+      precacheImage(NetworkImage(url), context);
+    }
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
@@ -631,6 +643,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           }
 
           final feed = snapshot.data ?? const _AlbumDetailFeed();
+          _warmVisibleThumbs(feed.photos);
           final photos = feed.photos;
           final subalbums = feed.subalbums;
           final totalPages =
@@ -714,9 +727,11 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(10),
                               child: Image.network(
-                                p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
+                                p.gridThumbUrl.isNotEmpty
+                                    ? p.gridThumbUrl
+                                    : (p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url),
                                 fit: BoxFit.cover,
-                                cacheWidth: 420,
+                                cacheWidth: 240,
                                 filterQuality: FilterQuality.low,
                                 errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
                               ),
@@ -1167,9 +1182,11 @@ class _TopLikedGrid extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: Image.network(
-                  photo.thumbUrl.isNotEmpty ? photo.thumbUrl : photo.url,
+                  photo.gridThumbUrl.isNotEmpty
+                      ? photo.gridThumbUrl
+                      : (photo.thumbUrl.isNotEmpty ? photo.thumbUrl : photo.url),
                   fit: BoxFit.cover,
-                  cacheWidth: 420,
+                  cacheWidth: 240,
                   filterQuality: FilterQuality.low,
                   errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
                 ),
@@ -1258,9 +1275,11 @@ class _FavoriteGrid extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Image.network(
-                    p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
+                    p.gridThumbUrl.isNotEmpty
+                        ? p.gridThumbUrl
+                        : (p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url),
                     fit: BoxFit.cover,
-                    cacheWidth: 420,
+                    cacheWidth: 240,
                     filterQuality: FilterQuality.low,
                     errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
                   ),
@@ -1349,6 +1368,7 @@ class _Photo {
   final int id;
   final String url;
   final String thumbUrl;
+  final String gridThumbUrl;
   final String createdAt;
   final int likeCount;
   final bool likedByMe;
@@ -1357,6 +1377,7 @@ class _Photo {
     required this.id,
     required this.url,
     required this.thumbUrl,
+    required this.gridThumbUrl,
     required this.createdAt,
     required this.likeCount,
     required this.likedByMe,
@@ -1369,10 +1390,14 @@ class _Photo {
     final thumb = _absUrl(
       json['thumb_url'] ?? json['thumbnail_url'] ?? json['preview_url'] ?? url,
     );
+    final gridThumb = _absUrl(
+      json['grid_thumb_url'] ?? json['small_thumb_url'] ?? json['thumb_small_url'] ?? thumb,
+    );
     return _Photo(
       id: (json['id'] as num?)?.toInt() ?? 0,
       url: url,
       thumbUrl: thumb,
+      gridThumbUrl: gridThumb,
       createdAt: _fmtDate((json['created_at'] ?? json['date'] ?? '').toString()),
       likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
       likedByMe: json['liked_by_me'] == true,
@@ -1383,6 +1408,7 @@ class _Photo {
     int? id,
     String? url,
     String? thumbUrl,
+    String? gridThumbUrl,
     String? createdAt,
     int? likeCount,
     bool? likedByMe,
@@ -1391,6 +1417,7 @@ class _Photo {
       id: id ?? this.id,
       url: url ?? this.url,
       thumbUrl: thumbUrl ?? this.thumbUrl,
+      gridThumbUrl: gridThumbUrl ?? this.gridThumbUrl,
       createdAt: createdAt ?? this.createdAt,
       likeCount: likeCount ?? this.likeCount,
       likedByMe: likedByMe ?? this.likedByMe,
