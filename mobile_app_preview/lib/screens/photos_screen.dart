@@ -151,15 +151,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
         (map['items'] as List<dynamic>?) ??
         (map['results'] as List<dynamic>?) ??
         <dynamic>[];
-    final batchAlbumRows = (map['batch_albums'] as List<dynamic>?) ?? <dynamic>[];
     final topLikedRows = (map['top_liked'] as List<dynamic>?) ?? <dynamic>[];
 
     final albums = albumRows
-        .whereType<Map<String, dynamic>>()
-        .map(_Album.fromJson)
-        .where((a) => a.slug.isNotEmpty)
-        .toList();
-    final batchAlbums = batchAlbumRows
         .whereType<Map<String, dynamic>>()
         .map(_Album.fromJson)
         .where((a) => a.slug.isNotEmpty)
@@ -172,7 +166,6 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
     return _PhotosFeed(
       albums: albums,
-      batchAlbums: batchAlbums,
       topLiked: topLiked,
     );
   }
@@ -268,7 +261,6 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
             final feed = snapshot.data ?? const _PhotosFeed();
             final albums = feed.albums;
-            final batchAlbums = feed.batchAlbums;
             final topLiked = feed.topLiked;
             if (_tab == 1) {
               return _InfoCard(
@@ -294,7 +286,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             }
 
             final list = albums;
-            if (list.isEmpty && batchAlbums.isEmpty && topLiked.isEmpty) {
+            if (list.isEmpty && topLiked.isEmpty) {
               return _InfoCard(text: I18n.t('no_albums_found'));
             }
 
@@ -314,39 +306,6 @@ class _PhotosScreenState extends State<PhotosScreen> {
                     onTap: (index) => _openTopLikedViewer(topLiked, index),
                   ),
                   const SizedBox(height: 14),
-                ],
-                if (batchAlbums.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      I18n.t('upload_parts'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  ...batchAlbums.map(
-                    (album) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _AlbumCard(
-                        album: album,
-                        liked: album.likedByMe,
-                        onLikeTap: () => _toggleAlbumLike(album),
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => AlbumPhotosScreen(
-                                album: album,
-                                accountId: widget.accountId,
-                                sessionToken: widget.sessionToken,
-                                onRequireLogin: widget.onRequireLogin,
-                              ),
-                            ),
-                          );
-                          await _loadFavorites();
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
                 ],
                 ...list.map(
                   (album) => Padding(
@@ -395,13 +354,21 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
 class _PhotosFeed {
   final List<_Album> albums;
-  final List<_Album> batchAlbums;
   final List<_Photo> topLiked;
 
   const _PhotosFeed({
     this.albums = const [],
-    this.batchAlbums = const [],
     this.topLiked = const [],
+  });
+}
+
+class _AlbumDetailFeed {
+  final List<_Photo> photos;
+  final List<_Album> subalbums;
+
+  const _AlbumDetailFeed({
+    this.photos = const [],
+    this.subalbums = const [],
   });
 }
 
@@ -424,7 +391,7 @@ class AlbumPhotosScreen extends StatefulWidget {
 }
 
 class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
-  late Future<List<_Photo>> _photosFuture;
+  late Future<_AlbumDetailFeed> _photosFuture;
   List<_FavoritePhoto> _favorites = [];
   bool _showFavoritesOnly = false;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
@@ -463,7 +430,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
     return _favorites.any((f) => f.url == url);
   }
 
-  Future<List<_Photo>> _fetchPhotos() async {
+  Future<_AlbumDetailFeed> _fetchPhotos() async {
     final url = 'https://api2.dansmagazin.net/photos/albums/${widget.album.slug}';
     final resp = await http.get(
       Uri.parse(url),
@@ -477,24 +444,36 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
 
     final dynamic raw = jsonDecode(resp.body);
     List<dynamic> rows;
+    List<dynamic> subalbumRows;
     if (raw is List) {
       rows = raw;
+      subalbumRows = const <dynamic>[];
     } else if (raw is Map<String, dynamic>) {
       rows = (raw['photos'] as List<dynamic>?) ??
           (raw['items'] as List<dynamic>?) ??
           (raw['results'] as List<dynamic>?) ??
           <dynamic>[];
+      subalbumRows = (raw['subalbums'] as List<dynamic>?) ?? <dynamic>[];
     } else {
       rows = <dynamic>[];
+      subalbumRows = <dynamic>[];
     }
 
-    final out = rows
+    final photos = rows
         .whereType<Map<String, dynamic>>()
         .map(_Photo.fromJson)
         .where((p) => p.url.isNotEmpty)
         .toList();
-    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return out;
+    photos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final subalbums = subalbumRows
+        .whereType<Map<String, dynamic>>()
+        .map(_Album.fromJson)
+        .where((a) => a.slug.isNotEmpty)
+        .toList();
+    return _AlbumDetailFeed(
+      photos: photos,
+      subalbums: subalbums,
+    );
   }
 
   Future<void> _togglePhotoLike(_Photo photo) async {
@@ -548,6 +527,34 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
     await _loadFavorites();
   }
 
+  Future<void> _toggleAlbumLike(_Album album) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Albüm beğenmek için giriş yapın.');
+      return;
+    }
+    final endpoint = album.likedByMe ? 'unlike' : 'like';
+    try {
+      final resp = await http.post(
+        Uri.parse('https://api2.dansmagazin.net/photos/albums/${album.slug}/$endpoint'),
+        headers: {
+          if (widget.sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${widget.sessionToken}',
+        },
+      );
+      if (resp.statusCode != 200) {
+        throw Exception('album like failed');
+      }
+      if (!mounted) return;
+      setState(() {
+        _photosFuture = _fetchPhotos();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Albüm beğenisi güncellenemedi')),
+      );
+    }
+  }
+
   Future<void> _openViewer(List<_Photo> photos, int initialIndex) async {
     if (!_isLoggedIn) {
       _promptLogin('Fotoğraf detayını açmak için giriş yapın.');
@@ -594,7 +601,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: FutureBuilder<List<_Photo>>(
+        child: FutureBuilder<_AlbumDetailFeed>(
           future: _photosFuture,
           builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -609,11 +616,13 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
             );
           }
 
-          final photos = snapshot.data ?? const <_Photo>[];
+          final feed = snapshot.data ?? const _AlbumDetailFeed();
+          final photos = feed.photos;
+          final subalbums = feed.subalbums;
           final shown = _showFavoritesOnly
               ? photos.where((p) => _isFavorite(p.url)).toList()
               : photos;
-          if (shown.isEmpty) {
+          if (shown.isEmpty && subalbums.isEmpty) {
             return Center(
               child: Text(
                 _showFavoritesOnly
@@ -624,84 +633,130 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
             );
           }
 
-          return GridView.builder(
+          return ListView(
             padding: const EdgeInsets.all(10),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 0.8,
-            ),
-            itemCount: shown.length,
-            itemBuilder: (context, i) {
-              final p = shown[i];
-              final fav = _isFavorite(p.url);
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onTap: () => _openViewer(shown, i),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
-                          fit: BoxFit.cover,
-                          cacheWidth: 420,
-                          filterQuality: FilterQuality.low,
-                          errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                        ),
-                      ),
-                    ),
+            children: [
+              if (subalbums.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    I18n.t('upload_parts'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: InkWell(
-                      onTap: () => _togglePhotoLike(p),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              p.likedByMe ? Icons.favorite : Icons.favorite_border,
-                              color: p.likedByMe ? Colors.redAccent : Colors.white,
-                              size: 16,
+                ),
+                ...subalbums.map(
+                  (album) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _AlbumCard(
+                      album: album,
+                      liked: album.likedByMe,
+                      onLikeTap: () async {
+                        await _toggleAlbumLike(album);
+                      },
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AlbumPhotosScreen(
+                              album: album,
+                              accountId: widget.accountId,
+                              sessionToken: widget.sessionToken,
+                              onRequireLogin: widget.onRequireLogin,
                             ),
-                            const SizedBox(width: 4),
-                            Text('${p.likeCount}', style: const TextStyle(fontSize: 11)),
-                          ],
-                        ),
-                      ),
+                          ),
+                        );
+                        if (!mounted) return;
+                        setState(() {
+                          _photosFuture = _fetchPhotos();
+                        });
+                        await _loadFavorites();
+                      },
                     ),
                   ),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: InkWell(
-                      onTap: () => _toggleFavorite(p),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(
-                          fav ? Icons.star : Icons.star_border,
-                          color: fav ? const Color(0xFFFFC107) : Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    ),
+                ),
+                const SizedBox(height: 6),
+              ],
+              if (shown.isNotEmpty)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 0.8,
                   ),
-                ],
-              );
-            },
+                  itemCount: shown.length,
+                  itemBuilder: (context, i) {
+                    final p = shown[i];
+                    final fav = _isFavorite(p.url);
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Positioned.fill(
+                          child: GestureDetector(
+                            onTap: () => _openViewer(shown, i),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                p.thumbUrl.isNotEmpty ? p.thumbUrl : p.url,
+                                fit: BoxFit.cover,
+                                cacheWidth: 420,
+                                filterQuality: FilterQuality.low,
+                                errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 6,
+                          left: 6,
+                          child: InkWell(
+                            onTap: () => _togglePhotoLike(p),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    p.likedByMe ? Icons.favorite : Icons.favorite_border,
+                                    color: p.likedByMe ? Colors.redAccent : Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text('${p.likeCount}', style: const TextStyle(fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: InkWell(
+                            onTap: () => _toggleFavorite(p),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Icon(
+                                fav ? Icons.star : Icons.star_border,
+                                color: fav ? const Color(0xFFFFC107) : Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+            ],
           );
           },
         ),
