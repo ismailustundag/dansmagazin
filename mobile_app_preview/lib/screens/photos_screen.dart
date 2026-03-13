@@ -866,9 +866,11 @@ class _PhotoViewerScreen extends StatefulWidget {
 
 class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   late final PageController _controller;
+  late final TransformationController _transformController;
   int _index = 0;
   List<_FavoritePhoto> _favorites = [];
   late List<_Photo> _photos;
+  TapDownDetails? _doubleTapDetails;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
 
   void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
@@ -894,8 +896,32 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     _index = widget.initialIndex;
     _photos = List<_Photo>.from(widget.photos);
     _controller = PageController(initialPage: widget.initialIndex);
+    _transformController = TransformationController();
     _loadFavorites();
     WidgetsBinding.instance.addPostFrameCallback((_) => _warmViewerImages(_index));
+  }
+
+  void _resetZoom() {
+    _transformController.value = Matrix4.identity();
+  }
+
+  void _toggleZoom() {
+    final details = _doubleTapDetails;
+    if (details == null) return;
+    final current = _transformController.value;
+    if (!current.isIdentity()) {
+      _resetZoom();
+      return;
+    }
+
+    const scale = 2.5;
+    final position = details.localPosition;
+    final x = -position.dx * (scale - 1);
+    final y = -position.dy * (scale - 1);
+
+    _transformController.value = Matrix4.identity()
+      ..translate(x, y)
+      ..scale(scale);
   }
 
   void _warmViewerImages(int index) {
@@ -997,6 +1023,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _transformController.dispose();
     super.dispose();
   }
 
@@ -1020,19 +1047,27 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                 itemCount: _photos.length,
                 onPageChanged: (v) {
                   setState(() => _index = v);
+                  _resetZoom();
                   _warmViewerImages(v);
                 },
                 itemBuilder: (context, i) {
                   final p = _photos[i];
-                  return InteractiveViewer(
-                    child: Center(
-                      child: CachedNetworkImage(
-                        imageUrl: p.viewerUrl.isNotEmpty ? p.viewerUrl : p.url,
-                        fit: BoxFit.contain,
-                        fadeInDuration: Duration.zero,
-                        placeholderFadeInDuration: Duration.zero,
-                        errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                        placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                  return GestureDetector(
+                    onDoubleTapDown: (details) => _doubleTapDetails = details,
+                    onDoubleTap: _toggleZoom,
+                    child: InteractiveViewer(
+                      transformationController: _transformController,
+                      minScale: 1,
+                      maxScale: 4,
+                      child: Center(
+                        child: CachedNetworkImage(
+                          imageUrl: p.viewerUrl.isNotEmpty ? p.viewerUrl : p.url,
+                          fit: BoxFit.contain,
+                          fadeInDuration: Duration.zero,
+                          placeholderFadeInDuration: Duration.zero,
+                          errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                          placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                        ),
                       ),
                     ),
                   );
