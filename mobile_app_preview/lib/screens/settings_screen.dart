@@ -951,7 +951,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.delete_forever, color: Colors.redAccent),
-                          label: const Text(
+                          label: Text(
                             I18n.t('delete_account'),
                             style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700),
                           ),
