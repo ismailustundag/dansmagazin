@@ -39,29 +39,6 @@ String _normTr(String raw) {
       .replaceAll('Ç', 'c');
 }
 
-bool _looksLikeEventContent(String title, String excerpt) {
-  final txt = _normTr('$title $excerpt');
-  const eventishKeywords = <String>[
-    'festival',
-    'dans gecesi',
-    'dance night',
-    'yarisma',
-    'competition',
-    'workshop',
-    'kongre',
-    'congress',
-    'kamp',
-    'promo lesson',
-    'tanitim dersi',
-    'etkinlik',
-    'bilet',
-  ];
-  for (final kw in eventishKeywords) {
-    if (txt.contains(_normTr(kw))) return true;
-  }
-  return false;
-}
-
 class DiscoverScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -131,7 +108,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final rows = (body['news'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(_NewsItem.fromJson)
-        .where((n) => !_looksLikeEventContent(n.title, n.excerpt))
         .toList();
     rows.sort((a, b) => b.sortKey.compareTo(a.sortKey));
     return rows;
