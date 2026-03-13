@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -431,10 +432,13 @@ class _EventCard extends StatelessWidget {
                 width: 92,
                 height: 92,
                 child: item.cover.isNotEmpty
-                    ? Image.network(
-                        item.cover,
+                    ? CachedNetworkImage(
+                        imageUrl: item.cover,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                        fadeInDuration: Duration.zero,
+                        placeholderFadeInDuration: Duration.zero,
+                        errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                        placeholder: (_, __) => Container(color: const Color(0xFF111827)),
                       )
                     : Container(color: const Color(0xFF1F2937)),
               ),
@@ -502,10 +506,13 @@ class _NewsCard extends StatelessWidget {
                 width: 92,
                 height: 92,
                 child: item.image.isNotEmpty
-                    ? Image.network(
-                        item.image,
+                    ? CachedNetworkImage(
+                        imageUrl: item.image,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                        fadeInDuration: Duration.zero,
+                        placeholderFadeInDuration: Duration.zero,
+                        errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                        placeholder: (_, __) => Container(color: const Color(0xFF111827)),
                       )
                     : Container(color: const Color(0xFF1F2937)),
               ),

@@ -1042,26 +1042,44 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
             Container(
               color: const Color(0xFF0B1020),
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _iconAction(
-                    onTap: () => _togglePhotoLike(photo),
-                    tooltip: 'Beğen (${photo.likeCount})',
-                    icon: photo.likedByMe ? Icons.favorite : Icons.favorite_border,
-                    color: photo.likedByMe ? Colors.redAccent : Colors.white,
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      'Fotografi indirdiginizde tam cozunurlukte cihaziniza kaydedilecektir.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
                   ),
-                  _iconAction(
-                    onTap: () => _toggleFavorite(photo),
-                    tooltip: fav ? 'Favoriden Çıkar' : 'Favorile',
-                    icon: fav ? Icons.star : Icons.star_border,
-                    color: fav ? const Color(0xFFFFC107) : Colors.white,
-                  ),
-                  _iconAction(
-                    onTap: () => _download(photo.url),
-                    tooltip: 'İndir',
-                    icon: Icons.download,
-                    color: Colors.white,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _iconAction(
+                        onTap: () => _togglePhotoLike(photo),
+                        tooltip: 'Beğen (${photo.likeCount})',
+                        icon: photo.likedByMe ? Icons.favorite : Icons.favorite_border,
+                        color: photo.likedByMe ? Colors.redAccent : Colors.white,
+                      ),
+                      _iconAction(
+                        onTap: () => _toggleFavorite(photo),
+                        tooltip: fav ? 'Favoriden Çıkar' : 'Favorile',
+                        icon: fav ? Icons.star : Icons.star_border,
+                        color: fav ? const Color(0xFFFFC107) : Colors.white,
+                      ),
+                      _iconAction(
+                        onTap: () => _download(photo.url),
+                        tooltip: 'İndir',
+                        icon: Icons.download,
+                        color: Colors.white,
+                      ),
+                    ],
                   ),
                 ],
               ),
