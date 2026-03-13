@@ -518,25 +518,9 @@ class _NewsCard extends StatelessWidget {
                 children: [
                   Text(
                     item.title,
-                    maxLines: 2,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
-                  if (item.excerpt.trim().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      item.excerpt.trim(),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_formatEventDate(item.date)}${item.author.trim().isNotEmpty ? ' • ${item.author.trim()}' : ''}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               ),
