@@ -69,6 +69,7 @@ class _RootScreenState extends State<RootScreen> {
   static const _kWpRoles = 'auth.wp_roles';
   static const _kAppRole = 'auth.app_role';
   static const _kCanCreateMobileEvent = 'auth.can_create_mobile_event';
+  static const _kOnboardingSeen = 'app.onboarding_seen_v1';
 
   int _index = 0;
   bool _bootDone = false;
@@ -86,6 +87,8 @@ class _RootScreenState extends State<RootScreen> {
   Timer? _notifTimer;
   StreamSubscription<Uri>? _deepLinkSub;
   bool _authInFlight = false;
+  bool _onboardingChecked = false;
+  bool _onboardingVisible = false;
 
   @override
   void initState() {
@@ -265,6 +268,7 @@ class _RootScreenState extends State<RootScreen> {
           _sessionToken,
           onRouteTap: _openFromPushRoute,
         ));
+        _scheduleOnboardingCheck();
         return;
       } catch (_) {
         // invalid/expired token: fall through to logged-out mode
@@ -287,6 +291,7 @@ class _RootScreenState extends State<RootScreen> {
     NotificationCenter.clear();
     _stopNotificationsPolling();
     unawaited(PushNotificationsService.dispose());
+    _scheduleOnboardingCheck();
   }
 
   Future<void> _persist({
@@ -377,6 +382,7 @@ class _RootScreenState extends State<RootScreen> {
         _sessionToken,
         onRouteTap: _openFromPushRoute,
       ));
+      _scheduleOnboardingCheck();
     } finally {
       _authInFlight = false;
     }
@@ -439,6 +445,33 @@ class _RootScreenState extends State<RootScreen> {
     _stopNotificationsPolling();
     unawaited(PushNotificationsService.unregisterForSession(previousSession));
     unawaited(PushNotificationsService.dispose());
+    _scheduleOnboardingCheck(forceCheck: true);
+  }
+
+  void _scheduleOnboardingCheck({bool forceCheck = false}) {
+    if (forceCheck) {
+      _onboardingChecked = false;
+    }
+    if (_onboardingChecked || _onboardingVisible || !mounted) return;
+    _onboardingChecked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeShowOnboarding());
+    });
+  }
+
+  Future<void> _maybeShowOnboarding() async {
+    if (!mounted || _onboardingVisible || !_bootDone || _authInFlight) return;
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool(_kOnboardingSeen) ?? false;
+    if (seen || !mounted) return;
+    _onboardingVisible = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _OnboardingDialog(),
+    );
+    await prefs.setBool(_kOnboardingSeen, true);
+    _onboardingVisible = false;
   }
 
   void _onNavTap(int i) {
@@ -709,6 +742,203 @@ class _RootScreenState extends State<RootScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _OnboardingStep {
+  final IconData icon;
+  final String titleKey;
+  final String bodyKey;
+
+  const _OnboardingStep({
+    required this.icon,
+    required this.titleKey,
+    required this.bodyKey,
+  });
+}
+
+class _OnboardingDialog extends StatefulWidget {
+  const _OnboardingDialog();
+
+  @override
+  State<_OnboardingDialog> createState() => _OnboardingDialogState();
+}
+
+class _OnboardingDialogState extends State<_OnboardingDialog> {
+  final PageController _controller = PageController();
+  int _index = 0;
+
+  static const List<_OnboardingStep> _steps = [
+    _OnboardingStep(
+      icon: Icons.waving_hand_rounded,
+      titleKey: 'onboarding_welcome_title',
+      bodyKey: 'onboarding_welcome_body',
+    ),
+    _OnboardingStep(
+      icon: Icons.article_outlined,
+      titleKey: 'onboarding_news_title',
+      bodyKey: 'onboarding_news_body',
+    ),
+    _OnboardingStep(
+      icon: Icons.shopping_bag_outlined,
+      titleKey: 'onboarding_shop_title',
+      bodyKey: 'onboarding_shop_body',
+    ),
+    _OnboardingStep(
+      icon: Icons.photo_library_outlined,
+      titleKey: 'onboarding_photos_title',
+      bodyKey: 'onboarding_photos_body',
+    ),
+    _OnboardingStep(
+      icon: Icons.groups_outlined,
+      titleKey: 'onboarding_social_title',
+      bodyKey: 'onboarding_social_body',
+    ),
+    _OnboardingStep(
+      icon: Icons.person_outline,
+      titleKey: 'onboarding_profile_title',
+      bodyKey: 'onboarding_profile_body',
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _next() async {
+    if (_index >= _steps.length - 1) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    await _controller.nextPage(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = I18n.t;
+    final isLast = _index == _steps.length - 1;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 420),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1A2238), Color(0xFF0B1020)],
+          ),
+          border: Border.all(color: Colors.white12),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x55000000),
+              blurRadius: 30,
+              offset: Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(t('onboarding_skip')),
+              ),
+            ),
+            SizedBox(
+              height: 340,
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: _steps.length,
+                onPageChanged: (value) => setState(() => _index = value),
+                itemBuilder: (_, i) {
+                  final step = _steps[i];
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 82,
+                          height: 82,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE53935).withOpacity(0.18),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFFE53935).withOpacity(0.35)),
+                          ),
+                          child: Icon(step.icon, size: 40, color: const Color(0xFFFF6B6B)),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          t(step.titleKey),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          t(step.bodyKey),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.45,
+                            color: Colors.white.withOpacity(0.82),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                _steps.length,
+                (i) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: _index == i ? 22 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _index == i ? const Color(0xFFE53935) : Colors.white24,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(t('onboarding_skip')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _next,
+                    child: Text(isLast ? t('onboarding_start') : t('onboarding_next')),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

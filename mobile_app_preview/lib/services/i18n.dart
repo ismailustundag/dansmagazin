@@ -121,7 +121,22 @@ class I18n {
       'videos_coming_soon': 'Videolar bölümü çok yakında.',
       'favorites_login_required': 'Favoriler ve fotoğraf detayları için giriş yapın.',
       'no_albums_found': 'Albüm bulunamadı.',
-    };
+      'onboarding_welcome_title': 'Dansmagazin\'e Hoş Geldiniz',
+      'onboarding_welcome_body': 'Uygulamayı ilk kez kullanıyorsanız, ana alanları size kısaca gösterelim.',
+      'onboarding_news_title': 'Haberler ve Etkinlikler',
+      'onboarding_news_body': 'Haberleri takip edebilir, dans geceleri, festivaller, yarışmalar ve tanıtım derslerini buradan keşfedebilirsiniz.',
+      'onboarding_shop_title': 'Etkinlikler ve Mağaza',
+      'onboarding_shop_body': 'Etkinlikleri görüntüleyebilir, bilet akışına geçebilir ve mağaza alanını buradan kullanabilirsiniz.',
+      'onboarding_photos_title': 'Fotoğraflar',
+      'onboarding_photos_body': 'Albüm fotoğraflarını inceleyebilir, favorilerinizi görebilir ve giriş yaptıktan sonra daha fazla işlem yapabilirsiniz.',
+      'onboarding_social_title': 'Sosyal ve Mesajlar',
+      'onboarding_social_body': 'Arkadaş ekleyebilir, yeni insanları bulabilir ve gelen mesajlarınızı takip edebilirsiniz.',
+      'onboarding_profile_title': 'Profil ve Ayarlar',
+      'onboarding_profile_body': 'Profilinizi düzenleyebilir, bildirim tercihlerinizi ayarlayabilir ve hesabınızı buradan yönetebilirsiniz.',
+      'onboarding_skip': 'Geç',
+      'onboarding_next': 'Sonraki',
+      'onboarding_start': 'Başla',
+      };
 
     final enMap = <String, String>{
       'news': 'News',
@@ -238,6 +253,21 @@ class I18n {
       'videos_coming_soon': 'Videos section is coming very soon.',
       'favorites_login_required': 'Sign in for favorites and full photo details.',
       'no_albums_found': 'No albums found.',
+      'onboarding_welcome_title': 'Welcome to Dansmagazin',
+      'onboarding_welcome_body': 'If this is your first time using the app, here is a quick tour of the main areas.',
+      'onboarding_news_title': 'News and Event Feed',
+      'onboarding_news_body': 'Follow news and discover dance nights, festivals, competitions and promo lessons here.',
+      'onboarding_shop_title': 'Events and Store',
+      'onboarding_shop_body': 'Browse events, move into ticket flows and use the store area from here.',
+      'onboarding_photos_title': 'Photos',
+      'onboarding_photos_body': 'Browse album photos, view favorites and unlock more actions after signing in.',
+      'onboarding_social_title': 'Social and Messages',
+      'onboarding_social_body': 'Add friends, discover people and keep up with incoming messages here.',
+      'onboarding_profile_title': 'Profile and Settings',
+      'onboarding_profile_body': 'Update your profile, manage notification preferences and control your account here.',
+      'onboarding_skip': 'Skip',
+      'onboarding_next': 'Next',
+      'onboarding_start': 'Start',
     };
 
     final esMap = <String, String>{
@@ -355,6 +385,21 @@ class I18n {
       'videos_coming_soon': 'La sección de videos estará disponible muy pronto.',
       'favorites_login_required': 'Inicia sesión para acceder a favoritos y al detalle completo de fotos.',
       'no_albums_found': 'No se encontraron álbumes.',
+      'onboarding_welcome_title': 'Bienvenido a Dansmagazin',
+      'onboarding_welcome_body': 'Si es tu primera vez usando la app, aquí tienes una guía rápida de las áreas principales.',
+      'onboarding_news_title': 'Noticias y Flujo de Eventos',
+      'onboarding_news_body': 'Sigue las noticias y descubre noches de baile, festivales, competiciones y clases promocionales aquí.',
+      'onboarding_shop_title': 'Eventos y Tienda',
+      'onboarding_shop_body': 'Explora eventos, accede a los flujos de entradas y usa el área de tienda desde aquí.',
+      'onboarding_photos_title': 'Fotos',
+      'onboarding_photos_body': 'Explora fotos de álbumes, mira tus favoritos y desbloquea más acciones después de iniciar sesión.',
+      'onboarding_social_title': 'Social y Mensajes',
+      'onboarding_social_body': 'Agrega amigos, descubre personas y sigue tus mensajes entrantes aquí.',
+      'onboarding_profile_title': 'Perfil y Ajustes',
+      'onboarding_profile_body': 'Actualiza tu perfil, gestiona tus preferencias de notificación y controla tu cuenta aquí.',
+      'onboarding_skip': 'Saltar',
+      'onboarding_next': 'Siguiente',
+      'onboarding_start': 'Empezar',
     };
 
     if (language == 'en') return enMap[key] ?? trMap[key] ?? key;
