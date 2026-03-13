@@ -74,7 +74,7 @@ class PhotosScreen extends StatefulWidget {
 class _PhotosScreenState extends State<PhotosScreen> {
   static const String _albumsUrl = 'https://api2.dansmagazin.net/photos';
 
-  late Future<List<_Album>> _albumsFuture;
+  late Future<_PhotosFeed> _feedFuture;
   int _tab = 0; // 0: Fotograflar, 1: Videolar, 2: Favoriler
   List<_FavoritePhoto> _favorites = [];
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
@@ -99,7 +99,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   @override
   void initState() {
     super.initState();
-    _albumsFuture = _fetchAlbums();
+    _feedFuture = _fetchFeed();
     _loadFavorites();
   }
 
@@ -134,7 +134,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
     }
   }
 
-  Future<List<_Album>> _fetchAlbums() async {
+  Future<_PhotosFeed> _fetchFeed() async {
     final resp = await http.get(
       Uri.parse(_albumsUrl),
       headers: {
@@ -146,33 +146,65 @@ class _PhotosScreenState extends State<PhotosScreen> {
     }
 
     final dynamic raw = jsonDecode(resp.body);
-    List<dynamic> rows;
-    if (raw is List) {
-      rows = raw;
-    } else if (raw is Map<String, dynamic>) {
-      rows = (raw['albums'] as List<dynamic>?) ??
-          (raw['items'] as List<dynamic>?) ??
-          (raw['results'] as List<dynamic>?) ??
-          <dynamic>[];
-    } else {
-      rows = <dynamic>[];
-    }
+    final map = raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+    final albumRows = (map['albums'] as List<dynamic>?) ??
+        (map['items'] as List<dynamic>?) ??
+        (map['results'] as List<dynamic>?) ??
+        <dynamic>[];
+    final topLikedRows = (map['top_liked'] as List<dynamic>?) ?? <dynamic>[];
 
-    final albums = rows
+    final albums = albumRows
         .whereType<Map<String, dynamic>>()
         .map(_Album.fromJson)
         .where((a) => a.slug.isNotEmpty)
         .toList();
+    final topLiked = topLikedRows
+        .whereType<Map<String, dynamic>>()
+        .map(_Photo.fromJson)
+        .where((p) => p.url.isNotEmpty)
+        .toList();
 
-    albums.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return albums;
+    return _PhotosFeed(
+      albums: albums,
+      topLiked: topLiked,
+    );
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _albumsFuture = _fetchAlbums();
+      _feedFuture = _fetchFeed();
     });
-    await _albumsFuture;
+    await _feedFuture;
+  }
+
+  Future<void> _openTopLikedViewer(List<_Photo> photos, int initialIndex) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Fotoğraf detayını açmak için giriş yapın.');
+      return;
+    }
+    final album = _Album(
+      slug: 'top-liked',
+      name: I18n.t('top_liked_photos'),
+      coverUrl: '',
+      coverThumbUrl: '',
+      createdAt: '',
+      photoCount: photos.length,
+      likeCount: 0,
+      likedByMe: false,
+    );
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PhotoViewerScreen(
+          photos: photos,
+          initialIndex: initialIndex,
+          album: album,
+          accountId: widget.accountId,
+          sessionToken: widget.sessionToken,
+          onRequireLogin: widget.onRequireLogin,
+        ),
+      ),
+    );
+    await _loadFavorites();
   }
 
   @override
@@ -210,8 +242,8 @@ class _PhotosScreenState extends State<PhotosScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        FutureBuilder<List<_Album>>(
-          future: _albumsFuture,
+        FutureBuilder<_PhotosFeed>(
+          future: _feedFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
@@ -226,7 +258,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
               );
             }
 
-            final albums = snapshot.data ?? const <_Album>[];
+            final feed = snapshot.data ?? const _PhotosFeed();
+            final albums = feed.albums;
+            final topLiked = feed.topLiked;
             if (_tab == 1) {
               return _InfoCard(
                 text: I18n.t('videos_coming_soon'),
@@ -251,36 +285,51 @@ class _PhotosScreenState extends State<PhotosScreen> {
             }
 
             final list = albums;
-            if (list.isEmpty) {
+            if (list.isEmpty && topLiked.isEmpty) {
               return _InfoCard(text: I18n.t('no_albums_found'));
             }
 
             return Column(
-              children: list
-                  .map(
-                    (album) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _AlbumCard(
-                        album: album,
-                        liked: album.likedByMe,
-                        onLikeTap: () => _toggleAlbumLike(album),
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => AlbumPhotosScreen(
-                                album: album,
-                                accountId: widget.accountId,
-                                sessionToken: widget.sessionToken,
-                                onRequireLogin: widget.onRequireLogin,
-                              ),
-                            ),
-                          );
-                          await _loadFavorites();
-                        },
-                      ),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (topLiked.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      I18n.t('top_liked_photos'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                     ),
-                  )
-                  .toList(),
+                  ),
+                  _TopLikedGrid(
+                    photos: topLiked,
+                    onTap: (index) => _openTopLikedViewer(topLiked, index),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                ...list.map(
+                  (album) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _AlbumCard(
+                      album: album,
+                      liked: album.likedByMe,
+                      onLikeTap: () => _toggleAlbumLike(album),
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AlbumPhotosScreen(
+                              album: album,
+                              accountId: widget.accountId,
+                              sessionToken: widget.sessionToken,
+                              onRequireLogin: widget.onRequireLogin,
+                            ),
+                          ),
+                        );
+                        await _loadFavorites();
+                      },
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -300,6 +349,16 @@ class _PhotosScreenState extends State<PhotosScreen> {
       side: BorderSide(color: selected ? Colors.transparent : Colors.white24),
     );
   }
+}
+
+class _PhotosFeed {
+  final List<_Album> albums;
+  final List<_Photo> topLiked;
+
+  const _PhotosFeed({
+    this.albums = const [],
+    this.topLiked = const [],
+  });
 }
 
 class AlbumPhotosScreen extends StatefulWidget {
@@ -924,6 +983,83 @@ class _AlbumCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TopLikedGrid extends StatelessWidget {
+  final List<_Photo> photos;
+  final ValueChanged<int> onTap;
+
+  const _TopLikedGrid({
+    required this.photos,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: photos.length,
+      itemBuilder: (context, i) {
+        final photo = photos[i];
+        return GestureDetector(
+          onTap: () => onTap(i),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  photo.thumbUrl.isNotEmpty ? photo.thumbUrl : photo.url,
+                  fit: BoxFit.cover,
+                  cacheWidth: 420,
+                  filterQuality: FilterQuality.low,
+                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                ),
+              ),
+              Positioned(
+                left: 6,
+                right: 6,
+                bottom: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.62),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.favorite, size: 14, color: Colors.redAccent),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          '${photo.likeCount}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
