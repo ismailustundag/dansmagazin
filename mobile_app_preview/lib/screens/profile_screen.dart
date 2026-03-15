@@ -209,7 +209,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           accountId: widget.accountId,
           avatarUrl: _avatarUrl,
           initials: initials,
-          subtitle: t('profile_overview_subtitle'),
           onNotificationsTap: _openNotifications,
         ),
         const SizedBox(height: 6),
@@ -225,28 +224,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             _ActionTile(
               title: t('my_tickets'),
-              subtitle: t('my_tickets_subtitle'),
               icon: Icons.confirmation_num_rounded,
               accent: _peach,
               onTap: _openTickets,
             ),
             _ActionTile(
               title: t('my_photos'),
-              subtitle: t('my_photos_subtitle'),
               icon: Icons.collections_rounded,
               accent: _rose,
               onTap: _openPhotos,
             ),
             _ActionTile(
               title: t('settings'),
-              subtitle: t('settings_subtitle'),
               icon: Icons.tune_rounded,
               accent: _sky,
               onTap: _openSettings,
             ),
             _ActionTile(
               title: t('support'),
-              subtitle: t('support_subtitle'),
               icon: Icons.chat_bubble_outline_rounded,
               accent: _mint,
               onTap: _openSupportChat,
@@ -311,7 +306,6 @@ class _ProfileHeroCard extends StatelessWidget {
   final int accountId;
   final String avatarUrl;
   final String initials;
-  final String subtitle;
   final VoidCallback onNotificationsTap;
 
   const _ProfileHeroCard({
@@ -320,13 +314,25 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.accountId,
     required this.avatarUrl,
     required this.initials,
-    required this.subtitle,
     required this.onNotificationsTap,
   });
+
+  List<String> _nameLines(String raw) {
+    final cleaned = raw
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+    if (cleaned.isEmpty) return const [''];
+    if (cleaned.length == 1) return cleaned;
+    if (cleaned.length == 2) return cleaned;
+    return [cleaned.first, cleaned.sublist(1).join(' ')];
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
+    final nameLines = _nameLines(displayName);
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(18),
@@ -375,18 +381,20 @@ class _ProfileHeroCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${t('hello')} $displayName',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            subtitle,
+                            t('hello'),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.72),
-                              fontSize: 13,
-                              height: 1.3,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...nameLines.map(
+                            (line) => Text(
+                              line,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
                             ),
                           ),
                         ],
@@ -546,14 +554,12 @@ class _SectionTitle extends StatelessWidget {
 
 class _ActionTile extends StatelessWidget {
   final String title;
-  final String subtitle;
   final IconData icon;
   final Color accent;
   final VoidCallback onTap;
 
   const _ActionTile({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.accent,
     required this.onTap,
@@ -603,20 +609,10 @@ class _ActionTile extends StatelessWidget {
                 const Spacer(),
                 Text(
                   title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withOpacity(0.64),
-                    height: 1.25,
-                  ),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.left,
                 ),
               ],
             ),
