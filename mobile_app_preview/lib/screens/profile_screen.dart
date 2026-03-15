@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../services/i18n.dart';
+import '../services/notification_center.dart';
 import '../services/profile_api.dart';
 import 'admin_notifications_screen.dart';
+import 'app_webview_screen.dart';
+import 'chat_thread_screen.dart';
 import 'editor_event_management_screen.dart';
 import 'my_photos_screen.dart';
 import 'notifications_screen.dart';
@@ -53,6 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const _sky = Color(0xFF8FB7E8);
   static const _mint = Color(0xFF8FD5C2);
   static const _lavender = Color(0xFFB39DDB);
+  static const _photoPanelBase = 'https://foto.dansmagazin.net';
 
   String _displayName = '';
   String _avatarUrl = '';
@@ -62,6 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _displayName = widget.userName;
     _loadProfileVisuals();
+    NotificationCenter.refresh(widget.sessionToken);
   }
 
   Future<void> _loadProfileVisuals() async {
@@ -102,6 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+    await NotificationCenter.refresh(widget.sessionToken);
   }
 
   Future<void> _openSettings() async {
@@ -118,6 +124,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     await _loadProfileVisuals();
+    await NotificationCenter.refresh(widget.sessionToken);
+  }
+
+  Future<void> _openSupportChat() async {
+    if (widget.sessionToken.trim().isEmpty) return;
+    try {
+      final contact = await ProfileApi.supportContact(widget.sessionToken);
+      final target = contact ??
+          const SupportContact(
+            accountId: 164,
+            name: 'Dansmagazin',
+            avatarUrl: '',
+          );
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatThreadScreen(
+            sessionToken: widget.sessionToken,
+            peerAccountId: target.accountId,
+            peerName: target.name,
+            peerAvatarUrl: target.avatarUrl,
+          ),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _openPhotoPanel(String path, String title) async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) return;
+    final cleanPath = path.trim().replaceAll(RegExp(r'^/+'), '');
+    final nextPath = '/panel/$cleanPath';
+    final url = '$_photoPanelBase/mobile-sso-login?next=${Uri.encodeQueryComponent(nextPath)}';
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AppWebViewScreen(
+          url: url,
+          title: title,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      ),
+    );
   }
 
   bool get _showManagementTools =>
@@ -196,11 +245,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: _openSettings,
             ),
             _ActionTile(
-              title: t('notifications'),
-              subtitle: t('notifications_subtitle'),
-              icon: Icons.notifications_active_rounded,
+              title: t('support'),
+              subtitle: t('support_subtitle'),
+              icon: Icons.chat_bubble_outline_rounded,
               accent: _mint,
-              onTap: _openNotifications,
+              onTap: _openSupportChat,
             ),
           ],
         ),
@@ -219,6 +268,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   builder: (_) => EditorEventManagementScreen(sessionToken: widget.sessionToken),
                 ),
               ),
+            ),
+          if (widget.isLoggedIn && widget.appRole == 'super_admin')
+            _ProfileListCard(
+              title: 'Foto Paneli',
+              subtitle: 'Etkinlikler, profil ve kredi islemlerini yonetin',
+              icon: Icons.photo_library_outlined,
+              accent: _mint,
+              onTap: () => _openPhotoPanel('events', 'Foto Paneli · Etkinlikler'),
             ),
           if (widget.appRole == 'super_admin')
             _ProfileListCard(
@@ -339,9 +396,13 @@ class _ProfileHeroCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              _TopIconButton(
-                icon: Icons.notifications_none_rounded,
-                onTap: onNotificationsTap,
+              ValueListenableBuilder<int>(
+                valueListenable: NotificationCenter.totalCount,
+                builder: (_, count, __) => _TopIconButton(
+                  icon: Icons.notifications_none_rounded,
+                  badgeCount: count,
+                  onTap: onNotificationsTap,
+                ),
               ),
             ],
           ),
@@ -372,9 +433,14 @@ class _ProfileHeroCard extends StatelessWidget {
 
 class _TopIconButton extends StatelessWidget {
   final IconData icon;
+  final int badgeCount;
   final VoidCallback onTap;
 
-  const _TopIconButton({required this.icon, required this.onTap});
+  const _TopIconButton({
+    required this.icon,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -387,7 +453,35 @@ class _TopIconButton extends StatelessWidget {
         child: SizedBox(
           width: 48,
           height: 48,
-          child: Icon(icon, color: Colors.white, size: 24),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Center(child: Icon(icon, color: Colors.white, size: 24)),
+              if (badgeCount > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE66D6D),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFF161B29), width: 1.5),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      badgeCount > 99 ? '99+' : '$badgeCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

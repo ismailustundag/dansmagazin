@@ -16,7 +16,6 @@ import '../services/legal_links.dart';
 import '../services/profile_api.dart';
 import '../services/push_notifications_service.dart';
 import '../services/turkiye_cities.dart';
-import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -36,7 +35,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
-  static const String _photoPanelBase = 'https://foto.dansmagazin.net';
   static const String _defaultCity = 'İstanbul';
   static const Map<String, bool> _defaultNotificationPreferences = {
     'news': true,
@@ -399,31 +397,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (ok || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(I18n.t('link_open_failed'))),
-    );
-  }
-
-  Future<void> _openPhotoPanel(String path, String title) async {
-    final token = widget.sessionToken.trim();
-    if (token.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.t('login_required_for_panel'))),
-      );
-      return;
-    }
-
-    final cleanPath = path.trim().replaceAll(RegExp(r'^/+'), '');
-    final nextPath = '/panel/$cleanPath';
-    final url = '$_photoPanelBase/mobile-sso-login?next=${Uri.encodeQueryComponent(nextPath)}';
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AppWebViewScreen(
-          url: url,
-          title: title,
-          headers: {'Authorization': 'Bearer $token'},
-        ),
-      ),
     );
   }
 
@@ -982,53 +955,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
-                  if (widget.isSuperAdmin) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121826),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Foto Paneli (Super Admin)',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              OutlinedButton(
-                                onPressed: () => _openPhotoPanel('overview', I18n.t('photo_panel_overview')),
-                                child: Text(I18n.t('overview')),
-                              ),
-                              OutlinedButton(
-                                onPressed: () => _openPhotoPanel('events', 'Foto Paneli · Etkinlikler'),
-                                child: const Text('Etkinlikler'),
-                              ),
-                              OutlinedButton(
-                                onPressed: () => _openPhotoPanel('credits', I18n.t('photo_panel_buy_credits')),
-                                child: Text(I18n.t('buy_credits')),
-                              ),
-                              OutlinedButton(
-                                onPressed: () => _openPhotoPanel('history', I18n.t('photo_panel_history')),
-                                child: Text(I18n.t('history')),
-                              ),
-                              OutlinedButton(
-                                onPressed: () => _openPhotoPanel('profile', 'Foto Paneli · Profil'),
-                                child: const Text('Profil'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 10),
                   Center(
                     child: Text(

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
 import '../services/notification_center.dart';
@@ -531,8 +530,10 @@ class _SocialScreenState extends State<SocialScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(u.name.isNotEmpty ? u.name : t('user'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                                if (u.email.isNotEmpty) Text(u.email, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                                Text(
+                                  u.name.isNotEmpty ? u.name : t('user'),
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
                               ],
                             ),
                           ),
@@ -617,8 +618,8 @@ class _SocialScreenState extends State<SocialScreen> {
                           await NotificationCenter.refresh(widget.sessionToken);
                         },
                         child: Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
                             color: f.unreadCount > 0 ? const Color(0xFF1D1520) : const Color(0xFF121826),
                             borderRadius: BorderRadius.circular(12),
@@ -641,7 +642,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                         Expanded(
                                           child: Text(
                                             f.name.isNotEmpty ? f.name : t('user'),
-                                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                                           ),
                                         ),
                                         IconButton(
@@ -663,20 +664,6 @@ class _SocialScreenState extends State<SocialScreen> {
                                           ),
                                       ],
                                     ),
-                                    if (f.email.isNotEmpty)
-                                      Text(
-                                        f.email,
-                                        style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                      ),
-                                    if (f.lastMessageAt.isNotEmpty)
-                                      Text(
-                                        '${t('last_message')}: ${formatDateTimeDdMmYyyyHmDot(f.lastMessageAt)}',
-                                        style: TextStyle(
-                                          color: f.unreadCount > 0 ? Colors.redAccent : Colors.white70,
-                                          fontSize: 12,
-                                          fontWeight: f.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
-                                        ),
-                                      ),
                                   ],
                                 ),
                               ),
