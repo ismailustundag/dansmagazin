@@ -384,7 +384,7 @@ class _TopIconButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: const SizedBox(
+        child: SizedBox(
           width: 48,
           height: 48,
           child: Icon(icon, color: Colors.white, size: 24),
