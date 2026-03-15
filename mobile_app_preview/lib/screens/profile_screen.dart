@@ -45,6 +45,15 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const _panelColor = Color(0xFF171C29);
+  static const _panelSoft = Color(0xFF202637);
+  static const _lineColor = Color(0x22FFFFFF);
+  static const _rose = Color(0xFFE58B8B);
+  static const _peach = Color(0xFFF3B78A);
+  static const _sky = Color(0xFF8FB7E8);
+  static const _mint = Color(0xFF8FD5C2);
+  static const _lavender = Color(0xFFB39DDB);
+
   String _displayName = '';
   String _avatarUrl = '';
 
@@ -68,6 +77,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
   }
 
+  Future<void> _openTickets() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TicketsScreen(sessionToken: widget.sessionToken),
+      ),
+    );
+  }
+
+  Future<void> _openPhotos() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MyPhotosScreen(accountId: widget.accountId),
+      ),
+    );
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NotificationsScreen(
+          sessionToken: widget.sessionToken,
+          onOpenRoute: widget.onOpenRoute,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSettings() async {
+    final deleted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SettingsScreen(
+          sessionToken: widget.sessionToken,
+          isSuperAdmin: widget.appRole == 'super_admin',
+        ),
+      ),
+    );
+    if (deleted == true) {
+      widget.onLogoutTap();
+      return;
+    }
+    await _loadProfileVisuals();
+  }
+
+  bool get _showManagementTools =>
+      widget.appRole == 'super_admin' ||
+      widget.canCreateMobileEvent ||
+      widget.wpRoles.contains('administrator') ||
+      widget.wpRoles.contains('editor');
+
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
@@ -90,153 +148,459 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final greetingName = _displayName.trim().isEmpty ? widget.userName : _displayName;
     final initials = greetingName.trim().isNotEmpty ? greetingName.trim().substring(0, 1).toUpperCase() : 'U';
     final emailText = widget.userEmail.trim();
-    final idLabel = '${t('user_id')}: ${widget.accountId}';
 
     return ScreenShell(
       title: t('profile'),
       icon: Icons.person,
       subtitle: '',
-      headerTrailing: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (emailText.isNotEmpty)
-            Text(
-              emailText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.78),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+      content: [
+        _ProfileHeroCard(
+          displayName: greetingName,
+          email: emailText,
+          accountId: widget.accountId,
+          avatarUrl: _avatarUrl,
+          initials: initials,
+          subtitle: t('profile_overview_subtitle'),
+          onNotificationsTap: _openNotifications,
+        ),
+        const SizedBox(height: 6),
+        _SectionTitle(title: t('quick_actions')),
+        const SizedBox(height: 10),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.18,
+          children: [
+            _ActionTile(
+              title: t('my_tickets'),
+              subtitle: t('my_tickets_subtitle'),
+              icon: Icons.confirmation_num_rounded,
+              accent: _peach,
+              onTap: _openTickets,
+            ),
+            _ActionTile(
+              title: t('my_photos'),
+              subtitle: t('my_photos_subtitle'),
+              icon: Icons.collections_rounded,
+              accent: _rose,
+              onTap: _openPhotos,
+            ),
+            _ActionTile(
+              title: t('settings'),
+              subtitle: t('settings_subtitle'),
+              icon: Icons.tune_rounded,
+              accent: _sky,
+              onTap: _openSettings,
+            ),
+            _ActionTile(
+              title: t('notifications'),
+              subtitle: t('notifications_subtitle'),
+              icon: Icons.notifications_active_rounded,
+              accent: _mint,
+              onTap: _openNotifications,
+            ),
+          ],
+        ),
+        if (_showManagementTools) ...[
+          const SizedBox(height: 14),
+          _SectionTitle(title: t('management_tools')),
+          const SizedBox(height: 10),
+          if (widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
+            _ProfileListCard(
+              title: t('event_management'),
+              subtitle: t('event_management_subtitle'),
+              icon: Icons.event_note_rounded,
+              accent: _lavender,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EditorEventManagementScreen(sessionToken: widget.sessionToken),
+                ),
               ),
             ),
-          Text(
-            idLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.58),
-              fontSize: 11,
+          if (widget.appRole == 'super_admin')
+            _ProfileListCard(
+              title: t('send_notification'),
+              subtitle: t('send_notification_subtitle'),
+              icon: Icons.campaign_rounded,
+              accent: _peach,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AdminNotificationsScreen(sessionToken: widget.sessionToken),
+                ),
+              ),
+            ),
+        ],
+        const SizedBox(height: 14),
+        _SectionTitle(title: t('account_tools')),
+        const SizedBox(height: 10),
+        _ProfileListCard(
+          title: t('logout'),
+          subtitle: t('logout_subtitle'),
+          icon: Icons.logout_rounded,
+          accent: _rose,
+          onTap: widget.onLogoutTap,
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileHeroCard extends StatelessWidget {
+  final String displayName;
+  final String email;
+  final int accountId;
+  final String avatarUrl;
+  final String initials;
+  final String subtitle;
+  final VoidCallback onNotificationsTap;
+
+  const _ProfileHeroCard({
+    required this.displayName,
+    required this.email,
+    required this.accountId,
+    required this.avatarUrl,
+    required this.initials,
+    required this.subtitle,
+    required this.onNotificationsTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = I18n.t;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF21283A),
+            Color(0xFF1A2030),
+            Color(0xFF161B29),
+          ],
+        ),
+        border: Border.all(color: const Color(0x22FFFFFF)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x20000000),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    avatarUrl.isNotEmpty
+                        ? CircleAvatar(radius: 30, backgroundImage: NetworkImage(avatarUrl))
+                        : CircleAvatar(
+                            radius: 30,
+                            backgroundColor: const Color(0xFFE58B8B),
+                            child: Text(
+                              initials,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20),
+                            ),
+                          ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${t('hello')} $displayName',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.72),
+                              fontSize: 13,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _TopIconButton(
+                icon: Icons.notifications_none_rounded,
+                onTap: onNotificationsTap,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111623),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0x22FFFFFF)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MetaInfo(
+                    label: email.isEmpty ? 'E-mail' : email,
+                    value: '${t('user_id')}: $accountId',
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
-      content: [
-        Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF121826),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white12),
+    );
+  }
+}
+
+class _TopIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _TopIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0x1FFFFFFF),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: const SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaInfo extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MetaInfo({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.78),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
           ),
-          child: Row(
-            children: [
-              _avatarUrl.isNotEmpty
-                  ? CircleAvatar(radius: 28, backgroundImage: NetworkImage(_avatarUrl))
-                  : CircleAvatar(
-                      radius: 28,
-                      backgroundColor: const Color(0xFFE53935),
-                      child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                    ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '${t('hello')} $greetingName',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.56),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+
+  const _SectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          color: Colors.white.withOpacity(0.92),
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _ActionTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1D2331),
+                Color(0xFF181D2A),
+              ],
+            ),
+            border: Border.all(color: const Color(0x22FFFFFF)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x16000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
               ),
             ],
           ),
-        ),
-        PreviewCard(
-          title: t('my_tickets'),
-          subtitle: t('my_tickets_subtitle'),
-          icon: Icons.confirmation_num,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => TicketsScreen(
-                sessionToken: widget.sessionToken,
-              ),
-            ),
-          ),
-        ),
-        PreviewCard(
-          title: t('my_photos'),
-          subtitle: t('my_photos_subtitle'),
-          icon: Icons.photo_library,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => MyPhotosScreen(
-                accountId: widget.accountId,
-              ),
-            ),
-          ),
-        ),
-        PreviewCard(
-          title: t('notifications'),
-          subtitle: t('notifications_subtitle'),
-          icon: Icons.notifications,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => NotificationsScreen(
-                sessionToken: widget.sessionToken,
-                onOpenRoute: widget.onOpenRoute,
-              ),
-            ),
-          ),
-        ),
-        if (widget.appRole == 'super_admin')
-          PreviewCard(
-            title: t('send_notification'),
-            subtitle: t('send_notification_subtitle'),
-            icon: Icons.campaign,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => AdminNotificationsScreen(sessionToken: widget.sessionToken),
-              ),
-            ),
-          ),
-        if (widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
-          PreviewCard(
-            title: t('event_management'),
-            subtitle: t('event_management_subtitle'),
-            icon: Icons.event_note,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => EditorEventManagementScreen(sessionToken: widget.sessionToken),
-              ),
-            ),
-          ),
-        PreviewCard(
-          title: t('settings'),
-          subtitle: t('settings_subtitle'),
-          icon: Icons.settings,
-          onTap: () async {
-            final deleted = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                builder: (_) => SettingsScreen(
-                  sessionToken: widget.sessionToken,
-                  isSuperAdmin: widget.appRole == 'super_admin',
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: accent.withOpacity(0.20),
+                  ),
+                  child: Icon(icon, color: accent, size: 22),
                 ),
-              ),
-            );
-            if (deleted == true) {
-              widget.onLogoutTap();
-              return;
-            }
-            await _loadProfileVisuals();
-          },
+                const Spacer(),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.64),
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        PreviewCard(
-          title: t('logout'),
-          subtitle: t('logout_subtitle'),
-          icon: Icons.logout,
-          onTap: widget.onLogoutTap,
+      ),
+    );
+  }
+}
+
+class _ProfileListCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _ProfileListCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF171C29),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0x22FFFFFF)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.63),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.42), size: 16),
+              ],
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }

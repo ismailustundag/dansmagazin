@@ -78,9 +78,9 @@ class ScreenShell extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0B1020), Color(0xFF080B14)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF141822), Color(0xFF0F1320), Color(0xFF0B0F19)],
         ),
       ),
       child: SafeArea(
@@ -117,15 +117,24 @@ class PreviewCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
-            colors: [Color(0xFF1D2438), Color(0xFF0F172A)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF23293A), Color(0xFF181E2C)],
           ),
-          border: Border.all(color: Colors.white12),
+          border: Border.all(color: const Color(0xFFFFFFFF).withOpacity(0.08)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x16000000),
+              blurRadius: 16,
+              offset: Offset(0, 8),
+            ),
+          ],
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: const Color(0xFFE53935),
+              backgroundColor: const Color(0xFFE58B8B),
               child: Icon(icon, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
