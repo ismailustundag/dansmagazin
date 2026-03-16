@@ -3,20 +3,30 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ProfileSettingsData {
+  final int accountId;
   final String username;
   final String email;
   final String city;
   final String birthDate;
+  final String danceInterests;
+  final String danceSchool;
+  final String about;
+  final String registeredAt;
   final String language;
   final bool notificationsEnabled;
   final Map<String, bool> notificationPreferences;
   final String avatarUrl;
 
   const ProfileSettingsData({
+    required this.accountId,
     required this.username,
     required this.email,
     required this.city,
     required this.birthDate,
+    required this.danceInterests,
+    required this.danceSchool,
+    required this.about,
+    required this.registeredAt,
     required this.language,
     required this.notificationsEnabled,
     required this.notificationPreferences,
@@ -45,10 +55,15 @@ class ProfileSettingsData {
 
   factory ProfileSettingsData.fromJson(Map<String, dynamic> json) {
     return ProfileSettingsData(
+      accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       username: (json['username'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       birthDate: (json['birth_date'] ?? '').toString(),
+      danceInterests: (json['dance_interests'] ?? '').toString(),
+      danceSchool: (json['dance_school'] ?? '').toString(),
+      about: (json['about'] ?? '').toString(),
+      registeredAt: (json['registered_at'] ?? '').toString(),
       language: (json['language'] ?? 'tr').toString(),
       notificationsEnabled: json['notifications_enabled'] == true,
       notificationPreferences: _parseNotificationPreferences(json),
@@ -88,6 +103,9 @@ class ProfileApi {
     String? username,
     String? city,
     String? birthDate,
+    String? danceInterests,
+    String? danceSchool,
+    String? about,
     String? language,
     bool? notificationsEnabled,
     Map<String, bool>? notificationPreferences,
@@ -97,6 +115,9 @@ class ProfileApi {
     if (username != null) body['username'] = username;
     if (city != null) body['city'] = city;
     if (birthDate != null) body['birth_date'] = birthDate;
+    if (danceInterests != null) body['dance_interests'] = danceInterests;
+    if (danceSchool != null) body['dance_school'] = danceSchool;
+    if (about != null) body['about'] = about;
     if (language != null) body['language'] = language;
     if (notificationsEnabled != null) body['notifications_enabled'] = notificationsEnabled;
     if (notificationPreferences != null) body['notification_preferences'] = notificationPreferences;

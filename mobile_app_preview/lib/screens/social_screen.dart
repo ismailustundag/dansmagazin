@@ -619,50 +619,46 @@ class _SocialScreenState extends State<SocialScreen> {
                         },
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: f.unreadCount > 0 ? const Color(0xFF1D1520) : const Color(0xFF121826),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: f.unreadCount > 0 ? Colors.redAccent : Colors.white12),
+                            color: f.unreadCount > 0 ? const Color(0xFF241C24) : const Color(0xFF171C29),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: f.unreadCount > 0 ? const Color(0xFFE58B8B) : const Color(0x22FFFFFF)),
                           ),
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               _FriendAvatar(
                                 item: f,
                                 onTap: () => _showAvatarPreview(f.avatarUrl, f.name),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 12),
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            f.name.isNotEmpty ? f.name : t('user'),
-                                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                                          ),
+                                    Expanded(
+                                      child: Text(
+                                        f.name.isNotEmpty ? f.name : t('user'),
+                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                    if (f.unreadCount > 0)
+                                      Container(
+                                        margin: const EdgeInsets.only(right: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFE58B8B),
+                                          borderRadius: BorderRadius.circular(999),
                                         ),
-                                        IconButton(
-                                          tooltip: 'İşlemler',
-                                          onPressed: () => _openFriendActions(f),
-                                          icon: const Icon(Icons.more_horiz, color: Colors.white70),
+                                        child: Text(
+                                          f.unreadCount > 99 ? '99+' : '${f.unreadCount}',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                                         ),
-                                        if (f.unreadCount > 0)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.redAccent,
-                                              borderRadius: BorderRadius.circular(999),
-                                            ),
-                                            child: Text(
-                                              f.unreadCount > 99 ? '99+' : '${f.unreadCount}',
-                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                                            ),
-                                          ),
-                                      ],
+                                      ),
+                                    IconButton(
+                                      tooltip: 'İşlemler',
+                                      onPressed: () => _openFriendActions(f),
+                                      icon: const Icon(Icons.more_horiz, color: Colors.white70),
                                     ),
                                   ],
                                 ),
@@ -692,11 +688,11 @@ class _FriendAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = item.avatarUrl.trim();
     if (url.isNotEmpty) {
-      return InkWell(
+        return InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         child: CircleAvatar(
-          radius: 22,
+          radius: 24,
           backgroundImage: NetworkImage(url),
           backgroundColor: const Color(0xFF1F2937),
         ),
@@ -704,8 +700,8 @@ class _FriendAvatar extends StatelessWidget {
     }
     final label = item.name.isNotEmpty ? item.name.substring(0, 1).toUpperCase() : '?';
     return CircleAvatar(
-      radius: 22,
-      backgroundColor: const Color(0xFFE53935),
+      radius: 24,
+      backgroundColor: const Color(0xFFB45F13),
       child: Text(
         label,
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),

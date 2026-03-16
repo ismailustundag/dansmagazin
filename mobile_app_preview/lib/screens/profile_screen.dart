@@ -6,6 +6,7 @@ import '../services/profile_api.dart';
 import 'admin_notifications_screen.dart';
 import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
+import 'edit_profile_screen.dart';
 import 'editor_event_management_screen.dart';
 import 'my_photos_screen.dart';
 import 'notifications_screen.dart';
@@ -48,9 +49,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const _panelColor = Color(0xFF171C29);
-  static const _panelSoft = Color(0xFF202637);
-  static const _lineColor = Color(0x22FFFFFF);
   static const _rose = Color(0xFFE58B8B);
   static const _peach = Color(0xFFF3B78A);
   static const _sky = Color(0xFF8FB7E8);
@@ -60,22 +58,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _displayName = '';
   String _avatarUrl = '';
+  ProfileSettingsData? _profile;
 
   @override
   void initState() {
     super.initState();
     _displayName = widget.userName;
-    _loadProfileVisuals();
+    _loadProfileData();
     NotificationCenter.refresh(widget.sessionToken);
   }
 
-  Future<void> _loadProfileVisuals() async {
+  Future<void> _loadProfileData() async {
     final token = widget.sessionToken.trim();
     if (token.isEmpty || !widget.isLoggedIn) return;
     try {
       final s = await ProfileApi.settings(token);
       if (!mounted) return;
       setState(() {
+        _profile = s;
         _displayName = s.username.trim().isEmpty ? widget.userName : s.username.trim();
         _avatarUrl = s.avatarUrl.trim();
       });
@@ -123,8 +123,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       widget.onLogoutTap();
       return;
     }
-    await _loadProfileVisuals();
+    await _loadProfileData();
     await NotificationCenter.refresh(widget.sessionToken);
+  }
+
+  Future<void> _openEditProfile() async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(sessionToken: widget.sessionToken),
+      ),
+    );
+    if (updated == true) {
+      await _loadProfileData();
+    }
   }
 
   Future<void> _openSupportChat() async {
@@ -196,7 +207,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final greetingName = _displayName.trim().isEmpty ? widget.userName : _displayName;
     final initials = greetingName.trim().isNotEmpty ? greetingName.trim().substring(0, 1).toUpperCase() : 'U';
-    final emailText = widget.userEmail.trim();
 
     return ScreenShell(
       title: t('profile'),
@@ -205,11 +215,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       content: [
         _ProfileHeroCard(
           displayName: greetingName,
-          email: emailText,
           accountId: widget.accountId,
           avatarUrl: _avatarUrl,
           initials: initials,
+          registeredAt: _profile?.registeredAt ?? '',
+          danceInterests: _profile?.danceInterests ?? '',
+          danceSchool: _profile?.danceSchool ?? '',
+          about: _profile?.about ?? '',
           onNotificationsTap: _openNotifications,
+          onEditProfileTap: _openEditProfile,
         ),
         const SizedBox(height: 6),
         _SectionTitle(title: t('quick_actions')),
@@ -302,19 +316,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 class _ProfileHeroCard extends StatelessWidget {
   final String displayName;
-  final String email;
   final int accountId;
   final String avatarUrl;
   final String initials;
+  final String registeredAt;
+  final String danceInterests;
+  final String danceSchool;
+  final String about;
   final VoidCallback onNotificationsTap;
+  final VoidCallback onEditProfileTap;
 
   const _ProfileHeroCard({
     required this.displayName,
-    required this.email,
     required this.accountId,
     required this.avatarUrl,
     required this.initials,
+    required this.registeredAt,
+    required this.danceInterests,
+    required this.danceSchool,
+    required this.about,
     required this.onNotificationsTap,
+    required this.onEditProfileTap,
   });
 
   List<String> _nameLines(String raw) {
@@ -326,25 +348,107 @@ class _ProfileHeroCard extends StatelessWidget {
     if (cleaned.isEmpty) return const [''];
     if (cleaned.length == 1) return cleaned;
     if (cleaned.length == 2) return cleaned;
-    return [cleaned.first, cleaned.sublist(1).join(' ')];
+    return [cleaned.first, ...cleaned.sublist(1)];
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final t = I18n.t;
-    final nameLines = _nameLines(displayName);
+  Widget _profileVisual() {
+    if (avatarUrl.trim().isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Image.network(
+          avatarUrl.trim(),
+          width: 132,
+          height: 168,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackVisual(),
+        ),
+      );
+    }
+    return _fallbackVisual();
+  }
+
+  Widget _fallbackVisual() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(18),
+      width: 132,
+      height: 168,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF21283A),
-            Color(0xFF1A2030),
-            Color(0xFF161B29),
+            Color(0xFFDCB27B),
+            Color(0xFF9C4A17),
+          ],
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 44,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _infoCell({
+    required String title,
+    required String value,
+    bool wide = false,
+  }) {
+    final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
+    return Container(
+      width: wide ? double.infinity : null,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0x18FFFFFF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x22FFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.74),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            resolvedValue,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = I18n.t;
+    final nameText = _nameLines(displayName).join('\n').toUpperCase();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFB45F13),
+            Color(0xFF8D430E),
+            Color(0xFF6A3107),
           ],
         ),
         border: Border.all(color: const Color(0x22FFFFFF)),
@@ -362,76 +466,111 @@ class _ProfileHeroCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _profileVisual(),
+              const SizedBox(width: 14),
               Expanded(
-                child: Row(
-                  children: [
-                    avatarUrl.isNotEmpty
-                        ? CircleAvatar(radius: 30, backgroundImage: NetworkImage(avatarUrl))
-                        : CircleAvatar(
-                            radius: 30,
-                            backgroundColor: const Color(0xFFE58B8B),
-                            child: Text(
-                              initials,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20),
-                            ),
-                          ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                child: SizedBox(
+                  height: 168,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            t('hello'),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.72),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          ...nameLines.map(
-                            (line) => Text(
-                              line,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-                            ),
+                          const Spacer(),
+                          _TopIconButton(
+                            icon: Icons.notifications_none_rounded,
+                            badgeCount: 0,
+                            onTap: onNotificationsTap,
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      const Spacer(),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              ValueListenableBuilder<int>(
-                valueListenable: NotificationCenter.totalCount,
-                builder: (_, count, __) => _TopIconButton(
-                  icon: Icons.notifications_none_rounded,
-                  badgeCount: count,
-                  onTap: onNotificationsTap,
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(
+                  nameText,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    height: 1.02,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              TextButton(
+                onPressed: onEditProfileTap,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  t('edit_profile').toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111623),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0x22FFFFFF)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _MetaInfo(
-                    label: email.isEmpty ? 'E-mail' : email,
-                    value: '${t('user_id')}: $accountId',
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cellWidth = (constraints.maxWidth - 10) / 2;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('registration_date'),
+                      value: registeredAt,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('profile_id'),
+                      value: '$accountId',
+                    ),
+                  ),
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('dance_interests'),
+                      value: danceInterests,
+                    ),
+                  ),
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('dance_school'),
+                      value: danceSchool,
+                    ),
+                  ),
+                  _infoCell(
+                    title: t('about_profile'),
+                    value: about,
+                    wide: true,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -465,67 +604,38 @@ class _TopIconButton extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               Center(child: Icon(icon, color: Colors.white, size: 24)),
-              if (badgeCount > 0)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE66D6D),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFF161B29), width: 1.5),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      badgeCount > 99 ? '99+' : '$badgeCount',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
+              ValueListenableBuilder<int>(
+                valueListenable: NotificationCenter.totalCount,
+                builder: (_, count, __) {
+                  if (count <= 0) return const SizedBox.shrink();
+                  return Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE66D6D),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0xFF161B29), width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        count > 99 ? '99+' : '$count',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                },
+              ),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _MetaInfo extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _MetaInfo({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.78),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.56),
-            fontSize: 12,
-          ),
-        ),
-      ],
     );
   }
 }
