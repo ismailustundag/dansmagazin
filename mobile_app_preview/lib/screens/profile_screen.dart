@@ -393,29 +393,37 @@ class _ProfileHeroCard extends StatelessWidget {
     required String value,
   }) {
     final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.76),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0x14FFF3E4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x26FFF3E4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.74),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          resolvedValue,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
+          const SizedBox(height: 4),
+          Text(
+            resolvedValue,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFFFFF7F1),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -643,6 +651,8 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final start = Color.alphaBlend(accent.withOpacity(0.24), const Color(0xFF21283A));
+    final end = Color.alphaBlend(accent.withOpacity(0.12), const Color(0xFF171C29));
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -651,15 +661,15 @@ class _ActionTile extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF1D2331),
-                Color(0xFF181D2A),
+                start,
+                end,
               ],
             ),
-            border: Border.all(color: const Color(0x22FFFFFF)),
+            border: Border.all(color: accent.withOpacity(0.22)),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x16000000),
@@ -669,26 +679,26 @@ class _ActionTile extends StatelessWidget {
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: accent.withOpacity(0.20),
+                    borderRadius: BorderRadius.circular(14),
+                    color: accent.withOpacity(0.22),
                   ),
-                  child: Icon(icon, color: accent, size: 20),
+                  child: Icon(icon, color: accent, size: 25),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.1),
                   textAlign: TextAlign.center,
                 ),
               ],
