@@ -237,40 +237,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
           about: _profile?.about ?? '',
           onEditProfileTap: _openEditProfile,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 2),
         _SectionTitle(title: t('quick_actions')),
         const SizedBox(height: 10),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.18,
+        Row(
           children: [
-            _ActionTile(
-              title: t('my_tickets'),
-              icon: Icons.confirmation_num_rounded,
-              accent: _peach,
-              onTap: _openTickets,
+            Expanded(
+              child: _ActionTile(
+                title: t('my_tickets'),
+                icon: Icons.confirmation_num_rounded,
+                accent: _peach,
+                onTap: _openTickets,
+              ),
             ),
-            _ActionTile(
-              title: t('my_photos'),
-              icon: Icons.collections_rounded,
-              accent: _rose,
-              onTap: _openPhotos,
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ActionTile(
+                title: t('my_photos'),
+                icon: Icons.collections_rounded,
+                accent: _rose,
+                onTap: _openPhotos,
+              ),
             ),
-            _ActionTile(
-              title: t('settings'),
-              icon: Icons.tune_rounded,
-              accent: _sky,
-              onTap: _openSettings,
-            ),
-            _ActionTile(
-              title: t('support'),
-              icon: Icons.chat_bubble_outline_rounded,
-              accent: _mint,
-              onTap: _openSupportChat,
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ActionTile(
+                title: t('settings'),
+                icon: Icons.tune_rounded,
+                accent: _sky,
+                onTap: _openSettings,
+              ),
             ),
           ],
         ),
@@ -427,112 +423,120 @@ class _ProfileHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = I18n.t;
     final nameText = displayName.trim().toUpperCase();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFB45F13),
-            Color(0xFF8D430E),
-            Color(0xFF6A3107),
-          ],
-        ),
-        border: Border.all(color: const Color(0x22FFFFFF)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x20000000),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 28),
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          _profileVisual(),
-          const SizedBox(height: 12),
-          Text(
-            nameText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.w800,
-              height: 1.02,
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFB45F13),
+                  Color(0xFF8D430E),
+                  Color(0xFF6A3107),
+                ],
+              ),
+              border: Border.all(color: const Color(0x22FFFFFF)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x20000000),
+                  blurRadius: 22,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _profileVisual(),
+                const SizedBox(height: 12),
+                Text(
+                  nameText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    height: 1.02,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cellWidth = (constraints.maxWidth - 10) / 2;
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 12,
+                      children: [
+                        SizedBox(
+                          width: cellWidth,
+                          child: _infoCell(
+                            title: t('registration_date'),
+                            value: registeredAt,
+                          ),
+                        ),
+                        SizedBox(
+                          width: cellWidth,
+                          child: _infoCell(
+                            title: t('profile_id'),
+                            value: '$accountId',
+                          ),
+                        ),
+                        SizedBox(
+                          width: cellWidth,
+                          child: _infoCell(
+                            title: t('dance_interests'),
+                            value: danceInterests,
+                          ),
+                        ),
+                        SizedBox(
+                          width: cellWidth,
+                          child: _infoCell(
+                            title: t('dance_school'),
+                            value: danceSchool,
+                          ),
+                        ),
+                        if (about.trim().isNotEmpty)
+                          SizedBox(
+                            width: constraints.maxWidth,
+                            child: _infoCell(
+                              title: t('about_profile'),
+                              value: about,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
+          Positioned(
+            right: 14,
+            bottom: -18,
+            child: ElevatedButton(
               onPressed: onEditProfileTap,
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(0, 0),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF3E4D1),
+                foregroundColor: const Color(0xFF6A3107),
+                elevation: 8,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
               child: Text(
                 t('edit_profile').toUpperCase(),
                 style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final cellWidth = (constraints.maxWidth - 10) / 2;
-              return Wrap(
-                spacing: 10,
-                runSpacing: 12,
-                children: [
-                  SizedBox(
-                    width: cellWidth,
-                    child: _infoCell(
-                      title: t('registration_date'),
-                      value: registeredAt,
-                    ),
-                  ),
-                  SizedBox(
-                    width: cellWidth,
-                    child: _infoCell(
-                      title: t('profile_id'),
-                      value: '$accountId',
-                    ),
-                  ),
-                  SizedBox(
-                    width: cellWidth,
-                    child: _infoCell(
-                      title: t('dance_interests'),
-                      value: danceInterests,
-                    ),
-                  ),
-                  SizedBox(
-                    width: cellWidth,
-                    child: _infoCell(
-                      title: t('dance_school'),
-                      value: danceSchool,
-                    ),
-                  ),
-                  if (about.trim().isNotEmpty)
-                    SizedBox(
-                      width: constraints.maxWidth,
-                      child: _infoCell(
-                        title: t('about_profile'),
-                        value: about,
-                      ),
-                    ),
-                ],
-              );
-            },
           ),
         ],
       ),
@@ -643,10 +647,10 @@ class _ActionTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(18),
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -665,26 +669,27 @@ class _ActionTile extends StatelessWidget {
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     color: accent.withOpacity(0.20),
                   ),
-                  child: Icon(icon, color: accent, size: 22),
+                  child: Icon(icon, color: accent, size: 20),
                 ),
-                const Spacer(),
+                const SizedBox(height: 10),
                 Text(
                   title,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  textAlign: TextAlign.left,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),

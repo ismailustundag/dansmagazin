@@ -43,7 +43,7 @@ class ScreenShell extends StatelessWidget {
                 ),
                 if (headerTrailing != null) ...[
                   const SizedBox(width: 12),
-                  Flexible(child: headerTrailing!),
+                  headerTrailing!,
                 ],
               ],
             ),
