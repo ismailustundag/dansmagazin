@@ -43,6 +43,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _saving = false;
   bool _pickingAvatar = false;
 
+  String _resolveAvatarUrl(String url, String updatedAt) {
+    final raw = url.trim();
+    if (raw.isEmpty) return '';
+    final bust = updatedAt.trim().isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : updatedAt.trim();
+    final separator = raw.contains('?') ? '&' : '?';
+    return '$raw${separator}v=${Uri.encodeQueryComponent(bust)}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -71,7 +79,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _aboutCtrl.text = remote.about;
         _city = remote.city.trim().isEmpty ? _defaultCity : remote.city.trim();
         _birthDate = remote.birthDate.trim();
-        _avatarUrl = remote.avatarUrl.trim();
+        _avatarUrl = _resolveAvatarUrl(remote.avatarUrl, remote.updatedAt);
         _avatarPath = avatar;
         _loading = false;
       });

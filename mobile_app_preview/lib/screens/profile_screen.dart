@@ -60,6 +60,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _avatarUrl = '';
   ProfileSettingsData? _profile;
 
+  String _resolveAvatarUrl(String url, String updatedAt) {
+    final raw = url.trim();
+    if (raw.isEmpty) return '';
+    final bust = updatedAt.trim().isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : updatedAt.trim();
+    final separator = raw.contains('?') ? '&' : '?';
+    return '$raw${separator}v=${Uri.encodeQueryComponent(bust)}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -77,7 +85,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _profile = s;
         _displayName = s.username.trim().isEmpty ? widget.userName : s.username.trim();
-        _avatarUrl = s.avatarUrl.trim();
+        _avatarUrl = _resolveAvatarUrl(s.avatarUrl, s.updatedAt);
       });
     } catch (_) {}
   }
@@ -357,8 +365,8 @@ class _ProfileHeroCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         child: Image.network(
           avatarUrl.trim(),
-          width: 132,
-          height: 168,
+          width: 118,
+          height: 148,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _fallbackVisual(),
         ),
@@ -369,8 +377,8 @@ class _ProfileHeroCard extends StatelessWidget {
 
   Widget _fallbackVisual() {
     return Container(
-      width: 132,
-      height: 168,
+      width: 118,
+      height: 148,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
@@ -397,39 +405,31 @@ class _ProfileHeroCard extends StatelessWidget {
   Widget _infoCell({
     required String title,
     required String value,
-    bool wide = false,
   }) {
     final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
-    return Container(
-      width: wide ? double.infinity : null,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0x18FFFFFF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x22FFFFFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.74),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.76),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 4),
-          Text(
-            resolvedValue,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          resolvedValue,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -470,7 +470,7 @@ class _ProfileHeroCard extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: SizedBox(
-                  height: 168,
+                  height: 148,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -527,13 +527,13 @@ class _ProfileHeroCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
               final cellWidth = (constraints.maxWidth - 10) / 2;
               return Wrap(
                 spacing: 10,
-                runSpacing: 10,
+                runSpacing: 12,
                 children: [
                   SizedBox(
                     width: cellWidth,
@@ -563,11 +563,14 @@ class _ProfileHeroCard extends StatelessWidget {
                       value: danceSchool,
                     ),
                   ),
-                  _infoCell(
-                    title: t('about_profile'),
-                    value: about,
-                    wide: true,
-                  ),
+                  if (about.trim().isNotEmpty)
+                    SizedBox(
+                      width: constraints.maxWidth,
+                      child: _infoCell(
+                        title: t('about_profile'),
+                        value: about,
+                      ),
+                    ),
                 ],
               );
             },

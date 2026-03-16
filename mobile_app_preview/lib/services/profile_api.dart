@@ -12,6 +12,7 @@ class ProfileSettingsData {
   final String danceSchool;
   final String about;
   final String registeredAt;
+  final String updatedAt;
   final String language;
   final bool notificationsEnabled;
   final Map<String, bool> notificationPreferences;
@@ -27,6 +28,7 @@ class ProfileSettingsData {
     required this.danceSchool,
     required this.about,
     required this.registeredAt,
+    required this.updatedAt,
     required this.language,
     required this.notificationsEnabled,
     required this.notificationPreferences,
@@ -64,6 +66,7 @@ class ProfileSettingsData {
       danceSchool: (json['dance_school'] ?? '').toString(),
       about: (json['about'] ?? '').toString(),
       registeredAt: (json['registered_at'] ?? '').toString(),
+      updatedAt: (json['updated_at'] ?? '').toString(),
       language: (json['language'] ?? 'tr').toString(),
       notificationsEnabled: json['notifications_enabled'] == true,
       notificationPreferences: _parseNotificationPreferences(json),
