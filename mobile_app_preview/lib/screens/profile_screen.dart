@@ -220,6 +220,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: t('profile'),
       icon: Icons.person,
       subtitle: '',
+      headerTrailing: _TopIconButton(
+        icon: Icons.notifications_none_rounded,
+        badgeCount: 0,
+        onTap: _openNotifications,
+      ),
       content: [
         _ProfileHeroCard(
           displayName: greetingName,
@@ -230,7 +235,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           danceInterests: _profile?.danceInterests ?? '',
           danceSchool: _profile?.danceSchool ?? '',
           about: _profile?.about ?? '',
-          onNotificationsTap: _openNotifications,
           onEditProfileTap: _openEditProfile,
         ),
         const SizedBox(height: 6),
@@ -331,7 +335,6 @@ class _ProfileHeroCard extends StatelessWidget {
   final String danceInterests;
   final String danceSchool;
   final String about;
-  final VoidCallback onNotificationsTap;
   final VoidCallback onEditProfileTap;
 
   const _ProfileHeroCard({
@@ -343,21 +346,8 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.danceInterests,
     required this.danceSchool,
     required this.about,
-    required this.onNotificationsTap,
     required this.onEditProfileTap,
   });
-
-  List<String> _nameLines(String raw) {
-    final cleaned = raw
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.trim().isNotEmpty)
-        .toList();
-    if (cleaned.isEmpty) return const [''];
-    if (cleaned.length == 1) return cleaned;
-    if (cleaned.length == 2) return cleaned;
-    return [cleaned.first, ...cleaned.sublist(1)];
-  }
 
   Widget _profileVisual() {
     if (avatarUrl.trim().isNotEmpty) {
@@ -365,8 +355,8 @@ class _ProfileHeroCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         child: Image.network(
           avatarUrl.trim(),
-          width: 118,
-          height: 148,
+          width: double.infinity,
+          height: 214,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _fallbackVisual(),
         ),
@@ -377,8 +367,8 @@ class _ProfileHeroCard extends StatelessWidget {
 
   Widget _fallbackVisual() {
     return Container(
-      width: 118,
-      height: 148,
+      width: double.infinity,
+      height: 214,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
@@ -436,7 +426,7 @@ class _ProfileHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
-    final nameText = _nameLines(displayName).join('\n').toUpperCase();
+    final nameText = displayName.trim().toUpperCase();
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(16),
@@ -463,69 +453,38 @@ class _ProfileHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _profileVisual(),
-              const SizedBox(width: 14),
-              Expanded(
-                child: SizedBox(
-                  height: 148,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Spacer(),
-                          _TopIconButton(
-                            icon: Icons.notifications_none_rounded,
-                            badgeCount: 0,
-                            onTap: onNotificationsTap,
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _profileVisual(),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Text(
-                  nameText,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    height: 1.02,
-                  ),
+          Text(
+            nameText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              height: 1.02,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onEditProfileTap,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                t('edit_profile').toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
                 ),
               ),
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: onEditProfileTap,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(0, 0),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  t('edit_profile').toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 14),
           LayoutBuilder(
