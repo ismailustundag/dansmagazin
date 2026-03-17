@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
+import '../services/profile_card_palette.dart';
 import 'chat_thread_screen.dart';
 
 class FriendProfileScreen extends StatefulWidget {
@@ -218,14 +219,15 @@ class _FriendProfileHeroCard extends StatelessWidget {
   Widget _infoCell({
     required String title,
     required String value,
+    required ProfileCardPalette palette,
   }) {
     final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: const Color(0x14FFF3E4),
+        color: palette.surfaceTint,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x26FFF3E4)),
+        border: Border.all(color: palette.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +256,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
     );
   }
 
-  Widget _profileVisual() {
+  Widget _profileVisual(ProfileCardPalette palette) {
     if (profile.avatarUrl.trim().isNotEmpty) {
       return InkWell(
         onTap: onPhotoTap,
@@ -266,27 +268,24 @@ class _FriendProfileHeroCard extends StatelessWidget {
             width: double.infinity,
             height: 214,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _fallbackVisual(),
+            errorBuilder: (_, __, ___) => _fallbackVisual(palette),
           ),
         ),
       );
     }
-    return _fallbackVisual();
+    return _fallbackVisual(palette);
   }
 
-  Widget _fallbackVisual() {
+  Widget _fallbackVisual(ProfileCardPalette palette) {
     return Container(
       width: double.infinity,
       height: 214,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFDCB27B),
-            Color(0xFF9C4A17),
-          ],
+          colors: palette.placeholderGradient,
         ),
       ),
       alignment: Alignment.center,
@@ -305,18 +304,15 @@ class _FriendProfileHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = I18n.t;
     final nameText = profile.name.trim().toUpperCase();
+    final palette = ProfileCardPalette.fromGender(profile.gender);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFB45F13),
-            Color(0xFF8D430E),
-            Color(0xFF6A3107),
-          ],
+          colors: palette.cardGradient,
         ),
         border: Border.all(color: const Color(0x22FFFFFF)),
         boxShadow: const [
@@ -330,7 +326,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _profileVisual(),
+          _profileVisual(palette),
           const SizedBox(height: 12),
           Text(
             nameText,
@@ -355,6 +351,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                     child: _infoCell(
                       title: t('registration_date'),
                       value: profile.registeredAt,
+                      palette: palette,
                     ),
                   ),
                   SizedBox(
@@ -362,6 +359,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                     child: _infoCell(
                       title: t('profile_id'),
                       value: '${profile.accountId}',
+                      palette: palette,
                     ),
                   ),
                   SizedBox(
@@ -369,6 +367,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                     child: _infoCell(
                       title: t('dance_interests'),
                       value: profile.danceInterests,
+                      palette: palette,
                     ),
                   ),
                   SizedBox(
@@ -376,6 +375,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                     child: _infoCell(
                       title: t('dance_school'),
                       value: profile.danceSchool,
+                      palette: palette,
                     ),
                   ),
                   if (profile.about.trim().isNotEmpty)
@@ -384,6 +384,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                       child: _infoCell(
                         title: t('about_profile'),
                         value: profile.about,
+                        palette: palette,
                       ),
                     ),
                 ],
@@ -475,6 +476,7 @@ class _FriendProfile {
   final int accountId;
   final String name;
   final String avatarUrl;
+  final String gender;
   final String registeredAt;
   final String danceInterests;
   final String danceSchool;
@@ -484,6 +486,7 @@ class _FriendProfile {
     required this.accountId,
     required this.name,
     required this.avatarUrl,
+    required this.gender,
     required this.registeredAt,
     required this.danceInterests,
     required this.danceSchool,
@@ -497,6 +500,7 @@ class _FriendProfile {
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       avatarUrl: (json['avatar_url'] ?? '').toString(),
+      gender: (json['gender'] ?? '').toString(),
       registeredAt: (json['registered_at'] ?? '').toString(),
       danceInterests: (json['dance_interests'] ?? '').toString(),
       danceSchool: (json['dance_school'] ?? '').toString(),

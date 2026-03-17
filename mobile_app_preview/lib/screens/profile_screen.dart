@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/i18n.dart';
 import '../services/notification_center.dart';
+import '../services/profile_card_palette.dart';
 import '../services/profile_api.dart';
 import 'admin_notifications_screen.dart';
 import 'app_webview_screen.dart';
@@ -231,6 +232,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           accountId: widget.accountId,
           avatarUrl: _avatarUrl,
           initials: initials,
+          gender: _profile?.gender ?? '',
           registeredAt: _profile?.registeredAt ?? '',
           danceInterests: _profile?.danceInterests ?? '',
           danceSchool: _profile?.danceSchool ?? '',
@@ -327,6 +329,7 @@ class _ProfileHeroCard extends StatelessWidget {
   final int accountId;
   final String avatarUrl;
   final String initials;
+  final String gender;
   final String registeredAt;
   final String danceInterests;
   final String danceSchool;
@@ -338,6 +341,7 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.accountId,
     required this.avatarUrl,
     required this.initials,
+    required this.gender,
     required this.registeredAt,
     required this.danceInterests,
     required this.danceSchool,
@@ -345,7 +349,7 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.onEditProfileTap,
   });
 
-  Widget _profileVisual() {
+  Widget _profileVisual(ProfileCardPalette palette) {
     if (avatarUrl.trim().isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -354,26 +358,23 @@ class _ProfileHeroCard extends StatelessWidget {
           width: double.infinity,
           height: 214,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackVisual(),
+          errorBuilder: (_, __, ___) => _fallbackVisual(palette),
         ),
       );
     }
-    return _fallbackVisual();
+    return _fallbackVisual(palette);
   }
 
-  Widget _fallbackVisual() {
+  Widget _fallbackVisual(ProfileCardPalette palette) {
     return Container(
       width: double.infinity,
       height: 214,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFDCB27B),
-            Color(0xFF9C4A17),
-          ],
+          colors: palette.placeholderGradient,
         ),
       ),
       alignment: Alignment.center,
@@ -391,14 +392,15 @@ class _ProfileHeroCard extends StatelessWidget {
   Widget _infoCell({
     required String title,
     required String value,
+    required ProfileCardPalette palette,
   }) {
     final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: const Color(0x14FFF3E4),
+        color: palette.surfaceTint,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x26FFF3E4)),
+        border: Border.all(color: palette.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,6 +433,7 @@ class _ProfileHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = I18n.t;
     final nameText = displayName.trim().toUpperCase();
+    final palette = ProfileCardPalette.fromGender(gender);
     return Padding(
       padding: const EdgeInsets.only(bottom: 28),
       child: Stack(
@@ -440,14 +443,10 @@ class _ProfileHeroCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(28),
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFB45F13),
-                  Color(0xFF8D430E),
-                  Color(0xFF6A3107),
-                ],
+                colors: palette.cardGradient,
               ),
               border: Border.all(color: const Color(0x22FFFFFF)),
               boxShadow: const [
@@ -461,7 +460,7 @@ class _ProfileHeroCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _profileVisual(),
+                _profileVisual(palette),
                 const SizedBox(height: 12),
                 Text(
                   nameText,
@@ -486,6 +485,7 @@ class _ProfileHeroCard extends StatelessWidget {
                           child: _infoCell(
                             title: t('registration_date'),
                             value: registeredAt,
+                            palette: palette,
                           ),
                         ),
                         SizedBox(
@@ -493,6 +493,7 @@ class _ProfileHeroCard extends StatelessWidget {
                           child: _infoCell(
                             title: t('profile_id'),
                             value: '$accountId',
+                            palette: palette,
                           ),
                         ),
                         SizedBox(
@@ -500,6 +501,7 @@ class _ProfileHeroCard extends StatelessWidget {
                           child: _infoCell(
                             title: t('dance_interests'),
                             value: danceInterests,
+                            palette: palette,
                           ),
                         ),
                         SizedBox(
@@ -507,6 +509,7 @@ class _ProfileHeroCard extends StatelessWidget {
                           child: _infoCell(
                             title: t('dance_school'),
                             value: danceSchool,
+                            palette: palette,
                           ),
                         ),
                         if (about.trim().isNotEmpty)
@@ -515,6 +518,7 @@ class _ProfileHeroCard extends StatelessWidget {
                             child: _infoCell(
                               title: t('about_profile'),
                               value: about,
+                              palette: palette,
                             ),
                           ),
                       ],
@@ -530,8 +534,8 @@ class _ProfileHeroCard extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onEditProfileTap,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF3E4D1),
-                foregroundColor: const Color(0xFF6A3107),
+                backgroundColor: palette.buttonFill,
+                foregroundColor: palette.buttonForeground,
                 elevation: 8,
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
