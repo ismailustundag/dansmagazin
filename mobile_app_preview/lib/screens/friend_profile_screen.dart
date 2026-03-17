@@ -176,34 +176,23 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _openChat(profile),
-                          icon: const Icon(Icons.chat_bubble_outline_rounded),
-                          label: Text(t('send_message')),
-                        ),
+                      child: _ProfileActionButton(
+                        label: t('send_message'),
+                        icon: Icons.chat_bubble_outline_rounded,
+                        onTap: () => _openChat(profile),
+                        fillColor: const Color(0xFFF3DFC8),
+                        foregroundColor: const Color(0xFF6A3107),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: OutlinedButton.icon(
-                          onPressed: _removing ? null : () => _removeFriend(profile),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFE58B8B),
-                            side: const BorderSide(color: Color(0x55E58B8B)),
-                          ),
-                          icon: _removing
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.person_remove_outlined),
-                          label: Text(t('remove_friend')),
-                        ),
+                      child: _ProfileActionButton(
+                        label: t('remove_friend'),
+                        icon: Icons.person_remove_outlined,
+                        onTap: _removing ? null : () => _removeFriend(profile),
+                        fillColor: const Color(0x26E58B8B),
+                        foregroundColor: const Color(0xFFFFC2C2),
+                        isLoading: _removing,
                       ),
                     ),
                   ],
@@ -402,6 +391,81 @@ class _FriendProfileHeroCard extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfileActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final Color fillColor;
+  final Color foregroundColor;
+  final bool isLoading;
+
+  const _ProfileActionButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.fillColor,
+    required this.foregroundColor,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: fillColor,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: foregroundColor.withOpacity(0.16)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12000000),
+                blurRadius: 16,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isLoading)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(foregroundColor),
+                  ),
+                )
+              else
+                Icon(icon, color: foregroundColor, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foregroundColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

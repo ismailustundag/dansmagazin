@@ -307,7 +307,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         filePath: path,
       );
       if (!mounted) return;
-      setState(() => _avatarUrl = uploadedUrl);
+      await prefs.remove(_kAvatarPath);
+      setState(() {
+        _avatarPath = '';
+        _avatarUrl = uploadedUrl;
+      });
     } on PlatformException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -339,24 +343,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _avatar() {
+    if (_avatarUrl.trim().isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Image.network(_avatarUrl.trim(), width: 118, height: 118, fit: BoxFit.cover),
+      );
+    }
     if (_avatarPath.isNotEmpty) {
       final f = File(_avatarPath);
       if (f.existsSync()) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(26),
-          child: Image.file(f, width: 112, height: 128, fit: BoxFit.cover),
+          child: Image.file(f, width: 118, height: 118, fit: BoxFit.cover),
         );
       }
     }
-    if (_avatarUrl.trim().isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(26),
-        child: Image.network(_avatarUrl.trim(), width: 112, height: 128, fit: BoxFit.cover),
-      );
-    }
     return Container(
-      width: 112,
-      height: 128,
+      width: 118,
+      height: 118,
       decoration: BoxDecoration(
         color: const Color(0xFFB45F13),
         borderRadius: BorderRadius.circular(26),
@@ -437,6 +441,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               Text(
                                 t('profile_photo'),
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                t('profile_photo_square_note'),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.68),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Wrap(
