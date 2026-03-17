@@ -219,118 +219,37 @@ class _SocialScreenState extends State<SocialScreen> {
     }
   }
 
-  Future<void> _removeFriend(int friendAccountId, String friendName) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Arkadaşlıktan Çıkart'),
-        content: Text('${friendName.isEmpty ? 'Bu kullanıcıyı' : friendName} arkadaş listesinden kaldırmak istiyor musun?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Vazgeç')),
-          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Çıkart')),
-        ],
+  Future<void> _openChat(_FriendItem friend) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatThreadScreen(
+          sessionToken: widget.sessionToken,
+          peerAccountId: friend.accountId,
+          peerName: friend.name.isNotEmpty ? friend.name : I18n.t('user'),
+          peerAvatarUrl: friend.avatarUrl,
+        ),
       ),
     );
-    if (ok != true) return;
-    try {
-      await EventSocialApi.removeFriend(
-        sessionToken: widget.sessionToken,
-        friendAccountId: friendAccountId,
-      );
-      if (!mounted) return;
-      setState(() => _future = _fetchFriends());
-      await _runSearch();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Arkadaş silindi.')),
-      );
-      await NotificationCenter.refresh(widget.sessionToken);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
+    if (!mounted) return;
+    await _refresh();
+    await NotificationCenter.refresh(widget.sessionToken);
   }
 
-  Future<void> _openFriendActions(_FriendItem f) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF0F172A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+  Future<void> _openFriendProfile(_FriendItem friend) async {
+    final removed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => FriendProfileScreen(
+          sessionToken: widget.sessionToken,
+          friendAccountId: friend.accountId,
+        ),
       ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  f.name.isNotEmpty ? f.name : I18n.t('user'),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => FriendProfileScreen(
-                                sessionToken: widget.sessionToken,
-                                friendAccountId: f.accountId,
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.person, size: 16),
-                        label: Text(I18n.t('profile')),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          Navigator.of(ctx).pop();
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatThreadScreen(
-                                sessionToken: widget.sessionToken,
-                                peerAccountId: f.accountId,
-                                peerName: f.name.isNotEmpty ? f.name : I18n.t('user'),
-                                peerAvatarUrl: f.avatarUrl,
-                              ),
-                            ),
-                          );
-                          if (!mounted) return;
-                          await _refresh();
-                          await NotificationCenter.refresh(widget.sessionToken);
-                        },
-                        icon: const Icon(Icons.chat_bubble, size: 16),
-                        label: Text(I18n.t('send_message')),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          _removeFriend(f.accountId, f.name);
-                        },
-                        icon: const Icon(Icons.person_remove, size: 16),
-                        label: const Text('Çıkart'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
+    if (!mounted) return;
+    if (removed == true) {
+      setState(() => _future = _fetchFriends());
+    }
+    await _refresh();
+    await NotificationCenter.refresh(widget.sessionToken);
   }
 
   void _showAvatarPreview(String avatarUrl, String name) {
@@ -598,74 +517,62 @@ class _SocialScreenState extends State<SocialScreen> {
             return Column(
               children: items
                   .map(
-                    (f) => Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatThreadScreen(
-                                sessionToken: widget.sessionToken,
-                                peerAccountId: f.accountId,
-                                peerName: f.name.isNotEmpty ? f.name : t('user'),
-                                peerAvatarUrl: f.avatarUrl,
-                              ),
-                            ),
-                          );
-                          if (!mounted) return;
-                          await _refresh();
-                          await NotificationCenter.refresh(widget.sessionToken);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: f.unreadCount > 0 ? const Color(0xFF241C24) : const Color(0xFF171C29),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: f.unreadCount > 0 ? const Color(0xFFE58B8B) : const Color(0x22FFFFFF)),
+                    (f) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: f.unreadCount > 0 ? const Color(0xFF241C24) : const Color(0xFF171C29),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: f.unreadCount > 0 ? const Color(0xFFE58B8B) : const Color(0x22FFFFFF)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _FriendAvatar(
+                            item: f,
+                            onTap: () => _showAvatarPreview(f.avatarUrl, f.name),
                           ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              _FriendAvatar(
-                                item: f,
-                                onTap: () => _showAvatarPreview(f.avatarUrl, f.name),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        f.name.isNotEmpty ? f.name : t('user'),
-                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                                      ),
-                                    ),
-                                    if (f.unreadCount > 0)
-                                      Container(
-                                        margin: const EdgeInsets.only(right: 8),
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFE58B8B),
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () => _openFriendProfile(f),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
                                         child: Text(
-                                          f.unreadCount > 99 ? '99+' : '${f.unreadCount}',
-                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                          f.name.isNotEmpty ? f.name : t('user'),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                                         ),
                                       ),
-                                    IconButton(
-                                      tooltip: 'İşlemler',
-                                      onPressed: () => _openFriendActions(f),
-                                      icon: const Icon(Icons.more_horiz, color: Colors.white70),
-                                    ),
-                                  ],
+                                      if (f.unreadCount > 0)
+                                        Container(
+                                          margin: const EdgeInsets.only(left: 8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE58B8B),
+                                            borderRadius: BorderRadius.circular(999),
+                                          ),
+                                          child: Text(
+                                            f.unreadCount > 99 ? '99+' : '${f.unreadCount}',
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                          _MessageActionButton(onTap: () => _openChat(f)),
+                        ],
                       ),
                     ),
                   )
@@ -705,6 +612,33 @@ class _FriendAvatar extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _MessageActionButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _MessageActionButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0x1AF3B78A),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: const SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(
+            Icons.chat_bubble_outline_rounded,
+            color: Color(0xFFF3B78A),
+            size: 20,
+          ),
+        ),
       ),
     );
   }
