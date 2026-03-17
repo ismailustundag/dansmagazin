@@ -24,6 +24,81 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
   - `--dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com`
   - `--dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com`
 
+## 3.1) Build Almadan Önce Zorunlu Kontrol
+
+- [ ] `pubspec.yaml` içindeki `version:` yeni build için artırıldı.
+- [ ] Android yüklemesi yapılacaksa yeni `versionCode` daha önce Play Console'a yüklenen hiçbir build ile çakışmıyor.
+- [ ] `android/app/google-services.json` içinde `net.dansmagazin.mobile` bloğu var.
+- [ ] `android/app/google-services.json` içinde Android OAuth client var:
+  - `client_type: 1`
+  - `package_name: net.dansmagazin.mobile`
+  - `certificate_hash: ...`
+- [ ] Firebase `Authentication > Sign-in method > Google` açık.
+- [ ] Firebase Android app için SHA fingerprint'ler doğru.
+- [ ] Android'de mağazaya çıkmadan önce en az bir yerel APK testinde Google giriş denendi.
+- [ ] iOS için `ios/GoogleService-Info.plist` doğru app/bundle'a ait.
+- [ ] iOS'ta mağazaya çıkmadan önce en az bir gerçek cihaz testinde Google giriş denendi.
+- [ ] Build komutu çalıştırmadan önce `git rev-parse --short HEAD` ile kullanılacak commit not edildi.
+
+## 3.2) Sabit Build Sırası
+
+### Android AAB (Play Console)
+
+```bash
+cd ~/dansmagazin/mobile_app_preview
+git stash -u -m autosync_tmp
+git pull --rebase origin main
+git stash pop || true
+git rev-parse --short HEAD
+grep -n '"package_name"' android/app/google-services.json
+grep -n '"client_type"' android/app/google-services.json
+grep -n '"certificate_hash"' android/app/google-services.json
+flutter pub get
+flutter build appbundle --release \
+  --dart-define=API_BASE_URL=https://api2.dansmagazin.net \
+  --dart-define=APP_BUILD_SHA=$(git rev-parse --short HEAD) \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com \
+  --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
+cp build/app/outputs/bundle/release/app-release.aab ~/Desktop/dansmagazin-release-$(git rev-parse --short HEAD).aab
+```
+
+### Android APK (Yerel Doğrulama)
+
+```bash
+cd ~/dansmagazin/mobile_app_preview
+flutter pub get
+flutter build apk --release \
+  --dart-define=API_BASE_URL=https://api2.dansmagazin.net \
+  --dart-define=APP_BUILD_SHA=$(git rev-parse --short HEAD) \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com \
+  --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
+cp build/app/outputs/flutter-apk/app-release.apk ~/Desktop/dansmagazin-release-$(git rev-parse --short HEAD).apk
+```
+
+### iOS TestFlight / Archive
+
+```bash
+cd ~/dansmagazin/mobile_app_preview
+git stash -u -m autosync_tmp
+git pull --rebase origin main
+git stash pop || true
+git rev-parse --short HEAD
+flutter pub get
+cd ios
+pod install
+cd ..
+flutter build ios --release --no-codesign \
+  --dart-define=API_BASE_URL=https://api2.dansmagazin.net \
+  --dart-define=APP_BUILD_SHA=$(git rev-parse --short HEAD) \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com \
+  --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
+open ios/Runner.xcworkspace
+```
+
+Not:
+- Play Console'a yanlış build yüklenirse `versionCode` tekrar kullanılamaz.
+- Bu yüzden Android'de önce yerel APK doğrulaması, sonra AAB yüklemesi tercih edilir.
+
 ## 4) Android Yayın Kontrolü
 
 - [ ] `google-services.json` doğru paket adına ait.
