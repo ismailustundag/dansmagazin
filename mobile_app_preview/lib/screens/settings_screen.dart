@@ -14,7 +14,6 @@ import '../services/app_settings.dart';
 import '../services/i18n.dart';
 import '../services/legal_links.dart';
 import '../services/profile_api.dart';
-import '../services/push_notifications_service.dart';
 import '../services/turkiye_cities.dart';
 import 'chat_thread_screen.dart';
 
@@ -36,28 +35,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
   static const String _defaultCity = 'İstanbul';
-  static const Map<String, bool> _defaultNotificationPreferences = {
-    'news': true,
-    'dance_night': true,
-    'festival': true,
-    'competition': true,
-    'promo_lesson': true,
-    'system': true,
-  };
-  static const List<MapEntry<String, String>> _notificationPreferenceLabels = [
-    MapEntry('news', 'notification_news'),
-    MapEntry('dance_night', 'notification_dance_night'),
-    MapEntry('festival', 'notification_festival'),
-    MapEntry('competition', 'notification_competition'),
-    MapEntry('promo_lesson', 'notification_promo_lesson'),
-    MapEntry('system', 'notification_system'),
-  ];
 
   final _picker = ImagePicker();
   final _usernameCtrl = TextEditingController();
-  bool _notificationsEnabled = true;
-  Map<String, bool> _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences);
-  bool _notificationsExpanded = false;
   String _language = 'tr';
   double _textScale = 1.0;
   String _city = _defaultCity;
@@ -89,9 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _textScale = AppSettings.textScale.value;
       if (widget.sessionToken.trim().isNotEmpty) {
         final remote = await ProfileApi.settings(widget.sessionToken);
-        _notificationsEnabled = remote.notificationsEnabled;
-        _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences)
-          ..addAll(remote.notificationPreferences);
         _language = remote.language == 'en' || remote.language == 'es' ? remote.language : 'tr';
         _city = remote.city.trim().isEmpty ? _defaultCity : remote.city.trim();
         _birthDate = remote.birthDate.trim();
@@ -113,8 +90,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? city,
     String? birthDate,
     String? language,
-    bool? notifications,
-    Map<String, bool>? notificationPreferences,
     String? avatarUrl,
   }) async {
     if (widget.sessionToken.trim().isEmpty) return false;
@@ -126,15 +101,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         city: city,
         birthDate: birthDate,
         language: language,
-        notificationsEnabled: notifications,
-        notificationPreferences: notificationPreferences,
         avatarUrl: avatarUrl,
       );
       if (!mounted) return true;
       setState(() {
-        _notificationsEnabled = saved.notificationsEnabled;
-        _notificationPreferences = Map<String, bool>.from(_defaultNotificationPreferences)
-          ..addAll(saved.notificationPreferences);
         _language = saved.language == 'en' || saved.language == 'es' ? saved.language : 'tr';
         _city = saved.city.trim().isEmpty ? _city : saved.city.trim();
         _birthDate = saved.birthDate.trim();
@@ -352,33 +322,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
-  }
-
-  Future<void> _saveNotif(bool v) async {
-    final nextPrefs = v
-        ? Map<String, bool>.from(_notificationPreferences)
-        : Map<String, bool>.from(_notificationPreferences);
-    setState(() {
-      _notificationsEnabled = v;
-      _notificationsExpanded = true;
-      if (v) {
-        for (final key in _defaultNotificationPreferences.keys) {
-          nextPrefs[key] = true;
-        }
-        _notificationPreferences = nextPrefs;
-      }
-    });
-    await _saveRemote(
-      notifications: v,
-      notificationPreferences: v ? nextPrefs : _notificationPreferences,
-    );
-    await PushNotificationsService.syncPreference(widget.sessionToken, v);
-  }
-
-  Future<void> _saveNotificationPreference(String key, bool value) async {
-    final nextPrefs = Map<String, bool>.from(_notificationPreferences)..[key] = value;
-    setState(() => _notificationPreferences = nextPrefs);
-    await _saveRemote(notificationPreferences: nextPrefs);
   }
 
   Future<void> _saveUsername() async {
@@ -690,81 +633,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF121826),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: Column(
-                      children: [
-                        InkWell(
-                          onTap: () => setState(() => _notificationsExpanded = !_notificationsExpanded),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(t('notifications'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      I18n.t('notifications_toggle_all'),
-                                      style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                _notificationsExpanded ? Icons.expand_less : Icons.expand_more,
-                                color: Colors.white70,
-                              ),
-                              const SizedBox(width: 6),
-                              Transform.scale(
-                                scale: 0.80,
-                                child: Switch(
-                                  value: _notificationsEnabled,
-                                  onChanged: _saving ? null : _saveNotif,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_notificationsExpanded) ...[
-                          const Divider(height: 16, color: Colors.white12),
-                          ..._notificationPreferenceLabels.map(
-                            (entry) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      I18n.t(entry.value),
-                                      style: TextStyle(
-                                        color: _notificationsEnabled ? Colors.white : Colors.white38,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                                  Transform.scale(
-                                    scale: 0.80,
-                                    child: Switch(
-                                      value: _notificationPreferences[entry.key] ?? true,
-                                      onChanged: (_saving || !_notificationsEnabled)
-                                          ? null
-                                          : (v) => _saveNotificationPreference(entry.key, v),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
