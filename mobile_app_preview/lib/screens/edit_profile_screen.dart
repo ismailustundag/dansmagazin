@@ -28,6 +28,7 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   static const _kAvatarPath = 'settings.avatar_path';
   static const String _defaultCity = 'İstanbul';
+  static const List<String> _genderValues = ['female', 'male', 'unspecified'];
 
   final _picker = ImagePicker();
   final _usernameCtrl = TextEditingController();
@@ -37,6 +38,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   String _city = _defaultCity;
   String _birthDate = '';
+  String _gender = 'unspecified';
   String _avatarPath = '';
   String _avatarUrl = '';
   bool _loading = true;
@@ -79,6 +81,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _aboutCtrl.text = remote.about;
         _city = remote.city.trim().isEmpty ? _defaultCity : remote.city.trim();
         _birthDate = remote.birthDate.trim();
+        _gender = _genderValues.contains(remote.gender.trim()) ? remote.gender.trim() : 'unspecified';
         _avatarUrl = _resolveAvatarUrl(remote.avatarUrl, remote.updatedAt);
         _avatarPath = avatar;
         _loading = false;
@@ -379,6 +382,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         username: _usernameCtrl.text.trim(),
         city: _city.trim(),
         birthDate: _birthDate.trim(),
+        gender: _gender.trim(),
         danceInterests: _danceInterestsCtrl.text.trim(),
         danceSchool: _danceSchoolCtrl.text.trim(),
         about: _aboutCtrl.text.trim(),
@@ -442,15 +446,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 t('profile_photo'),
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                t('profile_photo_square_note'),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.68),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 8,
@@ -511,24 +506,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                   _card(
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(t('birth_date_label'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 4),
-                              Text(
-                                _birthDateUi(),
-                                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(t('birth_date_label'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _birthDateUi(),
+                                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            OutlinedButton(
+                              onPressed: _saving ? null : _pickBirthDate,
+                              child: Text(t('select')),
+                            ),
+                          ],
                         ),
-                        OutlinedButton(
-                          onPressed: _saving ? null : _pickBirthDate,
-                          child: Text(t('select')),
+                        const SizedBox(height: 14),
+                        Text(t('gender'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: _genderValues.contains(_gender) ? _gender : 'unspecified',
+                          items: _genderValues
+                              .map(
+                                (value) => DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(t('gender_$value')),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _saving ? null : (v) => setState(() => _gender = v ?? 'unspecified'),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                       ],
                     ),

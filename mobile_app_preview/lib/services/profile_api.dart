@@ -8,6 +8,7 @@ class ProfileSettingsData {
   final String email;
   final String city;
   final String birthDate;
+  final String gender;
   final String danceInterests;
   final String danceSchool;
   final String about;
@@ -24,6 +25,7 @@ class ProfileSettingsData {
     required this.email,
     required this.city,
     required this.birthDate,
+    required this.gender,
     required this.danceInterests,
     required this.danceSchool,
     required this.about,
@@ -62,6 +64,7 @@ class ProfileSettingsData {
       email: (json['email'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       birthDate: (json['birth_date'] ?? '').toString(),
+      gender: (json['gender'] ?? '').toString(),
       danceInterests: (json['dance_interests'] ?? '').toString(),
       danceSchool: (json['dance_school'] ?? '').toString(),
       about: (json['about'] ?? '').toString(),
@@ -106,6 +109,7 @@ class ProfileApi {
     String? username,
     String? city,
     String? birthDate,
+    String? gender,
     String? danceInterests,
     String? danceSchool,
     String? about,
@@ -118,6 +122,7 @@ class ProfileApi {
     if (username != null) body['username'] = username;
     if (city != null) body['city'] = city;
     if (birthDate != null) body['birth_date'] = birthDate;
+    if (gender != null) body['gender'] = gender;
     if (danceInterests != null) body['dance_interests'] = danceInterests;
     if (danceSchool != null) body['dance_school'] = danceSchool;
     if (about != null) body['about'] = about;
