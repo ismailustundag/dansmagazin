@@ -177,7 +177,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   children: [
                     Expanded(
                       child: _ProfileActionButton(
-                        label: t('send_message'),
+                        label: t('send_message_short'),
                         icon: Icons.chat_bubble_outline_rounded,
                         onTap: () => _openChat(profile),
                         fillColor: const Color(0xFFF3DFC8),
@@ -187,7 +187,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _ProfileActionButton(
-                        label: t('remove_friend'),
+                        label: t('remove_short'),
                         icon: Icons.person_remove_outlined,
                         onTap: _removing ? null : () => _removeFriend(profile),
                         fillColor: const Color(0x26E58B8B),
