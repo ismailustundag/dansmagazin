@@ -97,6 +97,20 @@ class SocialUserItem {
   }
 }
 
+class SocialUserSearchResult {
+  final List<SocialUserItem> items;
+  final bool hasMore;
+  final int? nextOffset;
+  final int minQueryLength;
+
+  const SocialUserSearchResult({
+    required this.items,
+    required this.hasMore,
+    required this.nextOffset,
+    required this.minQueryLength,
+  });
+}
+
 class EventSocialApi {
   static const String _base = 'https://api2.dansmagazin.net';
 
@@ -224,25 +238,33 @@ class EventSocialApi {
     }
   }
 
-  static Future<List<SocialUserItem>> searchUsers({
+  static Future<SocialUserSearchResult> searchUsers({
     required String sessionToken,
     required String query,
     int limit = 20,
+    int offset = 0,
   }) async {
     final q = query.trim();
-    final lim = limit < 1 ? 1 : (limit > 100 ? 100 : limit);
+    final lim = limit < 1 ? 1 : (limit > 50 ? 50 : limit);
+    final off = offset < 0 ? 0 : offset;
     final resp = await http.get(
-      Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$lim'),
+      Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$lim&offset=$off'),
       headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
     );
     if (resp.statusCode != 200) {
       throw EventSocialApiException(_parseError(resp.body, fallback: 'Kullanıcı araması yapılamadı'));
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    return (body['items'] as List<dynamic>? ?? [])
+    final items = (body['items'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(SocialUserItem.fromJson)
         .toList();
+    return SocialUserSearchResult(
+      items: items,
+      hasMore: body['has_more'] == true,
+      nextOffset: (body['next_offset'] as num?)?.toInt(),
+      minQueryLength: (body['min_query_length'] as num?)?.toInt() ?? 2,
+    );
   }
 
   static Future<Map<String, dynamic>> sendFriendRequestDirect({

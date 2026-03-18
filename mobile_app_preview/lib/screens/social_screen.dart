@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -25,10 +26,16 @@ class _SocialScreenState extends State<SocialScreen> {
   late Future<List<FriendRequestItem>> _incomingFuture;
   int _unreadTotal = 0;
   final TextEditingController _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
   List<SocialUserItem> _searchItems = const [];
   bool _searchLoading = false;
   String _searchError = '';
   bool _addFriendsOpen = false;
+  bool _searchHasMore = false;
+  bool _searchHasTyped = false;
+  int _searchOffset = 0;
+  int _searchMinQueryLength = 2;
+  static const int _searchPageSize = 20;
 
   @override
   void initState() {
@@ -40,6 +47,7 @@ class _SocialScreenState extends State<SocialScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -115,7 +123,7 @@ class _SocialScreenState extends State<SocialScreen> {
       _incomingFuture = _fetchIncoming();
     });
     await _future;
-    if (_addFriendsOpen) {
+    if (_addFriendsOpen && _searchCtrl.text.trim().length >= _searchMinQueryLength) {
       await _runSearch();
     }
     await NotificationCenter.refresh(widget.sessionToken);
@@ -152,19 +160,60 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Future<void> _runSearch() async {
+    await _runSearchPage(reset: true);
+  }
+
+  void _scheduleSearch() {
+    _searchDebounce?.cancel();
     final q = _searchCtrl.text.trim();
     setState(() {
+      _searchHasTyped = q.isNotEmpty;
+      if (q.isEmpty) {
+        _searchItems = const [];
+        _searchError = '';
+        _searchOffset = 0;
+        _searchHasMore = false;
+      }
+    });
+    if (q.isEmpty) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      _runSearch();
+    });
+  }
+
+  Future<void> _runSearchPage({required bool reset}) async {
+    final q = _searchCtrl.text.trim();
+    if (q.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _searchHasTyped = false;
+        _searchLoading = false;
+        _searchError = '';
+        _searchItems = const [];
+        _searchOffset = 0;
+        _searchHasMore = false;
+      });
+      return;
+    }
+    setState(() {
+      _searchHasTyped = q.isNotEmpty;
       _searchLoading = true;
       _searchError = '';
     });
     try {
-      final items = await EventSocialApi.searchUsers(
+      final result = await EventSocialApi.searchUsers(
         sessionToken: widget.sessionToken,
         query: q,
-        limit: 100,
+        limit: _searchPageSize,
+        offset: reset ? 0 : _searchOffset,
       );
       if (!mounted) return;
-      setState(() => _searchItems = items);
+      setState(() {
+        _searchMinQueryLength = result.minQueryLength;
+        _searchItems = reset ? result.items : [..._searchItems, ...result.items];
+        _searchHasMore = result.hasMore;
+        _searchOffset = result.nextOffset ?? _searchItems.length;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _searchError = e.toString());
@@ -176,9 +225,6 @@ class _SocialScreenState extends State<SocialScreen> {
   Future<void> _toggleAddFriendsPanel() async {
     final next = !_addFriendsOpen;
     setState(() => _addFriendsOpen = next);
-    if (next && _searchItems.isEmpty && !_searchLoading) {
-      await _runSearch();
-    }
   }
 
   Future<void> _sendFriendRequest(SocialUserItem user) async {
@@ -187,7 +233,7 @@ class _SocialScreenState extends State<SocialScreen> {
         sessionToken: widget.sessionToken,
         targetAccountId: user.accountId,
       );
-      await _runSearch();
+      await _runSearchPage(reset: true);
       if (!mounted) return;
       setState(() => _incomingFuture = _fetchIncoming());
       ScaffoldMessenger.of(context).showSnackBar(
@@ -206,7 +252,7 @@ class _SocialScreenState extends State<SocialScreen> {
         sessionToken: widget.sessionToken,
         requestId: requestId,
       );
-      await _runSearch();
+      await _runSearchPage(reset: true);
       if (!mounted) return;
       setState(() => _incomingFuture = _fetchIncoming());
       ScaffoldMessenger.of(context).showSnackBar(
@@ -400,10 +446,10 @@ class _SocialScreenState extends State<SocialScreen> {
                       child: TextField(
                         controller: _searchCtrl,
                         textInputAction: TextInputAction.search,
-                        onChanged: (_) => _runSearch(),
+                        onChanged: (_) => _scheduleSearch(),
                         onSubmitted: (_) => _runSearch(),
-                        decoration: const InputDecoration(
-                          hintText: 'Kullanıcı ara (liste canlı filtrelenir)',
+                        decoration: InputDecoration(
+                          hintText: 'En az $_searchMinQueryLength harf ile ara',
                           isDense: true,
                           border: OutlineInputBorder(),
                         ),
@@ -419,6 +465,28 @@ class _SocialScreenState extends State<SocialScreen> {
                 if (_searchError.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(_searchError, style: const TextStyle(color: Colors.redAccent)),
+                ],
+                if (_searchCtrl.text.trim().isEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Tum kullanicilar otomatik listelenmez. Kullanici bulmak icin arama yapin.',
+                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  ),
+                ] else if (_searchCtrl.text.trim().length < _searchMinQueryLength) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Arama yapmak icin en az $_searchMinQueryLength harf yazin.',
+                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  ),
+                ] else if (_searchLoading && _searchItems.isEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Center(child: CircularProgressIndicator()),
+                ] else if (_searchHasTyped && _searchItems.isEmpty && _searchError.isEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Sonuc bulunamadi.',
+                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  ),
                 ],
                 if (_searchItems.isNotEmpty) ...[
                   const SizedBox(height: 10),
@@ -476,6 +544,16 @@ class _SocialScreenState extends State<SocialScreen> {
                       ),
                     ),
                   ),
+                  if (_searchHasMore) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton(
+                        onPressed: _searchLoading ? null : () => _runSearchPage(reset: false),
+                        child: Text(_searchLoading ? '...' : 'Daha Fazla'),
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ],
