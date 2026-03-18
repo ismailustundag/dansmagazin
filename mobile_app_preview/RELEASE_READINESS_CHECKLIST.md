@@ -35,7 +35,13 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
   - `certificate_hash: ...`
 - [ ] Firebase `Authentication > Sign-in method > Google` açık.
 - [ ] Firebase Android app için SHA fingerprint'ler doğru.
+  - Yerel/release keystore SHA-1 kayıtlı:
+    - `12:FB:D0:FA:C9:4A:C7:98:35:C9:6E:F0:D5:6C:15:EC:0C:1D:78:F1`
+  - Google Play App Signing SHA-1 kayıtlı:
+    - `92:31:60:D7:90:F4:15:F1:08:00:30:C1:DE:BF:25:74:DB:55:07:C0`
+  - Not: Yerel APK ile Play'den kurulan build ayni sertifikayla imzalanmaz. Google login icin iki SHA-1 de Firebase'te ayni Android app altinda tanimli olmali.
 - [ ] Android'de mağazaya çıkmadan önce en az bir yerel APK testinde Google giriş denendi.
+- [ ] Android'de yeni AAB yuklendikten sonra, tester cihazinda eski uygulama silinip kapali test linkinden temiz kurulumla Google giris tekrar denendi.
 - [ ] iOS için `ios/GoogleService-Info.plist` doğru app/bundle'a ait.
 - [ ] iOS'ta mağazaya çıkmadan önce en az bir gerçek cihaz testinde Google giriş denendi.
 - [ ] Build komutu çalıştırmadan önce `git rev-parse --short HEAD` ile kullanılacak commit not edildi.
@@ -98,6 +104,19 @@ open ios/Runner.xcworkspace
 Not:
 - Play Console'a yanlış build yüklenirse `versionCode` tekrar kullanılamaz.
 - Bu yüzden Android'de önce yerel APK doğrulaması, sonra AAB yüklemesi tercih edilir.
+- Google login sorunu varsa önce cihazdan Play build sertifikasi doğrulanır:
+
+```bash
+adb devices
+adb shell pm path net.dansmagazin.mobile
+APK_PATH=$(adb shell pm path net.dansmagazin.mobile | sed -n '1s/package://p')
+adb pull "$APK_PATH" ~/Desktop/dansmagazin-play-base.apk
+APKSIGNER=$(find "$HOME/Library/Android/sdk/build-tools" -name apksigner | sort | tail -n 1)
+"$APKSIGNER" verify --print-certs ~/Desktop/dansmagazin-play-base.apk
+```
+
+- Beklenen Play signing SHA-1:
+  - `92:31:60:D7:90:F4:15:F1:08:00:30:C1:DE:BF:25:74:DB:55:07:C0`
 
 ## 4) Android Yayın Kontrolü
 
