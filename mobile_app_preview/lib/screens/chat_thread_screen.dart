@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -366,32 +367,27 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Container(
-                          constraints: const BoxConstraints(minHeight: 52),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: CupertinoTextField(
+                          controller: _msgCtrl,
+                          minLines: 1,
+                          maxLines: 4,
+                          onChanged: _onDraftChanged,
+                          onSubmitted: (_) => _send(),
+                          cursorColor: AppTheme.violet,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          placeholder: 'Mesaj yaz...',
+                          placeholderStyle: TextStyle(
+                            fontSize: 14 * messageScale,
+                            color: Colors.black45,
+                          ),
+                          style: TextStyle(
+                            fontSize: 15 * messageScale,
+                            color: Colors.black87,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: Colors.white70),
-                          ),
-                          child: TextField(
-                            controller: _msgCtrl,
-                            minLines: 1,
-                            maxLines: 4,
-                            onChanged: _onDraftChanged,
-                            onSubmitted: (_) => _send(),
-                            style: TextStyle(
-                              fontSize: 15 * messageScale,
-                              color: Colors.black87,
-                            ),
-                            cursorColor: AppTheme.violet,
-                            decoration: InputDecoration.collapsed(
-                              hintText: 'Mesaj yaz...',
-                              hintStyle: TextStyle(
-                                fontSize: 14 * messageScale,
-                                color: Colors.black45,
-                              ),
-                            ),
                           ),
                         ),
                       ),
