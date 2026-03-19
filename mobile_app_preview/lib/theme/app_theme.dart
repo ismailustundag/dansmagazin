@@ -144,7 +144,7 @@ class AppTheme {
           color: textPrimary,
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surfaceSecondary,
         elevation: 0,
         margin: EdgeInsets.zero,
