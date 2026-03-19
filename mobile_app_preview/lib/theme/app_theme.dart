@@ -153,7 +153,7 @@ class AppTheme {
           side: const BorderSide(color: borderSoft),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: surfaceSecondary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
