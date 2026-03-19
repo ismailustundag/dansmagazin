@@ -4,6 +4,7 @@ import '../services/i18n.dart';
 import '../services/notification_center.dart';
 import '../services/profile_card_palette.dart';
 import '../services/profile_api.dart';
+import '../theme/app_theme.dart';
 import 'admin_notifications_screen.dart';
 import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
@@ -50,11 +51,11 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const _rose = Color(0xFFE58B8B);
-  static const _peach = Color(0xFFF3B78A);
-  static const _sky = Color(0xFF8FB7E8);
-  static const _mint = Color(0xFF8FD5C2);
-  static const _lavender = Color(0xFFB39DDB);
+  static const _rose = AppTheme.pink;
+  static const _peach = AppTheme.orange;
+  static const _sky = AppTheme.cyan;
+  static const _mint = AppTheme.info;
+  static const _lavender = AppTheme.violet;
   static const _photoPanelBase = 'https://foto.dansmagazin.net';
 
   String _displayName = '';
@@ -203,11 +204,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: t('profile'),
         icon: Icons.person,
         subtitle: t('profile_subtitle_guest'),
+        tone: AppTone.profile,
         content: [
           PreviewCard(
             title: t('login'),
             subtitle: t('login_subtitle'),
             icon: Icons.login,
+            tone: AppTone.profile,
             onTap: widget.onLoginTap,
           ),
         ],
@@ -221,6 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: t('profile'),
       icon: Icons.person,
       subtitle: '',
+      tone: AppTone.profile,
       headerTrailing: _TopIconButton(
         icon: Icons.notifications_none_rounded,
         badgeCount: 0,
@@ -448,12 +452,17 @@ class _ProfileHeroCard extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: palette.cardGradient,
               ),
-              border: Border.all(color: const Color(0x22FFFFFF)),
-              boxShadow: const [
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x20000000),
-                  blurRadius: 22,
-                  offset: Offset(0, 10),
+                  color: palette.buttonFill.withOpacity(0.16),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+                const BoxShadow(
+                  color: Color(0x22000000),
+                  blurRadius: 24,
+                  offset: Offset(0, 14),
                 ),
               ],
             ),
@@ -536,7 +545,7 @@ class _ProfileHeroCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: palette.buttonFill,
                 foregroundColor: palette.buttonForeground,
-                elevation: 8,
+                elevation: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
@@ -570,7 +579,7 @@ class _TopIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0x1FFFFFFF),
+      color: AppTheme.surfaceSecondary.withOpacity(0.88),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -592,9 +601,9 @@ class _TopIconButton extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE66D6D),
+                        color: AppTheme.pink,
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: const Color(0xFF161B29), width: 1.5),
+                        border: Border.all(color: AppTheme.bgPrimary, width: 1.5),
                       ),
                       constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                       child: Text(
@@ -632,7 +641,7 @@ class _SectionTitle extends StatelessWidget {
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w800,
-          color: Colors.white.withOpacity(0.92),
+          color: AppTheme.textPrimary,
           letterSpacing: 0.2,
         ),
       ),
@@ -663,8 +672,7 @@ class _ActionTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+          decoration: AppTheme.panel(tone: AppTone.profile, radius: 18, elevated: true).copyWith(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -674,13 +682,6 @@ class _ActionTile extends StatelessWidget {
               ],
             ),
             border: Border.all(color: accent.withOpacity(0.22)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x16000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -740,11 +741,7 @@ class _ProfileListCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           child: Ink(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF171C29),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0x22FFFFFF)),
-            ),
+            decoration: AppTheme.panel(tone: AppTone.profile, radius: 18, subtle: true),
             child: Row(
               children: [
                 Container(

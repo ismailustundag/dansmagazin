@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 class ScreenShell extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -7,6 +9,7 @@ class ScreenShell extends StatelessWidget {
   final Widget? headerTrailing;
   final List<Widget> content;
   final Future<void> Function()? onRefresh;
+  final AppTone tone;
 
   const ScreenShell({
     super.key,
@@ -16,6 +19,7 @@ class ScreenShell extends StatelessWidget {
     this.headerTrailing,
     required this.content,
     this.onRefresh,
+    this.tone = AppTone.neutral,
   });
 
   @override
@@ -26,19 +30,41 @@ class ScreenShell extends StatelessWidget {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: AppTheme.glowCircle(tone: tone, radius: 18),
+                  child: Icon(icon, color: AppTheme.textPrimary, size: 20),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      if (subtitle.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13,
+                              ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 if (headerTrailing != null) ...[
@@ -49,21 +75,8 @@ class ScreenShell extends StatelessWidget {
             ),
           ),
         ),
-        if (subtitle.trim().isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.75),
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
         SliverToBoxAdapter(
-          child: SizedBox(height: subtitle.trim().isNotEmpty ? 14 : 8),
+          child: SizedBox(height: subtitle.trim().isNotEmpty ? 12 : 8),
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -76,11 +89,11 @@ class ScreenShell extends StatelessWidget {
     );
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF141822), Color(0xFF0F1320), Color(0xFF0B0F19)],
+          colors: AppTheme.shellGradient(tone),
         ),
       ),
       child: SafeArea(
@@ -97,6 +110,7 @@ class PreviewCard extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final VoidCallback? onTap;
+  final AppTone tone;
 
   const PreviewCard({
     super.key,
@@ -104,38 +118,30 @@ class PreviewCard extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     this.onTap,
+    this.tone = AppTone.neutral,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = AppTheme.tonePrimary(tone);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF23293A), Color(0xFF181E2C)],
-          ),
-          border: Border.all(color: const Color(0xFFFFFFFF).withOpacity(0.08)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x16000000),
-              blurRadius: 16,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
+        padding: const EdgeInsets.all(14),
+        decoration: AppTheme.panel(tone: tone, radius: 18, elevated: true),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: const Color(0xFFE58B8B),
-              child: Icon(icon, color: Colors.white, size: 18),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: accent.withOpacity(0.16),
+                border: Border.all(color: accent.withOpacity(0.24)),
+              ),
+              child: Icon(icon, color: accent, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -144,17 +150,20 @@ class PreviewCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                        ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white54),
+            const Icon(Icons.chevron_right, color: AppTheme.textTertiary),
           ],
         ),
       ),

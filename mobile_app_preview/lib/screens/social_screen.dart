@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
 import '../services/notification_center.dart';
+import '../theme/app_theme.dart';
 import 'chat_thread_screen.dart';
 import 'friend_profile_screen.dart';
 import 'screen_shell.dart';
@@ -345,6 +346,7 @@ class _SocialScreenState extends State<SocialScreen> {
       title: t('social'),
       icon: Icons.groups,
       subtitle: t('social_subtitle'),
+      tone: AppTone.social,
       onRefresh: _refresh,
       content: [
         FutureBuilder<List<FriendRequestItem>>(
@@ -353,12 +355,8 @@ class _SocialScreenState extends State<SocialScreen> {
             final reqs = snapshot.data ?? const <FriendRequestItem>[];
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF121826),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white12),
-              ),
+              padding: const EdgeInsets.all(14),
+              decoration: AppTheme.panel(tone: AppTone.social, radius: 18, subtle: true),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -375,7 +373,7 @@ class _SocialScreenState extends State<SocialScreen> {
                   else if (reqs.isEmpty)
                     Text(
                       t('no_pending_friend_request'),
-                      style: TextStyle(color: Colors.white.withOpacity(0.75)),
+                      style: const TextStyle(color: AppTheme.textSecondary),
                     )
                   else
                     ...reqs.map(
@@ -408,12 +406,8 @@ class _SocialScreenState extends State<SocialScreen> {
         ),
         Container(
           margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF121826),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white12),
-          ),
+          padding: const EdgeInsets.all(14),
+          decoration: AppTheme.panel(tone: AppTone.social, radius: 18, elevated: true),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -451,7 +445,6 @@ class _SocialScreenState extends State<SocialScreen> {
                         decoration: InputDecoration(
                           hintText: 'En az $_searchMinQueryLength harf ile ara',
                           isDense: true,
-                          border: OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -470,13 +463,13 @@ class _SocialScreenState extends State<SocialScreen> {
                   const SizedBox(height: 10),
                   Text(
                     'Tum kullanicilar otomatik listelenmez. Kullanici bulmak icin arama yapin.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    style: const TextStyle(color: AppTheme.textSecondary),
                   ),
                 ] else if (_searchCtrl.text.trim().length < _searchMinQueryLength) ...[
                   const SizedBox(height: 10),
                   Text(
                     'Arama yapmak icin en az $_searchMinQueryLength harf yazin.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    style: const TextStyle(color: AppTheme.textSecondary),
                   ),
                 ] else if (_searchLoading && _searchItems.isEmpty) ...[
                   const SizedBox(height: 12),
@@ -485,7 +478,7 @@ class _SocialScreenState extends State<SocialScreen> {
                   const SizedBox(height: 10),
                   Text(
                     'Sonuc bulunamadi.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    style: const TextStyle(color: AppTheme.textSecondary),
                   ),
                 ],
                 if (_searchItems.isNotEmpty) ...[
@@ -494,16 +487,12 @@ class _SocialScreenState extends State<SocialScreen> {
                     (u) => Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white10),
-                      ),
+                      decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 16),
                       child: Row(
                         children: [
                           CircleAvatar(
                             radius: 16,
-                            backgroundColor: const Color(0xFF1F2937),
+                            backgroundColor: AppTheme.surfaceElevated,
                             backgroundImage: u.avatarUrl.trim().isNotEmpty ? NetworkImage(u.avatarUrl.trim()) : null,
                             child: u.avatarUrl.trim().isNotEmpty
                                 ? null
@@ -525,7 +514,7 @@ class _SocialScreenState extends State<SocialScreen> {
                             ),
                           ),
                           if (u.friendStatus == 'friend')
-                            const Text('Arkadaş', style: TextStyle(color: Colors.greenAccent))
+                            const Text('Arkadaş', style: TextStyle(color: AppTheme.success))
                           else if (u.friendStatus == 'pending_outgoing')
                             OutlinedButton(
                               onPressed: (u.friendRequestId ?? 0) > 0
@@ -534,7 +523,7 @@ class _SocialScreenState extends State<SocialScreen> {
                               child: const Text('Geri Çek'),
                             )
                           else if (u.friendStatus == 'pending_incoming')
-                            const Text('Sana istek gönderdi', style: TextStyle(color: Colors.orangeAccent))
+                            const Text('Sana istek gönderdi', style: TextStyle(color: AppTheme.warning))
                           else
                             ElevatedButton(
                               onPressed: () => _sendFriendRequest(u),
@@ -563,14 +552,10 @@ class _SocialScreenState extends State<SocialScreen> {
           Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1D1520),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.redAccent),
-            ),
+            decoration: AppTheme.panel(tone: AppTone.social, radius: 16, subtle: true),
             child: Row(
               children: [
-                const Icon(Icons.mark_chat_unread, color: Colors.redAccent, size: 18),
+                const Icon(Icons.mark_chat_unread, color: AppTheme.pink, size: 18),
                 const SizedBox(width: 8),
                 Text('${t('unread_message')}: $_unreadTotal', style: const TextStyle(fontWeight: FontWeight.w700)),
               ],
@@ -598,10 +583,11 @@ class _SocialScreenState extends State<SocialScreen> {
                     (f) => Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: f.unreadCount > 0 ? const Color(0xFF241C24) : const Color(0xFF171C29),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: f.unreadCount > 0 ? const Color(0xFFE58B8B) : const Color(0x22FFFFFF)),
+                      decoration: AppTheme.panel(
+                        tone: AppTone.social,
+                        radius: 18,
+                        elevated: f.unreadCount > 0,
+                        subtle: f.unreadCount <= 0,
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -634,7 +620,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                           margin: const EdgeInsets.only(left: 8),
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFE58B8B),
+                                            color: AppTheme.pink,
                                             borderRadius: BorderRadius.circular(999),
                                           ),
                                           child: Text(
@@ -679,14 +665,14 @@ class _FriendAvatar extends StatelessWidget {
         child: CircleAvatar(
           radius: 24,
           backgroundImage: NetworkImage(url),
-          backgroundColor: const Color(0xFF1F2937),
+          backgroundColor: AppTheme.surfaceElevated,
         ),
       );
     }
     final label = item.name.isNotEmpty ? item.name.substring(0, 1).toUpperCase() : '?';
     return CircleAvatar(
       radius: 24,
-      backgroundColor: const Color(0xFFB45F13),
+      backgroundColor: AppTheme.pink.withOpacity(0.84),
       child: Text(
         label,
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
@@ -703,17 +689,17 @@ class _MessageActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0x1AF3B78A),
+      color: AppTheme.violet.withOpacity(0.12),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        child: const SizedBox(
+        child: SizedBox(
           width: 42,
           height: 42,
           child: Icon(
             Icons.chat_bubble_outline_rounded,
-            color: Color(0xFFF3B78A),
+            color: AppTheme.violet,
             size: 20,
           ),
         ),
@@ -730,13 +716,9 @@ class _SocialInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121826),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.8))),
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.panel(tone: AppTone.social, radius: 18, subtle: true),
+      child: Text(text, style: const TextStyle(color: AppTheme.textSecondary)),
     );
   }
 }
@@ -749,12 +731,8 @@ class _SocialErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121826),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.panel(tone: AppTone.danger, radius: 18, subtle: true),
       child: Row(
         children: [
           Expanded(

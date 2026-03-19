@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../services/i18n.dart';
 import '../services/turkiye_cities.dart';
+import '../theme/app_theme.dart';
 import 'event_detail_screen.dart';
 import 'news_detail_screen.dart';
 import 'screen_shell.dart';
@@ -172,7 +173,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppTheme.surfaceSecondary,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -213,8 +214,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         onChanged: (value) => setSheetState(() => tempCity = value ?? ''),
                         decoration: InputDecoration(
                           labelText: t('city_filter'),
-                          filled: true,
-                          fillColor: const Color(0xFF111827),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -233,8 +232,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         onChanged: (value) => setSheetState(() => tempKind = value ?? ''),
                         decoration: InputDecoration(
                           labelText: t('event_type'),
-                          filled: true,
-                          fillColor: const Color(0xFF111827),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -252,17 +249,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               (style) => FilterChip(
                                 label: Text(_danceStyleLabel(style)),
                                 selected: tempDanceStyles.contains(style),
-                                selectedColor: const Color(0xFFE58B8B),
-                                checkmarkColor: Colors.white,
-                                backgroundColor: const Color(0xFF111827),
+                                selectedColor: AppTheme.violet.withOpacity(0.28),
+                                checkmarkColor: AppTheme.textPrimary,
+                                backgroundColor: AppTheme.surfaceElevated,
                                 labelStyle: TextStyle(
-                                  color: tempDanceStyles.contains(style) ? Colors.white : Colors.white70,
+                                  color: tempDanceStyles.contains(style)
+                                      ? AppTheme.textPrimary
+                                      : AppTheme.textSecondary,
                                   fontWeight: FontWeight.w600,
                                 ),
                                 side: BorderSide(
                                   color: tempDanceStyles.contains(style)
-                                      ? const Color(0x00FFFFFF)
-                                      : Colors.white12,
+                                      ? Colors.transparent
+                                      : AppTheme.borderSoft,
                                 ),
                                 onSelected: (_) {
                                   setSheetState(() {
@@ -338,6 +337,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       title: t('discover_title'),
       icon: Icons.local_activity,
       subtitle: '',
+      tone: _tabIndex == 0 ? AppTone.discover : AppTone.events,
       onRefresh: _refresh,
       content: [
         Row(
@@ -365,11 +365,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 Expanded(
                   child: Text(
                     t('events'),
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
-                TextButton.icon(
+                OutlinedButton.icon(
                   onPressed: _openEventFilters,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    backgroundColor: AppTheme.surfaceSecondary,
+                    side: BorderSide(color: AppTheme.orange.withOpacity(0.22)),
+                  ),
                   icon: const Icon(Icons.filter_alt_outlined, size: 18),
                   label: Text(
                     _activeEventFilterCount > 0 ? '${t('filter')} ($_activeEventFilterCount)' : t('filter'),
@@ -480,8 +485,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Widget _tabChip(int index, String label) {
     final selected = _tabIndex == index;
+    final tone = index == 0 ? AppTone.discover : AppTone.events;
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       onTap: () {
         setState(() => _tabIndex = index);
         _refresh();
@@ -490,24 +496,33 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           gradient: selected
-              ? const LinearGradient(
-                  colors: [Color(0xFFE58B8B), Color(0xFFB45F13)],
+              ? LinearGradient(
+                  colors: [AppTheme.tonePrimary(tone), AppTheme.toneSecondary(tone)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: selected ? null : const Color(0xFF121826),
+          color: selected ? null : AppTheme.surfaceSecondary,
           border: Border.all(
-            color: selected ? const Color(0x00FFFFFF) : Colors.white12,
+            color: selected ? Colors.transparent : AppTheme.borderSoft,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppTheme.tonePrimary(tone).withOpacity(0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.white70,
+            color: selected ? AppTheme.textPrimary : AppTheme.textSecondary,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -629,59 +644,64 @@ class _EventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(22),
       child: Container(
-        height: 108,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF121826),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white12),
-        ),
+        height: 116,
+        padding: const EdgeInsets.all(10),
+        decoration: AppTheme.panel(tone: AppTone.events, radius: 22, elevated: true),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(16),
               child: SizedBox(
-                width: 92,
-                height: 92,
+                width: 96,
+                height: 96,
                 child: item.cover.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: item.cover,
                         fit: BoxFit.cover,
                         fadeInDuration: Duration.zero,
                         placeholderFadeInDuration: Duration.zero,
-                        errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                        placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                        errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
+                        placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
                       )
-                    : Container(color: const Color(0xFF1F2937)),
+                    : Container(color: AppTheme.surfaceElevated),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: AppTheme.orange.withOpacity(0.16),
+                    ),
+                    child: Text(
+                      item.city.trim().isNotEmpty ? item.city.trim() : 'Etkinlik',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.orange,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                   Text(
                     item.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 16),
                   ),
-                  const SizedBox(height: 6),
-                  if (item.city.trim().isNotEmpty)
-                    Text(
-                      item.city.trim(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
                   Text(
                     _formatEventDate(item.eventDate),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -703,45 +723,64 @@ class _NewsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(22),
       child: Container(
-        height: 108,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF121826),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white12),
-        ),
+        height: 116,
+        padding: const EdgeInsets.all(10),
+        decoration: AppTheme.panel(tone: AppTone.discover, radius: 22, elevated: true),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(16),
               child: SizedBox(
-                width: 92,
-                height: 92,
+                width: 96,
+                height: 96,
                 child: item.image.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: item.image,
                         fit: BoxFit.cover,
                         fadeInDuration: Duration.zero,
                         placeholderFadeInDuration: Duration.zero,
-                        errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                        placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                        errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
+                        placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
                       )
-                    : Container(color: const Color(0xFF1F2937)),
+                    : Container(color: AppTheme.surfaceElevated),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: AppTheme.pink.withOpacity(0.16),
+                    ),
+                    child: Text(
+                      item.author.isNotEmpty ? item.author : 'Haber',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.pink,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                   Text(
                     item.title,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 16),
+                  ),
+                  Text(
+                    _formatEventDate(item.date),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -764,16 +803,12 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121826),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.panel(tone: AppTone.neutral, radius: 18, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: TextStyle(color: Colors.white.withOpacity(0.85))),
+          Text(text, style: const TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
           if (actionText != null && onTap != null)
             TextButton(onPressed: onTap, child: Text(actionText!)),
         ],

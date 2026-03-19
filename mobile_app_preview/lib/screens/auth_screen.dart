@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 
 import '../services/auth_api.dart';
 import '../services/legal_links.dart';
+import '../theme/app_theme.dart';
 
 enum AuthAction { login, register, guest }
 
@@ -271,6 +272,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final bgVideo = _bgVideoController;
+    final theme = Theme.of(context);
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -286,13 +288,30 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             )
           else
-            const ColoredBox(color: Color(0xFF080B14)),
-          const DecoratedBox(
+            const ColoredBox(color: AppTheme.bgPrimary),
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0x99080B14), Color(0xD9080B14)],
+                colors: [
+                  AppTheme.bgDeep.withOpacity(0.24),
+                  AppTheme.bgPrimary.withOpacity(0.82),
+                  AppTheme.bgDeep,
+                ],
+              ),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0, -0.9),
+                radius: 1.15,
+                colors: [
+                  AppTheme.violet.withOpacity(0.22),
+                  AppTheme.pink.withOpacity(0.1),
+                  Colors.transparent,
+                ],
               ),
             ),
           ),
@@ -302,232 +321,286 @@ class _AuthScreenState extends State<AuthScreen> {
                 padding: const EdgeInsets.all(20),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
-                  child: Card(
-                    color: const Color(0xCC121826),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      side: const BorderSide(color: Colors.white12),
-                    ),
+                  child: Container(
+                    decoration: AppTheme.glassPanel(tone: AppTone.discover, radius: 28),
                     child: Padding(
-                      padding: const EdgeInsets.all(18),
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                        Center(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.asset(
-                              'assets/icons/dm.png',
-                              width: 72,
-                              height: 72,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Dansmagazin',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _isRegister ? 'Yeni hesap oluştur' : 'Giriş yap',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white.withOpacity(0.8)),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_isRegister) ...[
-                          _field(
-                            _nameCtrl,
-                            label: 'Ad Soyad',
-                            validator: (v) => (v ?? '').trim().isEmpty ? 'Ad soyad zorunlu' : null,
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-                        _field(
-                          _emailCtrl,
-                          label: 'E-posta',
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (v) {
-                            final value = (v ?? '').trim();
-                            if (value.isEmpty || !value.contains('@')) return 'Geçerli e-posta girin';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        _field(
-                          _passwordCtrl,
-                          label: 'Şifre',
-                          obscureText: _obscurePassword,
-                          suffixIcon: IconButton(
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                          ),
-                          validator: (v) => (v ?? '').length < 6 ? 'Şifre en az 6 karakter olmalı' : null,
-                        ),
-                        if (_isRegister) ...[
-                          const SizedBox(height: 10),
-                          _field(
-                            _passwordAgainCtrl,
-                            label: 'Şifre Tekrar',
-                            obscureText: _obscurePasswordAgain,
-                            suffixIcon: IconButton(
-                              onPressed: () => setState(() => _obscurePasswordAgain = !_obscurePasswordAgain),
-                              icon: Icon(_obscurePasswordAgain ? Icons.visibility_off : Icons.visibility),
-                            ),
-                            validator: (v) => v != _passwordCtrl.text ? 'Şifreler eşleşmiyor' : null,
-                          ),
-                        ],
-                        const SizedBox(height: 6),
-                        if (_error != null) ...[
-                          Text(
-                            _error!,
-                            style: const TextStyle(color: Colors.redAccent),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: _rememberMe,
-                              onChanged: (v) => setState(() => _rememberMe = v ?? true),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            const Text('Beni hatırla'),
-                            const Spacer(),
-                            if (!_isRegister)
-                              TextButton(
-                                onPressed: _loading ? null : _openForgotPassword,
-                                child: const Text('Şifremi Unuttum'),
-                              ),
-                          ],
-                        ),
-                        if (_isRegister) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Checkbox(
-                                value: _acceptedLegal,
-                                onChanged: (v) => setState(() => _acceptedLegal = v ?? false),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              const Expanded(
-                                child: Text(
-                                  'Yasal metinleri okudum ve kabul ediyorum',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 0,
-                            children: [
-                              TextButton(
-                                onPressed: () => _openLegalLink(LegalLinks.privacyPolicy),
-                                child: const Text('Gizlilik'),
-                              ),
-                              TextButton(
-                                onPressed: () => _openLegalLink(LegalLinks.kvkkNotice),
-                                child: const Text('KVKK'),
-                              ),
-                              TextButton(
-                                onPressed: () => _openLegalLink(LegalLinks.terms),
-                                child: const Text('Kullanım Şartları'),
-                              ),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 52,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFE53935),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            Center(
+                              child: Container(
+                                width: 84,
+                                height: 84,
+                                padding: const EdgeInsets.all(10),
+                                decoration: AppTheme.glowCircle(tone: AppTone.discover, radius: 24),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(22),
+                                    color: AppTheme.bgDeep.withOpacity(0.94),
                                   ),
-                                  onPressed: _loading ? null : _submit,
-                                  child: _loading
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                        )
-                                      : Text(
-                                          _isRegister ? 'Kayıt Ol' : 'Giriş Yap',
-                                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                                        ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Image.asset(
+                                      'assets/icons/dm.png',
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: SizedBox(
-                                height: 52,
-                                child: OutlinedButton.icon(
-                                  onPressed: _loading ? null : _openGoogleLogin,
-                                  icon: const Icon(Icons.login),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Dansmagazin',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _isRegister ? 'Topluluğa katıl ve ritmi içeriden yaşa' : 'Dans gündemine, gecelere ve fotoğraflara bağlan',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.surfacePrimary.withOpacity(0.92),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: AppTheme.borderSoft),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _modePill(
+                                      label: 'Giriş Yap',
+                                      selected: !_isRegister,
+                                      onTap: () => setState(() => _isRegister = false),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: _modePill(
+                                      label: 'Kayıt Ol',
+                                      selected: _isRegister,
+                                      onTap: () => setState(() => _isRegister = true),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            if (_isRegister) ...[
+                              _field(
+                                _nameCtrl,
+                                label: 'Ad Soyad',
+                                validator: (v) => (v ?? '').trim().isEmpty ? 'Ad soyad zorunlu' : null,
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            _field(
+                              _emailCtrl,
+                              label: 'E-posta',
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (v) {
+                                final value = (v ?? '').trim();
+                                if (value.isEmpty || !value.contains('@')) return 'Geçerli e-posta girin';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            _field(
+                              _passwordCtrl,
+                              label: 'Şifre',
+                              obscureText: _obscurePassword,
+                              suffixIcon: IconButton(
+                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                icon: Icon(
+                                  _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                              validator: (v) => (v ?? '').length < 6 ? 'Şifre en az 6 karakter olmalı' : null,
+                            ),
+                            if (_isRegister) ...[
+                              const SizedBox(height: 12),
+                              _field(
+                                _passwordAgainCtrl,
+                                label: 'Şifre Tekrar',
+                                obscureText: _obscurePasswordAgain,
+                                suffixIcon: IconButton(
+                                  onPressed: () => setState(() => _obscurePasswordAgain = !_obscurePasswordAgain),
+                                  icon: Icon(
+                                    _obscurePasswordAgain
+                                        ? Icons.visibility_off_rounded
+                                        : Icons.visibility_rounded,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
+                                validator: (v) => v != _passwordCtrl.text ? 'Şifreler eşleşmiyor' : null,
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            if (_error != null) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: AppTheme.panel(tone: AppTone.danger, radius: 16, subtle: true),
+                                child: Text(
+                                  _error!,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppTheme.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _rememberMe,
+                                  onChanged: (v) => setState(() => _rememberMe = v ?? true),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                Text(
+                                  'Beni hatırla',
+                                  style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+                                ),
+                                const Spacer(),
+                                if (!_isRegister)
+                                  TextButton(
+                                    onPressed: _loading ? null : _openForgotPassword,
+                                    child: const Text('Şifremi Unuttum'),
+                                  ),
+                              ],
+                            ),
+                            if (_isRegister) ...[
+                              const SizedBox(height: 2),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Checkbox(
+                                    value: _acceptedLegal,
+                                    onChanged: (v) => setState(() => _acceptedLegal = v ?? false),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      'Yasal metinleri okudum ve kabul ediyorum',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Wrap(
+                                spacing: 4,
+                                runSpacing: 0,
+                                alignment: WrapAlignment.center,
+                                children: [
+                                  TextButton(
+                                    onPressed: () => _openLegalLink(LegalLinks.privacyPolicy),
+                                    child: const Text('Gizlilik'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => _openLegalLink(LegalLinks.kvkkNotice),
+                                    child: const Text('KVKK'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => _openLegalLink(LegalLinks.terms),
+                                    child: const Text('Kullanım Şartları'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: _loading ? null : _submit,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.violet,
+                                  foregroundColor: AppTheme.textPrimary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                                ),
+                                child: _loading
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : Text(
+                                        _isRegister ? 'Kayıt Ol' : 'Giriş Yap',
+                                        style: theme.textTheme.labelLarge?.copyWith(fontSize: 16),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 54,
+                              child: OutlinedButton.icon(
+                                onPressed: _loading ? null : _openGoogleLogin,
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: AppTheme.surfacePrimary.withOpacity(0.92),
+                                  side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
+                                ),
+                                icon: const Icon(Icons.login_rounded),
+                                label: const Text(
+                                  'Google ile Devam Et',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                            if (widget.allowGuest) ...[
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 54,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.surfaceElevated,
+                                    foregroundColor: AppTheme.textPrimary,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18),
+                                      side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.8)),
+                                    ),
+                                  ),
+                                  onPressed: _loading
+                                      ? null
+                                      : () {
+                                          Navigator.of(context).pop(
+                                            const AuthResult(action: AuthAction.guest),
+                                          );
+                                        },
+                                  icon: const Icon(Icons.explore_outlined),
                                   label: const Text(
-                                    'Google',
+                                    'Kayıt Olmadan Devam Et',
                                     style: TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Build: $_buildSha',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.55),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _loading ? null : () => setState(() => _isRegister = !_isRegister),
-                          child: Text(_isRegister ? 'Hesabım var, giriş yap' : 'Hesabın yok mu? Kayıt ol'),
-                        ),
-                        if (widget.allowGuest) ...[
-                          const SizedBox(height: 4),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 52,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1F2937),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: const BorderSide(color: Colors.white24),
-                                ),
-                              ),
-                              onPressed: _loading
-                                  ? null
-                                  : () {
-                                      Navigator.of(context).pop(
-                                        const AuthResult(action: AuthAction.guest),
-                                      );
-                                    },
-                              icon: const Icon(Icons.explore_outlined),
-                              label: const Text(
-                                'Kayıt Olmadan Devam Et',
-                                style: TextStyle(fontWeight: FontWeight.w700),
+                            ],
+                            const SizedBox(height: 10),
+                            Text(
+                              'Build: $_buildSha',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textTertiary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                        ],
                           ],
                         ),
                       ),
@@ -538,6 +611,41 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _modePill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: selected
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppTheme.pink, AppTheme.violet],
+                )
+              : null,
+          color: selected ? null : Colors.transparent,
+          border: selected ? null : Border.all(color: Colors.transparent),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? AppTheme.textPrimary : AppTheme.textSecondary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }
@@ -555,11 +663,12 @@ class _AuthScreenState extends State<AuthScreen> {
       validator: validator,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      style: const TextStyle(
+        color: AppTheme.textPrimary,
+        fontWeight: FontWeight.w600,
+      ),
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
-        filled: true,
-        fillColor: const Color(0xFF0F172A),
         suffixIcon: suffixIcon,
       ),
     );

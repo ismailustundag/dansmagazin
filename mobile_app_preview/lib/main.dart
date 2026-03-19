@@ -11,6 +11,7 @@ import 'services/app_settings.dart';
 import 'services/i18n.dart';
 import 'services/notification_center.dart';
 import 'services/push_notifications_service.dart';
+import 'theme/app_theme.dart';
 import 'screens/auth_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/event_detail_screen.dart';
@@ -34,17 +35,7 @@ class DansMagazinApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Dansmagazin',
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF080B14),
-        visualDensity: VisualDensity.compact,
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFE53935),
-          secondary: Color(0xFFFF5A5F),
-          surface: Color(0xFF111827),
-        ),
-      ),
+      theme: AppTheme.buildTheme(),
       home: const RootScreen(),
     );
   }
@@ -659,40 +650,49 @@ class _RootScreenState extends State<RootScreen> {
       body: pages[_index],
       bottomNavigationBar: SafeArea(
         top: false,
-        child: BottomNavigationBar(
-          currentIndex: _index,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFFE53935),
-          unselectedItemColor: Colors.white70,
-          backgroundColor: const Color(0xFF0F172A),
-          onTap: _onNavTap,
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.article_outlined),
-              activeIcon: Icon(Icons.article),
-              label: _tr('news'),
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_bag_outlined),
-              activeIcon: Icon(Icons.shopping_bag),
-              label: _tr('shop'),
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.circle),
-              activeIcon: Icon(Icons.circle),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: _socialNavIcon(active: false),
-              activeIcon: _socialNavIcon(active: true),
-              label: _tr('social'),
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: _tr('profile'),
-            ),
-          ],
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppTheme.surfacePrimary.withOpacity(0.96),
+            border: Border(top: BorderSide(color: AppTheme.borderStrong.withOpacity(0.92))),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.violet.withOpacity(0.08),
+                blurRadius: 22,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _index,
+            onTap: _onNavTap,
+            items: [
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.article_outlined),
+                activeIcon: const Icon(Icons.article),
+                label: _tr('news'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.shopping_bag_outlined),
+                activeIcon: const Icon(Icons.shopping_bag),
+                label: _tr('shop'),
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.circle, color: Colors.transparent),
+                activeIcon: Icon(Icons.circle, color: Colors.transparent),
+                label: '',
+              ),
+              BottomNavigationBarItem(
+                icon: _socialNavIcon(active: false),
+                activeIcon: _socialNavIcon(active: true),
+                label: _tr('social'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.person_outline),
+                activeIcon: const Icon(Icons.person),
+                label: _tr('profile'),
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -700,12 +700,22 @@ class _RootScreenState extends State<RootScreen> {
           ? null
           : GestureDetector(
               onTap: () => _onNavTap(2),
-              child: SizedBox(
-                width: 92,
-                height: 92,
-                child: Image.asset(
-                  'assets/icons/dm.png',
-                  fit: BoxFit.contain,
+              child: Container(
+                width: 86,
+                height: 86,
+                padding: const EdgeInsets.all(10),
+                decoration: AppTheme.glowCircle(tone: AppTone.photos, radius: 26),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.bgDeep.withOpacity(0.9),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  child: Image.asset(
+                    'assets/icons/dm.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
@@ -718,7 +728,8 @@ class _RootScreenState extends State<RootScreen> {
 
   Widget _socialNavIcon({required bool active}) {
     final hasNotification = _notificationCount > 0;
-    final iconColor = hasNotification ? Colors.redAccent : (active ? const Color(0xFFE53935) : Colors.white70);
+    final iconColor =
+        hasNotification ? AppTheme.pink : (active ? AppTheme.violet : AppTheme.textTertiary);
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -730,7 +741,7 @@ class _RootScreenState extends State<RootScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.redAccent,
+                color: AppTheme.pink,
                 borderRadius: BorderRadius.circular(10),
               ),
               constraints: const BoxConstraints(minWidth: 18),

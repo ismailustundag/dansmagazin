@@ -9,6 +9,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/calendar_service.dart';
+import '../theme/app_theme.dart';
 
 class TicketsScreen extends StatefulWidget {
   final String sessionToken;
@@ -54,6 +55,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(title: const Text('Biletlerim')),
       body: SafeArea(
         top: false,
@@ -70,7 +72,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                 children: [
                   const SizedBox(height: 60),
                   Center(
-                    child: TextButton(
+                  child: TextButton(
                       onPressed: _refresh,
                       child: const Text('Biletler yüklenemedi, tekrar dene'),
                     ),
@@ -103,12 +105,8 @@ class _TicketsScreenState extends State<TicketsScreen> {
                     );
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF121826),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white12),
-                    ),
+                    padding: const EdgeInsets.all(14),
+                    decoration: AppTheme.panel(tone: AppTone.events, radius: 20, elevated: true),
                     child: Row(
                       children: [
                         Expanded(
@@ -131,22 +129,30 @@ class _TicketsScreenState extends State<TicketsScreen> {
                               if (t.wooOrderStatus.isNotEmpty)
                                 Text(
                                   'Sipariş durumu: ${t.wooOrderStatus}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                                 ),
                               if (t.wooOrderId.isNotEmpty)
                                 Text(
                                   'Sipariş: #${t.wooOrderId}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                                 ),
                               if (t.eventDate.isNotEmpty)
                                 Text(
                                   'Tarih: ${t.eventDateLabel}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                                 ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.qr_code_2, size: 30, color: Color(0xFFE53935)),
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: AppTheme.orange.withOpacity(0.16),
+                          ),
+                          child: const Icon(Icons.qr_code_2, size: 24, color: AppTheme.orange),
+                        ),
                       ],
                     ),
                   ),
@@ -259,6 +265,7 @@ class TicketQrScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final canOpenWallet = _walletUrl().isNotEmpty;
     return Scaffold(
+      backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(title: Text(ticket.eventName)),
       body: SafeArea(
         top: false,
@@ -274,10 +281,18 @@ class TicketQrScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppTheme.orange.withOpacity(0.22)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.orange.withOpacity(0.12),
+                      blurRadius: 26,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
                 ),
                 child: QrImageView(
                   data: ticket.qrToken,
@@ -289,17 +304,17 @@ class TicketQrScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Bilet Kodu: ${ticket.ticketId}',
-                style: const TextStyle(color: Colors.white70),
+                style: const TextStyle(color: AppTheme.textSecondary),
               ),
               if (ticket.eventDate.trim().isNotEmpty)
                 Text(
                   'Etkinlik: ${ticket.eventDateLabel}',
-                  style: const TextStyle(color: Colors.white70),
+                  style: const TextStyle(color: AppTheme.textSecondary),
                 ),
               if (ticket.usedAt.isNotEmpty)
                 Text(
                   'Kullanım: ${ticket.usedAt}',
-                  style: const TextStyle(color: Color(0xFFF59E0B)),
+                  style: const TextStyle(color: AppTheme.warning),
                 ),
               const SizedBox(height: 12),
               Row(
@@ -309,9 +324,9 @@ class TicketQrScreen extends StatelessWidget {
                       height: 48,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1D4ED8),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          backgroundColor: AppTheme.violet,
+                          foregroundColor: AppTheme.textPrimary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           textStyle: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                         onPressed: () => _openCalendar(context),
@@ -326,11 +341,11 @@ class TicketQrScreen extends StatelessWidget {
                       height: 48,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE53935),
-                          disabledBackgroundColor: const Color(0xFF374151),
-                          foregroundColor: Colors.white,
-                          disabledForegroundColor: Colors.white70,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          backgroundColor: AppTheme.orange,
+                          disabledBackgroundColor: AppTheme.surfaceSecondary,
+                          foregroundColor: AppTheme.textPrimary,
+                          disabledForegroundColor: AppTheme.textSecondary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           textStyle: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                         onPressed: canOpenWallet ? () => _openWallet(context) : null,

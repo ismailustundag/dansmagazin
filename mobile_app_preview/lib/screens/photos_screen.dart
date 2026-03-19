@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/date_time_format.dart';
 import '../services/i18n.dart';
+import '../theme/app_theme.dart';
 import 'screen_shell.dart';
 
 Uri _encodedUri(String rawUrl) => Uri.parse(Uri.encodeFull(rawUrl.trim()));
@@ -215,6 +216,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
       title: I18n.t('photos'),
       icon: Icons.photo_library,
       subtitle: _isLoggedIn ? I18n.t('photos_subtitle_logged_in') : I18n.t('photos_subtitle_guest'),
+      tone: AppTone.photos,
       content: [
         Wrap(
           spacing: 8,
@@ -328,10 +330,10 @@ class _PhotosScreenState extends State<PhotosScreen> {
       label: Text(label),
       selected: selected,
       onSelected: (_) => setState(() => _tab = value),
-      selectedColor: const Color(0xFFE53935),
-      backgroundColor: const Color(0xFF121826),
-      labelStyle: TextStyle(color: selected ? Colors.white : Colors.white70),
-      side: BorderSide(color: selected ? Colors.transparent : Colors.white24),
+      selectedColor: AppTheme.cyan.withOpacity(0.28),
+      backgroundColor: AppTheme.surfaceSecondary,
+      labelStyle: TextStyle(color: selected ? AppTheme.textPrimary : AppTheme.textSecondary),
+      side: BorderSide(color: selected ? Colors.transparent : AppTheme.borderSoft),
     );
   }
 }
@@ -594,21 +596,21 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF080B14),
+      backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.bgPrimary,
         title: Text(widget.album.name),
         actions: [
           TextButton.icon(
             onPressed: () => setState(() => _showFavoritesOnly = !_showFavoritesOnly),
             icon: Icon(
               _showFavoritesOnly ? Icons.star : Icons.star_border,
-              color: _showFavoritesOnly ? const Color(0xFFFFC107) : Colors.white,
+              color: _showFavoritesOnly ? AppTheme.amber : AppTheme.textPrimary,
             ),
             label: Text(
               I18n.t('my_favorites'),
               style: TextStyle(
-                color: _showFavoritesOnly ? const Color(0xFFFFC107) : Colors.white,
+                color: _showFavoritesOnly ? AppTheme.amber : AppTheme.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -647,7 +649,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                 _showFavoritesOnly
                     ? I18n.t('no_favorite_photo_in_album')
                     : I18n.t('no_photo_in_album'),
-                style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                style: const TextStyle(color: AppTheme.textSecondary),
               ),
             );
           }
@@ -726,8 +728,8 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                                   fit: BoxFit.cover,
                                   fadeInDuration: Duration.zero,
                                   placeholderFadeInDuration: Duration.zero,
-                                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                                  placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                                  errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
+                                  placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
                                 ),
                               ),
                             ),
@@ -740,15 +742,16 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.black54,
+                                  color: AppTheme.bgDeep.withOpacity(0.72),
                                   borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white.withOpacity(0.08)),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
                                       p.likedByMe ? Icons.favorite : Icons.favorite_border,
-                                      color: p.likedByMe ? Colors.redAccent : Colors.white,
+                                      color: p.likedByMe ? AppTheme.pink : AppTheme.textPrimary,
                                       size: 16,
                                     ),
                                     const SizedBox(width: 4),
@@ -766,12 +769,13 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: Colors.black54,
+                                  color: AppTheme.bgDeep.withOpacity(0.72),
                                   borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white.withOpacity(0.08)),
                                 ),
                                 child: Icon(
                                   fav ? Icons.star : Icons.star_border,
-                                  color: fav ? const Color(0xFFFFC107) : Colors.white,
+                                  color: fav ? AppTheme.amber : AppTheme.textPrimary,
                                   size: 18,
                                 ),
                               ),
@@ -803,11 +807,11 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                                   },
                             style: OutlinedButton.styleFrom(
                               backgroundColor:
-                                  selected ? const Color(0xFFE53935) : Colors.transparent,
+                                  selected ? AppTheme.violet : Colors.transparent,
                             ),
                             child: Text(
                               '$pageNum',
-                              style: TextStyle(color: selected ? Colors.white : null),
+                              style: TextStyle(color: selected ? AppTheme.textPrimary : null),
                             ),
                           );
                         },
@@ -1057,7 +1061,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
               ),
             ),
             Container(
-              color: const Color(0xFF0B1020),
+              decoration: BoxDecoration(
+                color: AppTheme.bgDeep.withOpacity(0.96),
+                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.06))),
+              ),
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1068,7 +1075,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                       '${I18n.t('download_full_resolution_notice')}\n${I18n.t('download_contact_notice')}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        color: Colors.white70,
+                        color: AppTheme.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         height: 1.35,
@@ -1082,19 +1089,19 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                         onTap: () => _togglePhotoLike(photo),
                         tooltip: '${I18n.t('like')} (${photo.likeCount})',
                         icon: photo.likedByMe ? Icons.favorite : Icons.favorite_border,
-                        color: photo.likedByMe ? Colors.redAccent : Colors.white,
+                        color: photo.likedByMe ? AppTheme.pink : AppTheme.textPrimary,
                       ),
                       _iconAction(
                         onTap: () => _toggleFavorite(photo),
                         tooltip: fav ? I18n.t('remove_from_favorites') : I18n.t('add_to_favorites'),
                         icon: fav ? Icons.star : Icons.star_border,
-                        color: fav ? const Color(0xFFFFC107) : Colors.white,
+                        color: fav ? AppTheme.amber : AppTheme.textPrimary,
                       ),
                       _iconAction(
                         onTap: () => _download(photo.url),
                         tooltip: I18n.t('download'),
                         icon: Icons.download,
-                        color: Colors.white,
+                        color: AppTheme.cyan,
                       ),
                     ],
                   ),
@@ -1123,8 +1130,15 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
           height: 44,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.white10,
-            border: Border.all(color: Colors.white24),
+            color: AppTheme.surfaceSecondary,
+            border: Border.all(color: color.withOpacity(0.28)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Icon(icon, color: color, size: 22),
         ),
@@ -1151,13 +1165,9 @@ class _AlbumCard extends StatelessWidget {
     final previewUrl = album.coverThumbUrl.isNotEmpty ? album.coverThumbUrl : album.coverUrl;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(22),
       child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: const Color(0xFF121826),
-          border: Border.all(color: Colors.white12),
-        ),
+        decoration: AppTheme.panel(tone: AppTone.photos, radius: 22, elevated: true),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1170,30 +1180,51 @@ class _AlbumCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       cacheWidth: 960,
                       filterQuality: FilterQuality.low,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                      errorBuilder: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
                     )
-                  : Container(color: const Color(0xFF1F2937)),
+                  : Container(color: AppTheme.surfaceElevated),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
-              child: Text(
-                album.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: AppTheme.cyan.withOpacity(0.16),
+                    ),
+                    child: Text(
+                      album.albumType == 'top_liked' ? 'Trend' : 'Albüm',
+                      style: const TextStyle(
+                        color: AppTheme.cyan,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    album.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
+                ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
               child: Text(
                 '${album.photoCount} fotoğraf  ·  ${album.createdAt}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12),
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Row(
                 children: [
                   Expanded(
@@ -1201,7 +1232,7 @@ class _AlbumCard extends StatelessWidget {
                       onPressed: onLikeTap,
                       icon: Icon(
                         liked ? Icons.favorite : Icons.favorite_border,
-                        color: liked ? Colors.redAccent : Colors.white,
+                        color: liked ? AppTheme.pink : AppTheme.textPrimary,
                         size: 18,
                       ),
                       label: Text('${I18n.t('like')} (${album.likeCount})'),
@@ -1254,8 +1285,8 @@ class _TopLikedGrid extends StatelessWidget {
                   fit: BoxFit.cover,
                   fadeInDuration: Duration.zero,
                   placeholderFadeInDuration: Duration.zero,
-                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                  placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                  errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
+                  placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
                 ),
               ),
               Positioned(
@@ -1265,14 +1296,15 @@ class _TopLikedGrid extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.62),
+                    color: AppTheme.bgDeep.withOpacity(0.72),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.favorite, size: 14, color: Colors.redAccent),
+                      const Icon(Icons.favorite, size: 14, color: AppTheme.pink),
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
@@ -1346,8 +1378,8 @@ class _FavoriteGrid extends StatelessWidget {
                     fit: BoxFit.cover,
                     fadeInDuration: Duration.zero,
                     placeholderFadeInDuration: Duration.zero,
-                    errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
-                    placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                    errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
+                    placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
                   ),
                 ),
               ),
@@ -1359,13 +1391,14 @@ class _FavoriteGrid extends StatelessWidget {
                 onTap: () => onUnfavorite(p.url),
                 child: Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(Icons.favorite, color: Colors.redAccent, size: 18),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgDeep.withOpacity(0.72),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
                 ),
+                child: const Icon(Icons.favorite, color: AppTheme.pink, size: 18),
               ),
+            ),
             ),
           ],
         );
@@ -1749,13 +1782,9 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121826),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.8))),
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.panel(tone: AppTone.photos, radius: 18, subtle: true),
+      child: Text(text, style: const TextStyle(color: AppTheme.textSecondary)),
     );
   }
 }
@@ -1770,16 +1799,12 @@ class _LoginRequiredCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121826),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.panel(tone: AppTone.photos, radius: 18, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: TextStyle(color: Colors.white.withOpacity(0.9))),
+          Text(text, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
           if (onLoginTap != null) ...[
             const SizedBox(height: 10),
             SizedBox(
@@ -1807,11 +1832,7 @@ class _ErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A1212),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF7F1D1D)),
-      ),
+      decoration: AppTheme.panel(tone: AppTone.danger, radius: 18, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

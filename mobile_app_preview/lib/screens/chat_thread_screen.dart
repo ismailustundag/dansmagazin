@@ -8,6 +8,7 @@ import '../services/app_settings.dart';
 import '../services/date_time_format.dart';
 import '../services/error_message.dart';
 import '../services/notification_center.dart';
+import '../theme/app_theme.dart';
 
 class ChatThreadScreen extends StatefulWidget {
   final String sessionToken;
@@ -242,9 +243,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   Widget build(BuildContext context) {
     final messageScale = AppSettings.textScale.value.clamp(0.90, 1.35).toDouble();
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1020),
+      backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B1020),
+        backgroundColor: AppTheme.bgPrimary,
         title: Row(
           children: [
             InkWell(
@@ -257,8 +258,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     )
                   : const CircleAvatar(
                       radius: 16,
-                      backgroundColor: Color(0xFFE53935),
-                      child: Icon(Icons.person, color: Colors.white, size: 16),
+                      backgroundColor: AppTheme.violet,
+                      child: Icon(Icons.person, color: AppTheme.textPrimary, size: 16),
                     ),
             ),
             const SizedBox(width: 10),
@@ -295,8 +296,13 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                   constraints: const BoxConstraints(maxWidth: 280),
                                   decoration: BoxDecoration(
-                                    color: mine ? const Color(0xFFE53935) : const Color(0xFF1F2937),
-                                    borderRadius: BorderRadius.circular(12),
+                                    color: mine ? AppTheme.violet : AppTheme.surfaceSecondary,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: mine
+                                          ? AppTheme.violet.withOpacity(0.28)
+                                          : AppTheme.borderSoft,
+                                    ),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,7 +330,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                             Icon(
                                               Icons.done_all,
                                               size: 14 * messageScale,
-                                              color: seenByPeer ? const Color(0xFF22C55E) : Colors.white70,
+                                              color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
                                             ),
                                           ],
                                         ],
@@ -340,7 +346,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             top: false,
             child: Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-              color: const Color(0xFF0F172A),
+              decoration: BoxDecoration(
+                color: AppTheme.surfacePrimary,
+                border: Border(top: BorderSide(color: AppTheme.borderSoft.withOpacity(0.9))),
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -352,7 +361,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                         '${widget.peerName} yazıyor...',
                         style: TextStyle(
                           fontSize: 12 * messageScale,
-                          color: const Color(0xFF93C5FD),
+                          color: AppTheme.info,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -370,7 +379,6 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                           decoration: InputDecoration(
                             hintText: 'Mesaj yaz... 😀',
                             hintStyle: TextStyle(fontSize: 14 * messageScale),
-                            border: OutlineInputBorder(),
                             isDense: true,
                           ),
                         ),

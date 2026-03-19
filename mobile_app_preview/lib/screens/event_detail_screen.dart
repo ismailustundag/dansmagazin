@@ -6,6 +6,7 @@ import '../services/checkout_api.dart';
 import '../services/calendar_service.dart';
 import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
+import '../theme/app_theme.dart';
 import 'app_webview_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -313,33 +314,29 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final canOpenMaps = _storedMapUri() != null;
     final canAddToCalendar = _parseEventDateForCalendar(widget.eventDate) != null;
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1020),
+      backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B1020),
+        backgroundColor: AppTheme.bgPrimary,
         title: const Text('Etkinlik Detay'),
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           children: [
           if (widget.cover.isNotEmpty)
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(24),
               child: Image.network(
                 widget.cover,
-                height: 190,
+                height: 220,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(height: 190, color: const Color(0xFF1F2937)),
+                errorBuilder: (_, __, ___) => Container(height: 220, color: AppTheme.surfaceElevated),
               ),
             ),
           Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF121826),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white12),
-            ),
+            margin: const EdgeInsets.only(top: 14),
+            padding: const EdgeInsets.all(16),
+            decoration: AppTheme.panel(tone: AppTone.events, radius: 22, elevated: true),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -356,9 +353,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               child: OutlinedButton.icon(
                 onPressed: _addToCalendar,
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white24),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  backgroundColor: AppTheme.surfaceSecondary,
+                  side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
+                  foregroundColor: AppTheme.textPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 icon: const Icon(Icons.event_available),
                 label: const Text(
@@ -368,13 +366,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ),
             ),
           if (canAddToCalendar) const SizedBox(height: 12),
-          SizedBox(
-            height: 52,
+            SizedBox(
+            height: 54,
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: _joined ? const Color(0xFF16A34A) : const Color(0xFFE53935)),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor: _joined ? AppTheme.success.withOpacity(0.12) : AppTheme.surfaceSecondary,
+                side: BorderSide(color: _joined ? AppTheme.success : AppTheme.orange.withOpacity(0.8)),
+                foregroundColor: AppTheme.textPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               ),
               onPressed: _changingAttendance ? null : _toggleAttend,
               child: _changingAttendance
@@ -392,12 +391,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           const SizedBox(height: 12),
           if (buyUrl.isNotEmpty)
             SizedBox(
-              height: 50,
+              height: 56,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE21C2A),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  backgroundColor: AppTheme.orange,
+                  foregroundColor: AppTheme.textPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                 ),
                 onPressed: _openingCheckout
                     ? null
@@ -423,16 +422,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF121826),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white12),
-            ),
+            padding: const EdgeInsets.all(14),
+            decoration: AppTheme.panel(tone: AppTone.social, radius: 22, subtle: true),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Etkinliğe Katılacaklar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Text('Etkinliğe Katılacaklar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 10),
                 if (_loadingAttendees)
                   const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()))
@@ -443,10 +438,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 14),
                       child: Row(
                         children: [
                           Expanded(
@@ -461,11 +453,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               child: const Text('Arkadaş Ekle'),
                             )
                           else if (!a.isMe && a.friendStatus == 'pending_outgoing')
-                            const Text('Onay Bekleniyor', style: TextStyle(color: Color(0xFFF59E0B)))
+                            const Text('Onay Bekleniyor', style: TextStyle(color: AppTheme.warning))
                           else if (!a.isMe && a.friendStatus == 'pending_incoming')
-                            const Text('Gelen İstek', style: TextStyle(color: Color(0xFF38BDF8)))
+                            const Text('Gelen İstek', style: TextStyle(color: AppTheme.info))
                           else if (a.isFriend && !a.isMe)
-                            const Text('Arkadaş', style: TextStyle(color: Color(0xFF22C55E))),
+                            const Text('Arkadaş', style: TextStyle(color: AppTheme.success)),
                         ],
                       ),
                     );
@@ -485,11 +477,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF121826),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white12),
+            padding: const EdgeInsets.all(16),
+            decoration: AppTheme.panel(
+              tone: _tab == 2 ? AppTone.events : AppTone.neutral,
+              radius: 22,
+              subtle: _tab != 2,
             ),
             child: _tab == 2
                 ? Column(
@@ -497,7 +489,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     children: [
                       Text(
                         _contentText(),
-                        style: TextStyle(color: Colors.white.withOpacity(0.92), height: 1.4),
+                        style: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
                       ),
                       if (canOpenMaps) ...[
                         const SizedBox(height: 12),
@@ -506,8 +498,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           child: ElevatedButton(
                             onPressed: _openVenueInMaps,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE53935),
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppTheme.orange,
+                              foregroundColor: AppTheme.textPrimary,
                             ),
                             child: const Text(
                               'HARITADA AÇ',
@@ -520,7 +512,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   )
                 : Text(
                     _contentText(),
-                    style: TextStyle(color: Colors.white.withOpacity(0.92), height: 1.4),
+                    style: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
                   ),
           ),
           ],
@@ -534,7 +526,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.white70),
+          Icon(icon, size: 18, color: AppTheme.textSecondary),
           const SizedBox(width: 8),
           Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
         ],
@@ -546,10 +538,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final active = _tab == val;
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
-        backgroundColor: active ? const Color(0xFF1C2436) : const Color(0xFF0F172A),
-        side: BorderSide(color: active ? const Color(0xFFE53935) : Colors.white12),
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        backgroundColor: active ? AppTheme.orange.withOpacity(0.18) : AppTheme.surfaceSecondary,
+        side: BorderSide(color: active ? AppTheme.orange : AppTheme.borderSoft),
+        foregroundColor: AppTheme.textPrimary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       ),
       onPressed: () => setState(() => _tab = val),
