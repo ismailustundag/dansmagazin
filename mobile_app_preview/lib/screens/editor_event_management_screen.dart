@@ -8,7 +8,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/error_message.dart';
+import '../services/profile_api.dart';
 import '../services/turkiye_cities.dart';
+import 'chat_thread_screen.dart';
 import 'editor_news_management_screen.dart';
 
 DateTime? _parseEventDate(String raw) {
@@ -109,6 +111,55 @@ const List<String> _weekdayLabels = <String>[
   'Her Pazar',
 ];
 
+const List<String> _danceStyleValues = <String>[
+  'salsa',
+  'bachata',
+  'kizomba',
+  'tango',
+  'lindy_hop',
+  'hip_hop',
+];
+
+String _danceStyleLabel(String value) {
+  switch (value) {
+    case 'salsa':
+      return 'Salsa';
+    case 'bachata':
+      return 'Bachata';
+    case 'kizomba':
+      return 'Kizomba';
+    case 'tango':
+      return 'Tango';
+    case 'lindy_hop':
+      return 'Lindy Hop';
+    case 'hip_hop':
+      return 'Hip Hop';
+    default:
+      return value;
+  }
+}
+
+List<String> _normalizeDanceStyles(dynamic raw) {
+  final List<String> parts;
+  if (raw is List) {
+    parts = raw.map((e) => e.toString().trim().toLowerCase()).toList();
+  } else {
+    final text = (raw ?? '').toString().trim();
+    if (text.isEmpty) return const <String>[];
+    parts = text.split(',').map((e) => e.trim().toLowerCase()).toList();
+  }
+  final out = <String>[];
+  for (final value in _danceStyleValues) {
+    if (parts.contains(value)) out.add(value);
+  }
+  return out;
+}
+
+String _danceStylesPayload(Iterable<String> styles) {
+  final normalized = _normalizeDanceStyles(styles.toList());
+  return normalized.join(',');
+}
+
 String _normalizeMapUrl(String raw) {
   final v = raw.trim();
   if (v.isEmpty) return '';
@@ -131,6 +182,36 @@ _VenueParts _splitVenue(String venue, {String mapUrl = ''}) {
   final link = (m.group(0) ?? '').trim();
   final name = raw.replaceFirst(link, '').replaceAll(RegExp(r'\s+\n'), '\n').trim();
   return _VenueParts(name: name, mapUrl: link);
+}
+
+Future<void> _openSupportChat(BuildContext context, String sessionToken) async {
+  final token = sessionToken.trim();
+  if (token.isEmpty) return;
+  try {
+    final contact = await ProfileApi.supportContact(token);
+    final target = contact ??
+        const SupportContact(
+          accountId: 164,
+          name: 'Dansmagazin',
+          avatarUrl: '',
+        );
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatThreadScreen(
+          sessionToken: token,
+          peerAccountId: target.accountId,
+          peerName: target.name,
+          peerAvatarUrl: target.avatarUrl,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Destek açılamadı: $e')),
+    );
+  }
 }
 
 class EditorEventManagementScreen extends StatelessWidget {
@@ -266,6 +347,100 @@ class _ActionCard extends StatelessWidget {
             const Icon(Icons.chevron_right, color: Colors.white54),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DanceStylesField extends StatelessWidget {
+  final Set<String> selectedStyles;
+  final void Function(String style)? onToggle;
+
+  const _DanceStylesField({
+    required this.selectedStyles,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Dans Türleri',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _danceStyleValues
+                .map(
+                  (style) => FilterChip(
+                    label: Text(_danceStyleLabel(style)),
+                    selected: selectedStyles.contains(style),
+                    onSelected: onToggle == null ? null : (_) => onToggle!(style),
+                    selectedColor: const Color(0xFFE58B8B),
+                    checkmarkColor: Colors.white,
+                    backgroundColor: const Color(0xFF111827),
+                    labelStyle: TextStyle(
+                      color: selectedStyles.contains(style) ? Colors.white : Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    side: BorderSide(
+                      color: selectedStyles.contains(style) ? const Color(0x00FFFFFF) : Colors.white12,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TicketSalesHelpCard extends StatelessWidget {
+  final String sessionToken;
+  final bool busy;
+
+  const _TicketSalesHelpCard({
+    required this.sessionToken,
+    required this.busy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF121826),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Etkinlik biletinizin satışa açılmasını istiyorsanız Dansmagazin ile iletişime geçin.',
+            style: TextStyle(fontSize: 13.5, color: Colors.white70, height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: busy ? null : () => _openSupportChat(context, sessionToken),
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text(
+                'Mesaj Gönder',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -930,6 +1105,7 @@ class _ManagedEventItem {
   final String venueMapUrl;
   final String city;
   final String eventKind;
+  final List<String> danceStyles;
   final bool ticketSalesEnabled;
   final bool repeatWeekly;
   final int? repeatWeekday;
@@ -948,6 +1124,7 @@ class _ManagedEventItem {
     required this.venueMapUrl,
     required this.city,
     required this.eventKind,
+    required this.danceStyles,
     required this.ticketSalesEnabled,
     required this.repeatWeekly,
     required this.repeatWeekday,
@@ -968,6 +1145,7 @@ class _ManagedEventItem {
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
+      danceStyles: _normalizeDanceStyles(json['dance_styles']),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
       repeatWeekly: (json['repeat_weekly'] == true) || (json['repeat_weekly'] == 1),
       repeatWeekday: (json['repeat_weekday'] as num?)?.toInt(),
@@ -1005,7 +1183,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   final List<String> _cities = kTurkiyeCitiesWithUnknown;
   String _city = 'İstanbul';
   String _eventKind = 'dance_night';
-  bool _ticketSalesEnabled = true;
+  final Set<String> _danceStyles = <String>{};
   bool _repeatWeekly = false;
   int _repeatWeekday = 0;
   bool _saving = false;
@@ -1026,7 +1204,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     _programCtrl = TextEditingController(text: widget.item.programText);
     _city = widget.item.city.trim().isEmpty ? 'Belirtilmedi' : widget.item.city.trim();
     _eventKind = _normalizeKind(widget.item.eventKind);
-    _ticketSalesEnabled = widget.item.ticketSalesEnabled;
+    _danceStyles.addAll(_normalizeDanceStyles(widget.item.danceStyles));
     _repeatWeekly = widget.item.repeatWeekly;
     final fallbackWeekday = (parsedDate ?? DateTime.now()).weekday - 1;
     final itemWeekday = widget.item.repeatWeekday;
@@ -1034,7 +1212,6 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ? itemWeekday
         : fallbackWeekday.clamp(0, 6).toInt();
     if (_isPromoLesson) {
-      _ticketSalesEnabled = false;
       _repeatWeekly = false;
     }
   }
@@ -1057,7 +1234,6 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       _error = null;
     });
     try {
-      final effectiveTicketSales = !_isPromoLesson && _ticketSalesEnabled;
       final effectiveRepeatWeekly = !_isPromoLesson && _repeatWeekly;
       final req = http.MultipartRequest(
         'POST',
@@ -1072,7 +1248,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
         ..fields['event_kind'] = _eventKind
-        ..fields['ticket_sales_enabled'] = effectiveTicketSales ? '1' : '0'
+        ..fields['dance_styles'] = _danceStylesPayload(_danceStyles)
         ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
         ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
@@ -1080,7 +1256,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       final res = await req.send();
       final body = await res.stream.bytesToString();
       if (res.statusCode != 200) {
-        setState(() => _error = 'Kaydetme başarısız: ${res.statusCode} $body');
+        setState(() => _error = parseApiErrorBody(body, fallback: 'Kaydetme başarısız'));
         return;
       }
       if (!mounted) return;
@@ -1149,7 +1325,6 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                     : (v) => setState(() {
                           _eventKind = v ?? _eventKind;
                           if (_isPromoLesson) {
-                            _ticketSalesEnabled = false;
                             _repeatWeekly = false;
                           }
                         }),
@@ -1161,16 +1336,17 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                 ),
               ),
               const SizedBox(height: 4),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Bilet Satışına Aç'),
-                subtitle: Text(
-                  _isPromoLesson
-                      ? 'Tanıtım derslerinde bilet satışı her zaman kapalıdır'
-                      : 'Kapalıysa etkinlik yalnızca uygulamada görünür',
-                ),
-                value: _isPromoLesson ? false : _ticketSalesEnabled,
-                onChanged: (_saving || _isPromoLesson) ? null : (v) => setState(() => _ticketSalesEnabled = v),
+              _DanceStylesField(
+                selectedStyles: _danceStyles,
+                onToggle: _saving
+                    ? null
+                    : (style) => setState(() {
+                          if (_danceStyles.contains(style)) {
+                            _danceStyles.remove(style);
+                          } else {
+                            _danceStyles.add(style);
+                          }
+                        }),
               ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateTimeRow(_dateCtrl, _timeCtrl),
@@ -1214,6 +1390,11 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                   onPressed: _saving ? null : _save,
                   child: Text(_saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'),
                 ),
+              ),
+              const SizedBox(height: 12),
+              _TicketSalesHelpCard(
+                sessionToken: widget.sessionToken,
+                busy: _saving,
               ),
             ],
           ),
@@ -1352,7 +1533,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final List<String> _cities = kTurkiyeCities;
   String _city = 'İstanbul';
   String _eventKind = 'dance_night';
-  bool _ticketSalesEnabled = false;
+  final Set<String> _danceStyles = <String>{};
   bool _repeatWeekly = false;
   int _repeatWeekday = DateTime.now().weekday - 1;
 
@@ -1410,7 +1591,6 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       _error = null;
     });
     try {
-      final effectiveTicketSales = !_isPromoLesson && _ticketSalesEnabled;
       final effectiveRepeatWeekly = !_isPromoLesson && _repeatWeekly;
       final req = http.MultipartRequest('POST', Uri.parse(_submitUrl))
         ..fields['event_name'] = _eventCtrl.text.trim()
@@ -1420,7 +1600,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
         ..fields['event_kind'] = _eventKind
-        ..fields['ticket_sales_enabled'] = effectiveTicketSales ? '1' : '0'
+        ..fields['dance_styles'] = _danceStylesPayload(_danceStyles)
+        ..fields['ticket_sales_enabled'] = '0'
         ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
         ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
@@ -1436,7 +1617,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       final streamed = await req.send();
       final body = await streamed.stream.bytesToString();
       if (streamed.statusCode != 200) {
-        setState(() => _error = 'Gönderim başarısız: ${streamed.statusCode} $body');
+        setState(() => _error = parseApiErrorBody(body, fallback: 'Gönderim başarısız'));
         return;
       }
       if (!mounted) return;
@@ -1501,7 +1682,6 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                     : (v) => setState(() {
                           _eventKind = v ?? _eventKind;
                           if (_isPromoLesson) {
-                            _ticketSalesEnabled = false;
                             _repeatWeekly = false;
                           }
                         }),
@@ -1513,16 +1693,17 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                 ),
               ),
               const SizedBox(height: 4),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Bilet Satışına Aç'),
-                subtitle: Text(
-                  _isPromoLesson
-                      ? 'Tanıtım derslerinde bilet satışı her zaman kapalıdır'
-                      : 'Kapalıysa etkinlik sadece uygulamada görünür',
-                ),
-                value: _isPromoLesson ? false : _ticketSalesEnabled,
-                onChanged: (_sending || _isPromoLesson) ? null : (v) => setState(() => _ticketSalesEnabled = v),
+              _DanceStylesField(
+                selectedStyles: _danceStyles,
+                onToggle: _sending
+                    ? null
+                    : (style) => setState(() {
+                          if (_danceStyles.contains(style)) {
+                            _danceStyles.remove(style);
+                          } else {
+                            _danceStyles.add(style);
+                          }
+                        }),
               ),
               _txt(_orgCtrl, 'Organizatör'),
               _dateTimeRow(_dateCtrl, _timeCtrl),
@@ -1611,6 +1792,11 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                   onPressed: _sending ? null : _submit,
                   child: Text(_sending ? 'Gönderiliyor...' : 'Onaya Gönder'),
                 ),
+              ),
+              const SizedBox(height: 12),
+              _TicketSalesHelpCard(
+                sessionToken: widget.sessionToken,
+                busy: _sending,
               ),
             ],
           ),

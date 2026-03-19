@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../services/i18n.dart';
+import '../services/turkiye_cities.dart';
 import 'event_detail_screen.dart';
 import 'news_detail_screen.dart';
 import 'screen_shell.dart';
@@ -33,22 +34,37 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
-  static const List<String> _eventKinds = ['all', 'dance_night', 'festival', 'competition', 'promo_lesson'];
+  static const List<String> _eventKinds = ['dance_night', 'festival', 'competition', 'promo_lesson'];
+  static const List<String> _danceStyles = ['salsa', 'bachata', 'kizomba', 'tango', 'lindy_hop', 'hip_hop'];
 
   late Future<List<_EventItem>> _eventsFuture;
   late Future<List<_NewsItem>> _newsFuture;
   int _tabIndex = 0;
-  String _selectedEventKind = 'all';
+  String _selectedEventCity = '';
+  String _selectedEventKind = '';
+  final Set<String> _selectedDanceStyles = <String>{};
 
   @override
   void initState() {
     super.initState();
-    _eventsFuture = _fetchEvents();
+    _eventsFuture = _fetchEvents(
+      city: _selectedEventCity,
+      eventKind: _selectedEventKind,
+      danceStyles: _selectedDanceStyles.toList(),
+    );
     _newsFuture = _fetchNews();
   }
 
-  Future<List<_EventItem>> _fetchEvents() async {
-    final uri = Uri.parse('$_base/events').replace(queryParameters: const {'limit': '300'});
+  Future<List<_EventItem>> _fetchEvents({
+    String city = '',
+    String eventKind = '',
+    List<String> danceStyles = const <String>[],
+  }) async {
+    final params = <String, String>{'limit': '300'};
+    if (city.trim().isNotEmpty) params['city'] = city.trim();
+    if (eventKind.trim().isNotEmpty) params['event_kind'] = eventKind.trim();
+    if (danceStyles.isNotEmpty) params['dance_styles'] = danceStyles.join(',');
+    final uri = Uri.parse('$_base/events').replace(queryParameters: params);
     final resp = await http.get(uri);
     if (resp.statusCode != 200) {
       throw Exception('Etkinlikler alınamadı (${resp.statusCode})');
@@ -60,6 +76,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         .toList();
     rows.sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return rows;
+  }
+
+  void _reloadEvents() {
+    _eventsFuture = _fetchEvents(
+      city: _selectedEventCity,
+      eventKind: _selectedEventKind,
+      danceStyles: _selectedDanceStyles.toList(),
+    );
   }
 
   Future<List<_NewsItem>> _fetchNews() async {
@@ -90,14 +114,21 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       await f;
       return;
     }
-    final f = _fetchEvents();
+    final f = _fetchEvents(
+      city: _selectedEventCity,
+      eventKind: _selectedEventKind,
+      danceStyles: _selectedDanceStyles.toList(),
+    );
     setState(() => _eventsFuture = f);
     await f;
   }
 
-  List<_EventItem> _filteredEvents(List<_EventItem> items) {
-    if (_selectedEventKind == 'all') return items;
-    return items.where((e) => e.eventKind.trim().toLowerCase() == _selectedEventKind).toList();
+  int get _activeEventFilterCount {
+    var count = 0;
+    if (_selectedEventCity.trim().isNotEmpty) count += 1;
+    if (_selectedEventKind.trim().isNotEmpty) count += 1;
+    if (_selectedDanceStyles.isNotEmpty) count += 1;
+    return count;
   }
 
   String _kindLabel(String kind) {
@@ -113,6 +144,191 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       default:
         return I18n.t('all');
     }
+  }
+
+  String _danceStyleLabel(String value) {
+    switch (value) {
+      case 'salsa':
+        return 'Salsa';
+      case 'bachata':
+        return 'Bachata';
+      case 'kizomba':
+        return 'Kizomba';
+      case 'tango':
+        return 'Tango';
+      case 'lindy_hop':
+        return 'Lindy Hop';
+      case 'hip_hop':
+        return 'Hip Hop';
+      default:
+        return value;
+    }
+  }
+
+  Future<void> _openEventFilters() async {
+    var tempCity = _selectedEventCity;
+    var tempKind = _selectedEventKind;
+    final tempDanceStyles = <String>{..._selectedDanceStyles};
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) {
+        final t = I18n.t;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Etkinlikleri Filtrele',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(t('cancel')),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: tempCity,
+                        items: <DropdownMenuItem<String>>[
+                          DropdownMenuItem(value: '', child: Text(t('all_cities'))),
+                          ...kTurkiyeCitiesWithUnknown
+                              .map((city) => DropdownMenuItem<String>(value: city, child: Text(city))),
+                        ],
+                        onChanged: (value) => setSheetState(() => tempCity = value ?? ''),
+                        decoration: InputDecoration(
+                          labelText: t('city_filter'),
+                          filled: true,
+                          fillColor: const Color(0xFF111827),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: tempKind,
+                        items: <DropdownMenuItem<String>>[
+                          DropdownMenuItem(value: '', child: Text(t('all_event_types'))),
+                          ..._eventKinds.map(
+                            (kind) => DropdownMenuItem<String>(
+                              value: kind,
+                              child: Text(_kindLabel(kind)),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) => setSheetState(() => tempKind = value ?? ''),
+                        decoration: InputDecoration(
+                          labelText: t('event_type'),
+                          filled: true,
+                          fillColor: const Color(0xFF111827),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        t('dance_styles_filter'),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _danceStyles
+                            .map(
+                              (style) => FilterChip(
+                                label: Text(_danceStyleLabel(style)),
+                                selected: tempDanceStyles.contains(style),
+                                selectedColor: const Color(0xFFE58B8B),
+                                checkmarkColor: Colors.white,
+                                backgroundColor: const Color(0xFF111827),
+                                labelStyle: TextStyle(
+                                  color: tempDanceStyles.contains(style) ? Colors.white : Colors.white70,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                side: BorderSide(
+                                  color: tempDanceStyles.contains(style)
+                                      ? const Color(0x00FFFFFF)
+                                      : Colors.white12,
+                                ),
+                                onSelected: (_) {
+                                  setSheetState(() {
+                                    if (tempDanceStyles.contains(style)) {
+                                      tempDanceStyles.remove(style);
+                                    } else {
+                                      tempDanceStyles.add(style);
+                                    }
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => setSheetState(() {
+                                tempCity = '';
+                                tempKind = '';
+                                tempDanceStyles.clear();
+                              }),
+                              child: Text(t('clear_filters')),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop(<String, dynamic>{
+                                  'city': tempCity,
+                                  'kind': tempKind,
+                                  'styles': tempDanceStyles.toList(),
+                                });
+                              },
+                              icon: const Icon(Icons.filter_alt_outlined),
+                              label: Text(t('apply_filters')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || result == null) return;
+    setState(() {
+      _selectedEventCity = (result['city'] ?? '').toString();
+      _selectedEventKind = (result['kind'] ?? '').toString();
+      _selectedDanceStyles
+        ..clear()
+        ..addAll(
+          (result['styles'] as List<dynamic>? ?? const <dynamic>[])
+              .map((e) => e.toString())
+              .where((e) => _danceStyles.contains(e)),
+        );
+      _reloadEvents();
+    });
   }
 
   @override
@@ -144,36 +360,24 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         else
           Container(
             margin: const EdgeInsets.only(bottom: 12),
-            alignment: Alignment.centerLeft,
-            child: Text(
-              t('events'),
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t('events'),
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _openEventFilters,
+                  icon: const Icon(Icons.filter_alt_outlined, size: 18),
+                  label: Text(
+                    _activeEventFilterCount > 0 ? '${t('filter')} ($_activeEventFilterCount)' : t('filter'),
+                  ),
+                ),
+              ],
             ),
           ),
-        if (_tabIndex == 1) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              t('events_filter_hint'),
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 46,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _eventKinds.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) => _DiscoverFilterChip(
-                label: _kindLabel(_eventKinds[i]),
-                selected: _selectedEventKind == _eventKinds[i],
-                onTap: () => setState(() => _selectedEventKind = _eventKinds[i]),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
         if (_tabIndex == 0)
           FutureBuilder<List<_NewsItem>>(
             future: _newsFuture,
@@ -233,7 +437,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   onTap: _refresh,
                 );
               }
-              final items = _filteredEvents(snapshot.data ?? const <_EventItem>[]);
+              final items = snapshot.data ?? const <_EventItem>[];
               if (items.isEmpty) {
                 return _InfoCard(text: t('no_filtered_events_found'));
               }
@@ -305,50 +509,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           style: TextStyle(
             color: selected ? Colors.white : Colors.white70,
             fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DiscoverFilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _DiscoverFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          gradient: selected
-              ? const LinearGradient(
-                  colors: [Color(0xFFE58B8B), Color(0xFFB45F13)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: selected ? null : const Color(0xFF121826),
-          border: Border.all(color: selected ? const Color(0x00FFFFFF) : Colors.white12),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.white70,
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
           ),
         ),
       ),
