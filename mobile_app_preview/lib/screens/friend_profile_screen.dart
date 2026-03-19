@@ -374,7 +374,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: cellWidth,
+                    width: constraints.maxWidth,
                     child: _infoCell(
                       title: t('dance_interests'),
                       value: profile.danceInterests,
@@ -408,7 +408,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: cellWidth,
+                    width: constraints.maxWidth,
                     child: _infoCell(
                       title: t('dance_school'),
                       value: profile.danceSchool,

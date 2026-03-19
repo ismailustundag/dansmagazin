@@ -16,21 +16,34 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   final TextEditingController _titleCtrl = TextEditingController();
   final TextEditingController _bodyCtrl = TextEditingController();
   final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _popupTitleCtrl = TextEditingController();
+  final TextEditingController _popupBodyCtrl = TextEditingController();
+  final TextEditingController _popupCtaLabelCtrl = TextEditingController();
+  final TextEditingController _popupCtaTargetCtrl = TextEditingController();
+  final TextEditingController _popupMinimumVersionCtrl = TextEditingController();
 
   bool _sendToAll = true;
   bool _sending = false;
   bool _loadingUsers = false;
   bool _loadingSent = false;
+  bool _popupLoading = false;
+  bool _popupSaving = false;
+  bool _popupDismissible = true;
+  bool _popupShowToGuests = false;
+  bool _popupForceUpdate = false;
   String _error = '';
+  String _popupError = '';
   final Set<int> _selected = <int>{};
   List<NotificationUserCandidate> _users = const [];
   List<NotificationFeedItem> _sent = const [];
+  AppPopupConfig? _currentPopup;
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
     _loadSent();
+    _loadCurrentPopup();
   }
 
   @override
@@ -38,6 +51,11 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
     _searchCtrl.dispose();
+    _popupTitleCtrl.dispose();
+    _popupBodyCtrl.dispose();
+    _popupCtaLabelCtrl.dispose();
+    _popupCtaTargetCtrl.dispose();
+    _popupMinimumVersionCtrl.dispose();
     super.dispose();
   }
 
@@ -70,6 +88,29 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loadingSent = false);
+    }
+  }
+
+  Future<void> _loadCurrentPopup() async {
+    setState(() => _popupLoading = true);
+    try {
+      final popup = await NotificationsApi.fetchAdminCurrentPopup(widget.sessionToken);
+      if (!mounted) return;
+      _currentPopup = popup;
+      _popupTitleCtrl.text = popup?.title ?? '';
+      _popupBodyCtrl.text = popup?.body ?? '';
+      _popupCtaLabelCtrl.text = popup?.ctaLabel ?? '';
+      _popupCtaTargetCtrl.text = popup?.ctaTarget ?? '';
+      _popupMinimumVersionCtrl.text = popup?.minimumAppVersion ?? '';
+      _popupDismissible = popup?.dismissible ?? true;
+      _popupShowToGuests = popup?.showToGuests ?? false;
+      _popupForceUpdate = popup?.forceUpdate ?? false;
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _popupError = e.toString());
+    } finally {
+      if (mounted) setState(() => _popupLoading = false);
     }
   }
 
@@ -109,6 +150,70 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _savePopup() async {
+    final title = _popupTitleCtrl.text.trim();
+    final body = _popupBodyCtrl.text.trim();
+    if (title.isEmpty || body.isEmpty) {
+      setState(() => _popupError = 'Popup başlığı ve içeriği zorunludur.');
+      return;
+    }
+    setState(() {
+      _popupSaving = true;
+      _popupError = '';
+    });
+    try {
+      final popup = await NotificationsApi.saveAppPopup(
+        widget.sessionToken,
+        title: title,
+        body: body,
+        ctaLabel: _popupCtaLabelCtrl.text,
+        ctaTarget: _popupCtaTargetCtrl.text,
+        minimumAppVersion: _popupMinimumVersionCtrl.text,
+        dismissible: _popupDismissible,
+        showToGuests: _popupShowToGuests,
+        forceUpdate: _popupForceUpdate,
+      );
+      if (!mounted) return;
+      setState(() => _currentPopup = popup);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Açılış popupı kaydedildi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _popupError = e.toString());
+    } finally {
+      if (mounted) setState(() => _popupSaving = false);
+    }
+  }
+
+  Future<void> _deactivatePopup() async {
+    setState(() {
+      _popupSaving = true;
+      _popupError = '';
+    });
+    try {
+      await NotificationsApi.deactivateCurrentPopup(widget.sessionToken);
+      if (!mounted) return;
+      setState(() => _currentPopup = null);
+      _popupTitleCtrl.clear();
+      _popupBodyCtrl.clear();
+      _popupCtaLabelCtrl.clear();
+      _popupCtaTargetCtrl.clear();
+      _popupMinimumVersionCtrl.clear();
+      _popupDismissible = true;
+      _popupShowToGuests = false;
+      _popupForceUpdate = false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Açılış popupı kapatıldı.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _popupError = e.toString());
+    } finally {
+      if (mounted) setState(() => _popupSaving = false);
     }
   }
 
@@ -220,6 +325,125 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                     onPressed: _sending ? null : _send,
                     icon: const Icon(Icons.send),
                     label: Text(_sending ? 'Gönderiliyor...' : 'Bildirimi Gönder'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121826),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Açılış Popupı', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Güncelleme veya genel duyuru popupı. Minimum sürüm boş bırakılırsa herkese görünür.',
+                    style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_popupLoading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  TextField(
+                    controller: _popupTitleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Popup Başlığı',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _popupBodyCtrl,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Popup İçeriği',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _popupCtaLabelCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Buton Metni',
+                      border: OutlineInputBorder(),
+                      hintText: 'Güncelle / Detayları Gör',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _popupCtaTargetCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Buton Hedefi',
+                      border: OutlineInputBorder(),
+                      hintText: 'https://... veya /profile/notifications',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _popupMinimumVersionCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Minimum Sürüm',
+                      border: OutlineInputBorder(),
+                      hintText: '1.0.9+10',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _popupDismissible,
+                    title: const Text('Kapatılabilir'),
+                    onChanged: (v) => setState(() => _popupDismissible = v),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _popupShowToGuests,
+                    title: const Text('Misafirlere de göster'),
+                    onChanged: (v) => setState(() => _popupShowToGuests = v),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _popupForceUpdate,
+                    title: const Text('Zorunlu güncelleme popupı'),
+                    onChanged: (v) => setState(() => _popupForceUpdate = v),
+                  ),
+                  if (_currentPopup != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Aktif popup güncellendi: ${_fmtDate(_currentPopup!.updatedAt)}',
+                      style: TextStyle(color: Colors.white.withOpacity(0.62), fontSize: 11),
+                    ),
+                  ],
+                  if (_popupError.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(_popupError, style: const TextStyle(color: Colors.redAccent)),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: (_popupSaving || _currentPopup == null) ? null : _deactivatePopup,
+                          child: const Text('Popupı Kapat'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _popupSaving ? null : _savePopup,
+                          icon: const Icon(Icons.announcement_outlined),
+                          label: Text(_popupSaving ? 'Kaydediliyor...' : 'Popupı Kaydet'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

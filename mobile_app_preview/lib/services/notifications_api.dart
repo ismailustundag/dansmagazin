@@ -79,6 +79,50 @@ class NotificationUserCandidate {
   }
 }
 
+class AppPopupConfig {
+  final int id;
+  final String title;
+  final String body;
+  final String ctaLabel;
+  final String ctaTarget;
+  final String minimumAppVersion;
+  final bool dismissible;
+  final bool showToGuests;
+  final bool forceUpdate;
+  final bool isActive;
+  final String updatedAt;
+
+  const AppPopupConfig({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.ctaLabel,
+    required this.ctaTarget,
+    required this.minimumAppVersion,
+    required this.dismissible,
+    required this.showToGuests,
+    required this.forceUpdate,
+    required this.isActive,
+    required this.updatedAt,
+  });
+
+  factory AppPopupConfig.fromJson(Map<String, dynamic> json) {
+    return AppPopupConfig(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      title: (json['title'] ?? '').toString(),
+      body: (json['body'] ?? '').toString(),
+      ctaLabel: (json['cta_label'] ?? '').toString(),
+      ctaTarget: (json['cta_target'] ?? '').toString(),
+      minimumAppVersion: (json['minimum_app_version'] ?? '').toString(),
+      dismissible: json['dismissible'] == true,
+      showToGuests: json['show_to_guests'] == true,
+      forceUpdate: json['force_update'] == true,
+      isActive: json['is_active'] == true,
+      updatedAt: (json['updated_at'] ?? '').toString(),
+    );
+  }
+}
+
 class NotificationsApi {
   static const _base = 'https://api2.dansmagazin.net';
 
@@ -189,6 +233,76 @@ class NotificationsApi {
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     return (data['sent_count'] as num?)?.toInt() ?? 0;
+  }
+
+  static Future<AppPopupConfig?> fetchCurrentPopup() async {
+    final resp = await http.get(Uri.parse('$_base/profile/app-popup/current'));
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Açılış popupı alınamadı'));
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final popup = data['popup'];
+    if (popup is! Map<String, dynamic>) return null;
+    return AppPopupConfig.fromJson(popup);
+  }
+
+  static Future<AppPopupConfig?> fetchAdminCurrentPopup(String sessionToken) async {
+    final resp = await http.get(
+      Uri.parse('$_base/profile/app-popup/admin/current'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Popup durumu alınamadı'));
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final popup = data['popup'];
+    if (popup is! Map<String, dynamic>) return null;
+    return AppPopupConfig.fromJson(popup);
+  }
+
+  static Future<AppPopupConfig> saveAppPopup(
+    String sessionToken, {
+    required String title,
+    required String body,
+    String ctaLabel = '',
+    String ctaTarget = '',
+    String minimumAppVersion = '',
+    bool dismissible = true,
+    bool showToGuests = false,
+    bool forceUpdate = false,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/app-popup/admin'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'title': title.trim(),
+        'body': body.trim(),
+        'cta_label': ctaLabel.trim(),
+        'cta_target': ctaTarget.trim(),
+        'minimum_app_version': minimumAppVersion.trim(),
+        'dismissible': dismissible,
+        'show_to_guests': showToGuests,
+        'force_update': forceUpdate,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Popup kaydedilemedi'));
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    return AppPopupConfig.fromJson(data['popup'] as Map<String, dynamic>);
+  }
+
+  static Future<void> deactivateCurrentPopup(String sessionToken) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/profile/app-popup/admin/current'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Popup kapatılamadı'));
+    }
   }
 
 

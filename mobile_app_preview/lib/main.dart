@@ -4,12 +4,15 @@ import 'dart:convert';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'services/auth_api.dart';
 import 'services/app_settings.dart';
 import 'services/i18n.dart';
 import 'services/notification_center.dart';
+import 'services/notifications_api.dart';
 import 'services/push_notifications_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth_screen.dart';
@@ -61,6 +64,7 @@ class _RootScreenState extends State<RootScreen> {
   static const _kAppRole = 'auth.app_role';
   static const _kCanCreateMobileEvent = 'auth.can_create_mobile_event';
   static const _kOnboardingSeen = 'app.onboarding_seen_v1';
+  static const _kDismissedPopupIds = 'app.dismissed_popup_ids_v1';
 
   int _index = 0;
   bool _bootDone = false;
@@ -80,6 +84,8 @@ class _RootScreenState extends State<RootScreen> {
   bool _authInFlight = false;
   bool _onboardingChecked = false;
   bool _onboardingVisible = false;
+  bool _startupPopupChecked = false;
+  bool _startupPopupVisible = false;
 
   @override
   void initState() {
@@ -178,6 +184,7 @@ class _RootScreenState extends State<RootScreen> {
         _sessionToken,
         onRouteTap: _openFromPushRoute,
       ));
+      _scheduleStartupPopupCheck(forceCheck: true);
       return;
     }
 
@@ -340,6 +347,7 @@ class _RootScreenState extends State<RootScreen> {
         _stopNotificationsPolling();
         unawaited(PushNotificationsService.unregisterForSession(previousSession));
         unawaited(PushNotificationsService.dispose());
+        _scheduleStartupPopupCheck(forceCheck: true);
         return;
       }
       await _persist(
@@ -374,6 +382,7 @@ class _RootScreenState extends State<RootScreen> {
         onRouteTap: _openFromPushRoute,
       ));
       _scheduleOnboardingCheck();
+      _scheduleStartupPopupCheck(forceCheck: true);
     } finally {
       _authInFlight = false;
     }
@@ -437,6 +446,7 @@ class _RootScreenState extends State<RootScreen> {
     unawaited(PushNotificationsService.unregisterForSession(previousSession));
     unawaited(PushNotificationsService.dispose());
     _scheduleOnboardingCheck(forceCheck: true);
+    _startupPopupChecked = false;
   }
 
   void _scheduleOnboardingCheck({bool forceCheck = false}) {
@@ -450,11 +460,26 @@ class _RootScreenState extends State<RootScreen> {
     });
   }
 
+  void _scheduleStartupPopupCheck({bool forceCheck = false}) {
+    if (forceCheck) {
+      _startupPopupChecked = false;
+    }
+    if (_startupPopupChecked || _startupPopupVisible || !mounted) return;
+    if (!_bootDone || _authInFlight) return;
+    _startupPopupChecked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeShowStartupPopup());
+    });
+  }
+
   Future<void> _maybeShowOnboarding() async {
     if (!mounted || _onboardingVisible || !_bootDone || _authInFlight) return;
     final prefs = await SharedPreferences.getInstance();
     final seen = prefs.getBool(_kOnboardingSeen) ?? false;
-    if (seen || !mounted) return;
+    if (seen || !mounted) {
+      _scheduleStartupPopupCheck(forceCheck: true);
+      return;
+    }
     _onboardingVisible = true;
     await showDialog<void>(
       context: context,
@@ -463,6 +488,125 @@ class _RootScreenState extends State<RootScreen> {
     );
     await prefs.setBool(_kOnboardingSeen, true);
     _onboardingVisible = false;
+    _scheduleStartupPopupCheck(forceCheck: true);
+  }
+
+  int _compareVersionStrings(String a, String b) {
+    List<int> parts(String raw) {
+      final nums = RegExp(r'\d+')
+          .allMatches(raw)
+          .map((m) => int.tryParse(m.group(0) ?? '0') ?? 0)
+          .toList();
+      return nums.isEmpty ? <int>[0] : nums;
+    }
+
+    final left = parts(a);
+    final right = parts(b);
+    final maxLen = left.length > right.length ? left.length : right.length;
+    for (var i = 0; i < maxLen; i++) {
+      final l = i < left.length ? left[i] : 0;
+      final r = i < right.length ? right[i] : 0;
+      if (l != r) return l.compareTo(r);
+    }
+    return 0;
+  }
+
+  Future<void> _markPopupDismissed(int popupId) async {
+    if (popupId <= 0) return;
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_kDismissedPopupIds) ?? const <String>[];
+    if (ids.contains('$popupId')) return;
+    await prefs.setStringList(_kDismissedPopupIds, [...ids, '$popupId']);
+  }
+
+  Future<bool> _isPopupDismissed(int popupId) async {
+    if (popupId <= 0) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_kDismissedPopupIds) ?? const <String>[];
+    return ids.contains('$popupId');
+  }
+
+  Future<void> _handlePopupAction(AppPopupConfig popup) async {
+    final target = popup.ctaTarget.trim();
+    if (target.isEmpty) return;
+    if (target.startsWith('/')) {
+      await _openFromPushRoute(target);
+      return;
+    }
+    final uri = Uri.tryParse(target);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _maybeShowStartupPopup() async {
+    if (!mounted || _startupPopupVisible || !_bootDone || _authInFlight) return;
+    try {
+      final popup = await NotificationsApi.fetchCurrentPopup();
+      if (!mounted || popup == null || !popup.isActive) return;
+      if (!_isLoggedIn && !popup.showToGuests) return;
+      final minVersion = popup.minimumAppVersion.trim();
+      if (minVersion.isNotEmpty) {
+        final info = await PackageInfo.fromPlatform();
+        final currentVersion = '${info.version}+${info.buildNumber}';
+        if (_compareVersionStrings(currentVersion, minVersion) >= 0) {
+          return;
+        }
+      }
+      final alreadyDismissed = await _isPopupDismissed(popup.id);
+      if (alreadyDismissed && popup.dismissible && !popup.forceUpdate) {
+        return;
+      }
+      _startupPopupVisible = true;
+      final dismissible = popup.dismissible && !popup.forceUpdate;
+      final actionLabel = popup.ctaLabel.trim().isEmpty
+          ? (popup.forceUpdate ? 'Güncelle' : 'Tamam')
+          : popup.ctaLabel.trim();
+
+      final actionPressed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: dismissible,
+        builder: (ctx) {
+          return WillPopScope(
+            onWillPop: () async => dismissible,
+            child: AlertDialog(
+              backgroundColor: AppTheme.surfaceSecondary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: Text(popup.title.trim().isEmpty ? 'Duyuru' : popup.title.trim()),
+              content: Text(
+                popup.body.trim(),
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              actions: [
+                if (dismissible)
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: Text(I18n.t('cancel')),
+                  ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text(actionLabel),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (!mounted) return;
+      if (actionPressed == true) {
+        await _handlePopupAction(popup);
+      } else if (dismissible) {
+        await _markPopupDismissed(popup.id);
+      }
+    } catch (_) {
+      // Açılış popupı hatası ana akışı bozmasın.
+    } finally {
+      _startupPopupVisible = false;
+    }
   }
 
   void _onNavTap(int i) {
