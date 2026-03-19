@@ -264,22 +264,6 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(child: Text(widget.peerName)),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'DBG',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -367,24 +351,6 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.redAccent),
-                    ),
-                    child: const Text(
-                      'DEBUG CHAT COMPOSER',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
                   if (_peerTyping)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
@@ -400,33 +366,31 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: TextField(
-                          controller: _msgCtrl,
-                          minLines: 1,
-                          maxLines: 4,
-                          onChanged: _onDraftChanged,
-                          onSubmitted: (_) => _send(),
-                          style: TextStyle(
-                            fontSize: 15 * messageScale,
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 52),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
                             color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white70),
                           ),
-                          decoration: InputDecoration(
-                            hintText: 'Mesaj yaz...',
-                            hintStyle: TextStyle(fontSize: 14 * messageScale, color: Colors.white70),
-                            isDense: true,
-                            filled: false,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.white38),
+                          child: TextField(
+                            controller: _msgCtrl,
+                            minLines: 1,
+                            maxLines: 4,
+                            onChanged: _onDraftChanged,
+                            onSubmitted: (_) => _send(),
+                            style: TextStyle(
+                              fontSize: 15 * messageScale,
+                              color: Colors.black87,
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.white38),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppTheme.violet, width: 1.4),
+                            cursorColor: AppTheme.violet,
+                            decoration: InputDecoration.collapsed(
+                              hintText: 'Mesaj yaz...',
+                              hintStyle: TextStyle(
+                                fontSize: 14 * messageScale,
+                                color: Colors.black45,
+                              ),
                             ),
                           ),
                         ),
