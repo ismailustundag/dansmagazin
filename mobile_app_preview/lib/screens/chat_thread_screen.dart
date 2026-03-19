@@ -366,28 +366,51 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white70),
-                          ),
-                          height: 52,
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            'MESAJ INPUT',
-                            style: TextStyle(
-                              fontSize: 16 * messageScale,
-                              color: Colors.black,
-                              fontWeight: FontWeight.w700,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Material(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                constraints: const BoxConstraints(minHeight: 52),
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFD1D5DB)),
+                                ),
+                                child: TextField(
+                                  controller: _msgCtrl,
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  onChanged: _onDraftChanged,
+                                  onSubmitted: (_) => _send(),
+                                  textInputAction: TextInputAction.send,
+                                  style: TextStyle(
+                                    fontSize: 15 * messageScale,
+                                    color: Colors.black87,
+                                    height: 1.3,
+                                  ),
+                                  cursorColor: AppTheme.violet,
+                                  decoration: InputDecoration(
+                                    hintText: 'Mesaj yaz...',
+                                    hintStyle: TextStyle(
+                                      fontSize: 14 * messageScale,
+                                      color: const Color(0xFF6B7280),
+                                    ),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),
-                      SizedBox(
-                        height: 52,
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 92, minHeight: 52),
                         child: ElevatedButton(
                           onPressed: _sending ? null : _send,
                           style: ElevatedButton.styleFrom(
@@ -395,6 +418,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             foregroundColor: Colors.white,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            minimumSize: const Size(92, 52),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: _sending

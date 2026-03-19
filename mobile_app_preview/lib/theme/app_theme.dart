@@ -188,7 +188,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ButtonStyle(
-          minimumSize: MaterialStateProperty.all(const Size.fromHeight(52)),
+          minimumSize: MaterialStateProperty.all(const Size(72, 52)),
           padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 18, vertical: 16)),
           shape: MaterialStateProperty.all(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -210,7 +210,7 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: ButtonStyle(
-          minimumSize: MaterialStateProperty.all(const Size.fromHeight(50)),
+          minimumSize: MaterialStateProperty.all(const Size(64, 50)),
           padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
           shape: MaterialStateProperty.all(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
