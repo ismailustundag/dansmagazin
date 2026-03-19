@@ -60,6 +60,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   static final List<String> _allDanceInterestOptions = [
     for (final group in _danceInterestGroups) ...group.items,
   ];
+  static const TextStyle _selectorSheetTitleStyle = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+    color: Colors.white,
+  );
+  static const TextStyle _selectorSheetItemStyle = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    color: Colors.white,
+  );
+  static const TextStyle _selectorFieldValueStyle = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    color: Colors.white,
+  );
 
   List<String> get _sortedCities {
     final rest = kTurkiyeCities.where((city) => !_preferredCities.contains(city)).toList();
@@ -319,6 +334,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
   }
 
+  String _genderLabel(String value) => I18n.t('gender_$value');
+
+  Widget _selectorField({
+    required String value,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF111827),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                value,
+                style: _selectorFieldValueStyle,
+              ),
+            ),
+            Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.7)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickCity() async {
     final picked = await showModalBottomSheet<String>(
       context: context,
@@ -352,11 +398,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     children: [
                       Text(
                         I18n.t('city_of_residence'),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                        style: _selectorSheetTitleStyle,
                       ),
                     ],
                   ),
@@ -389,9 +431,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 Expanded(
                                   child: Text(
                                     city,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w400,
+                                    style: _selectorSheetItemStyle.copyWith(
                                       color: selected ? Colors.white : Colors.white.withOpacity(0.88),
                                     ),
                                   ),
@@ -425,6 +465,93 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
     if (picked == null || !mounted) return;
     setState(() => _city = picked);
+  }
+
+  Future<void> _pickGender() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: false,
+      backgroundColor: const Color(0xFF111827),
+      barrierColor: Colors.black.withOpacity(0.45),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.34,
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                  child: Row(
+                    children: [
+                      Text(I18n.t('gender'), style: _selectorSheetTitleStyle),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                    itemCount: _genderValues.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 4),
+                    itemBuilder: (ctx, index) {
+                      final item = _genderValues[index];
+                      final selected = item == _gender;
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Navigator.of(ctx).pop(item),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                            decoration: BoxDecoration(
+                              color: selected ? AppTheme.violet.withOpacity(0.16) : const Color(0xFF151B28),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: selected ? AppTheme.violet.withOpacity(0.85) : Colors.white.withOpacity(0.06),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _genderLabel(item),
+                                    style: _selectorSheetItemStyle.copyWith(
+                                      color: selected ? Colors.white : Colors.white.withOpacity(0.88),
+                                    ),
+                                  ),
+                                ),
+                                if (selected) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.check_rounded, size: 18, color: AppTheme.violet),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _gender = picked);
   }
 
   Future<String?> _pickAvatarPathIOSSafe() async {
@@ -675,28 +802,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       children: [
                         Text(t('city_of_residence'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(16),
+                        _selectorField(
+                          value: _city.trim().isEmpty ? _defaultCity : _city.trim(),
                           onTap: _saving ? null : _pickCity,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF111827),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white.withOpacity(0.08)),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    _city.trim().isEmpty ? _defaultCity : _city.trim(),
-                                    style: fieldValueStyle,
-                                  ),
-                                ),
-                                Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.7)),
-                              ],
-                            ),
-                          ),
                         ),
                       ],
                     ),
@@ -739,21 +847,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         const SizedBox(height: 14),
                         Text(t('gender'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          value: _genderValues.contains(_gender) ? _gender : 'unspecified',
-                          items: _genderValues
-                              .map(
-                                (value) => DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(t('gender_$value')),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: _saving ? null : (v) => setState(() => _gender = v ?? 'unspecified'),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            border: OutlineInputBorder(),
-                          ),
+                        _selectorField(
+                          value: _genderLabel(_gender),
+                          onTap: _saving ? null : _pickGender,
                         ),
                       ],
                     ),
