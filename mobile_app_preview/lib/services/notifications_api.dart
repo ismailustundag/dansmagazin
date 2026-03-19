@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'error_message.dart';
+
 class NotificationSummary {
   final int totalCount;
   final int incomingFriendRequestsCount;
@@ -237,20 +239,6 @@ class NotificationsApi {
   }
 
   static String _parseError(String body, {required String fallback}) {
-    try {
-      final j = jsonDecode(body);
-      if (j is Map<String, dynamic>) {
-        final detail = j['detail'];
-        if (detail is List && detail.isNotEmpty) {
-          final first = detail.first;
-          if (first is Map<String, dynamic>) {
-            return (first['msg'] ?? first['message'] ?? fallback).toString();
-          }
-          return first.toString();
-        }
-        return (detail ?? j['message'] ?? fallback).toString();
-      }
-    } catch (_) {}
-    return fallback;
+    return parseApiErrorBody(body, fallback: fallback);
   }
 }

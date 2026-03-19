@@ -45,7 +45,7 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  static final Uri _forgotPasswordUri = Uri.parse('https://dansmagazin.net/my-account/lost-password/');
+  static final Uri _forgotPasswordUri = Uri.parse('https://dansmagazin.net/hesabim/lost-password/');
   static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
   static const String _googleServerClientId =
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
@@ -65,6 +65,7 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _error;
   VideoPlayerController? _bgVideoController;
   bool _bgVideoReady = false;
+  bool _screenClosed = false;
 
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -79,18 +80,28 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _initBackgroundVideo() async {
     final controller = VideoPlayerController.asset('assets/video/dm_teaser.mp4');
-    _bgVideoController = controller;
     try {
       await controller.setLooping(true);
       await controller.setVolume(0);
       await controller.initialize();
-      if (!mounted) {
+      if (!mounted || _screenClosed) {
+        if (_bgVideoController == controller) _bgVideoController = null;
         await controller.dispose();
         return;
       }
+      _bgVideoController = controller;
       await controller.play();
+      if (!mounted || _screenClosed) {
+        if (_bgVideoController == controller) _bgVideoController = null;
+        await controller.dispose();
+        return;
+      }
       setState(() => _bgVideoReady = true);
     } catch (_) {
+      if (_bgVideoController == controller) _bgVideoController = null;
+      try {
+        await controller.dispose();
+      } catch (_) {}
       if (!mounted) return;
       setState(() => _bgVideoReady = false);
     }
@@ -98,7 +109,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   void dispose() {
-    _bgVideoController?.dispose();
+    _screenClosed = true;
+    final bgVideoController = _bgVideoController;
+    _bgVideoController = null;
+    bgVideoController?.dispose();
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
@@ -159,11 +173,12 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _openForgotPassword() async {
     try {
-      await launchUrl(_forgotPasswordUri, mode: LaunchMode.externalApplication);
+      final ok = await launchUrl(_forgotPasswordUri, mode: LaunchMode.externalApplication);
+      if (ok) return;
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _error = 'Şifre sıfırlama sayfası açılamadı');
     }
+    if (!mounted) return;
+    setState(() => _error = 'Şifre sıfırlama sayfası açılamadı');
   }
 
   Future<void> _openGoogleLogin() async {

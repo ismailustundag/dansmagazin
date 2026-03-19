@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
+import '../services/error_message.dart';
 import '../services/turkiye_cities.dart';
 import 'editor_news_management_screen.dart';
 
@@ -479,7 +481,10 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
         }
       }
       final state = (map['state'] ?? '').toString();
-      final msg = (map['message'] ?? map['detail'] ?? '').toString();
+      final msg = sanitizeErrorText(
+        (map['message'] ?? map['detail'] ?? '').toString(),
+        fallback: '',
+      );
       if (res.statusCode == 200 && state == 'accepted') {
         setState(() {
           _result = msg.isNotEmpty ? msg : 'Bilet geçerli.';

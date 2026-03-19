@@ -1,6 +1,6 @@
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
+
+import 'error_message.dart';
 
 class CheckoutApiException implements Exception {
   final String message;
@@ -33,12 +33,6 @@ class CheckoutApi {
   }
 
   static String _parseError(String body, {required String fallback}) {
-    try {
-      final j = jsonDecode(body);
-      if (j is Map<String, dynamic>) {
-        return (j['detail'] ?? j['message'] ?? fallback).toString();
-      }
-    } catch (_) {}
-    return fallback;
+    return parseApiErrorBody(body, fallback: fallback);
   }
 }

@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/error_message.dart';
+
 class EditorNewsCreateScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -45,12 +47,7 @@ class _EditorNewsCreateScreenState extends State<EditorNewsCreateScreen> {
   }
 
   String _errorFromBody(String body, int status) {
-    try {
-      final map = jsonDecode(body) as Map<String, dynamic>;
-      final detail = (map['detail'] ?? '').toString().trim();
-      if (detail.isNotEmpty) return detail;
-    } catch (_) {}
-    return 'İşlem başarısız ($status)';
+    return parseApiErrorBody(body, fallback: 'İşlem başarısız ($status)');
   }
 
   Future<void> _submit() async {
@@ -471,12 +468,7 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
   }
 
   String _errorFromBody(String body, int status) {
-    try {
-      final map = jsonDecode(body) as Map<String, dynamic>;
-      final detail = (map['detail'] ?? '').toString().trim();
-      if (detail.isNotEmpty) return detail;
-    } catch (_) {}
-    return 'İşlem başarısız ($status)';
+    return parseApiErrorBody(body, fallback: 'İşlem başarısız ($status)');
   }
 
   Future<void> _pickCover() async {

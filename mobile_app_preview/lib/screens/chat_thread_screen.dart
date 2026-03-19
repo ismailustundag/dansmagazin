@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../services/app_settings.dart';
 import '../services/date_time_format.dart';
+import '../services/error_message.dart';
 import '../services/notification_center.dart';
 
 class ChatThreadScreen extends StatefulWidget {
@@ -144,7 +145,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         String msg = 'Mesaj gönderilemedi';
         try {
           final j = jsonDecode(resp.body) as Map<String, dynamic>;
-          msg = (j['detail'] ?? msg).toString();
+          msg = parseApiErrorBody(jsonEncode(j), fallback: msg);
         } catch (_) {}
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));

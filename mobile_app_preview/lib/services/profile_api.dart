@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'error_message.dart';
+
 class ProfileSettingsData {
   final int accountId;
   final String username;
@@ -141,7 +143,7 @@ class ProfileApi {
     if (resp.statusCode != 200) {
       String detail = 'Ayarlar kaydedilemedi';
       try {
-        detail = (jsonDecode(resp.body) as Map<String, dynamic>)['detail']?.toString() ?? detail;
+        detail = parseApiErrorBody(resp.body, fallback: detail);
       } catch (_) {}
       throw Exception(detail);
     }
@@ -160,7 +162,7 @@ class ProfileApi {
     if (streamed.statusCode != 200) {
       String detail = 'Profil fotoğrafı yüklenemedi';
       try {
-        detail = (jsonDecode(body) as Map<String, dynamic>)['detail']?.toString() ?? detail;
+        detail = parseApiErrorBody(body, fallback: detail);
       } catch (_) {}
       throw Exception(detail);
     }
@@ -176,7 +178,7 @@ class ProfileApi {
     if (resp.statusCode == 200) return;
     String detail = 'Hesap silinemedi';
     try {
-      detail = (jsonDecode(resp.body) as Map<String, dynamic>)['detail']?.toString() ?? detail;
+      detail = parseApiErrorBody(resp.body, fallback: detail);
     } catch (_) {}
     throw Exception(detail);
   }
