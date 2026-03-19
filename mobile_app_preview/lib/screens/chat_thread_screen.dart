@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -367,43 +366,53 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: CupertinoTextField(
-                          controller: _msgCtrl,
-                          minLines: 1,
-                          maxLines: 4,
-                          onChanged: _onDraftChanged,
-                          onSubmitted: (_) => _send(),
-                          cursorColor: AppTheme.violet,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          placeholder: 'Mesaj yaz...',
-                          placeholderStyle: TextStyle(
-                            fontSize: 14 * messageScale,
-                            color: Colors.black45,
-                          ),
-                          style: TextStyle(
-                            fontSize: 15 * messageScale,
-                            color: Colors.black87,
-                          ),
+                        child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: Colors.white70),
                           ),
+                          height: 52,
+                          alignment: Alignment.center,
+                          child: TextField(
+                            controller: _msgCtrl,
+                            maxLines: 1,
+                            onChanged: _onDraftChanged,
+                            onSubmitted: (_) => _send(),
+                            cursorColor: AppTheme.violet,
+                            style: TextStyle(
+                              fontSize: 15 * messageScale,
+                              color: Colors.black87,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Mesaj yaz...',
+                              hintStyle: TextStyle(
+                                fontSize: 14 * messageScale,
+                                color: Colors.black45,
+                              ),
+                              isCollapsed: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                              border: InputBorder.none,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: _sending ? null : _send,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.violet,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      SizedBox(
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: _sending ? null : _send,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.violet,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _sending
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                         ),
-                        child: _sending
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                       ),
                     ],
                   ),
