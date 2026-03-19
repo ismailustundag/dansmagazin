@@ -366,10 +366,11 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                 children: [
                   Expanded(
                     child: Container(
+                      constraints: const BoxConstraints(minHeight: 54),
                       decoration: BoxDecoration(
                         color: AppTheme.surfaceElevated,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppTheme.borderSoft),
+                        border: Border.all(color: AppTheme.violet.withOpacity(0.45), width: 1.2),
                       ),
                       child: TextField(
                         controller: _msgCtrl,
@@ -377,12 +378,20 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                         maxLines: 4,
                         onChanged: _onDraftChanged,
                         onSubmitted: (_) => _send(),
-                        style: TextStyle(fontSize: 15 * messageScale),
+                        style: TextStyle(
+                          fontSize: 15 * messageScale,
+                          color: AppTheme.textPrimary,
+                        ),
+                        cursorColor: AppTheme.violet,
                         decoration: InputDecoration(
                           hintText: 'Mesaj yaz... 😀',
-                          hintStyle: TextStyle(fontSize: 14 * messageScale),
+                          hintStyle: TextStyle(
+                            fontSize: 14 * messageScale,
+                            color: AppTheme.textSecondary,
+                          ),
                           isDense: true,
                           filled: false,
+                          prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.textSecondary, size: 18),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           border: InputBorder.none,
                         ),

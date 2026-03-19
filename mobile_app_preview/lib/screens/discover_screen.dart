@@ -362,44 +362,43 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: AppTheme.panel(tone: AppTone.events, radius: 20),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t('events'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                Text(
+                  t('events'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textPrimary,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _activeEventFilterCount > 0
-                            ? '${t('filter')} aktif: $_activeEventFilterCount'
-                            : 'Sehir, etkinlik turu ve dans turune gore filtrele',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textSecondary,
-                              fontSize: 12,
-                            ),
-                      ),
-                    ],
-                  ),
                 ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: _openEventFilters,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    backgroundColor: AppTheme.surfaceSecondary,
-                    side: BorderSide(color: AppTheme.orange.withOpacity(0.22)),
-                  ),
-                  icon: const Icon(Icons.filter_alt_outlined, size: 18),
-                  label: Text(
-                    _activeEventFilterCount > 0 ? '${t('filter')} ($_activeEventFilterCount)' : t('filter'),
+                const SizedBox(height: 4),
+                Text(
+                  _activeEventFilterCount > 0
+                      ? '${t('filter')} aktif: $_activeEventFilterCount'
+                      : 'Sehir, etkinlik turu ve dans turune gore filtrele',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _openEventFilters,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.orange,
+                      foregroundColor: AppTheme.textPrimary,
+                    ),
+                    icon: const Icon(Icons.filter_alt_outlined, size: 18),
+                    label: Text(
+                      _activeEventFilterCount > 0 ? '${t('filter')} ($_activeEventFilterCount)' : t('filter'),
+                    ),
                   ),
                 ),
               ],
