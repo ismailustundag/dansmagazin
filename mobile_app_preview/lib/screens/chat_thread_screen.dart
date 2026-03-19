@@ -366,35 +366,43 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                 children: [
                   Expanded(
                     child: Container(
-                      constraints: const BoxConstraints(minHeight: 54),
+                      constraints: const BoxConstraints(minHeight: 56),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: AppTheme.surfaceElevated,
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: AppTheme.violet.withOpacity(0.45), width: 1.2),
                       ),
-                      child: TextField(
-                        controller: _msgCtrl,
-                        minLines: 1,
-                        maxLines: 4,
-                        onChanged: _onDraftChanged,
-                        onSubmitted: (_) => _send(),
-                        style: TextStyle(
-                          fontSize: 15 * messageScale,
-                          color: AppTheme.textPrimary,
-                        ),
-                        cursorColor: AppTheme.violet,
-                        decoration: InputDecoration(
-                          hintText: 'Mesaj yaz... 😀',
-                          hintStyle: TextStyle(
-                            fontSize: 14 * messageScale,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline_rounded,
                             color: AppTheme.textSecondary,
+                            size: 18,
                           ),
-                          isDense: true,
-                          filled: false,
-                          prefixIcon: const Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.textSecondary, size: 18),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          border: InputBorder.none,
-                        ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _msgCtrl,
+                              minLines: 1,
+                              maxLines: 4,
+                              onChanged: _onDraftChanged,
+                              onSubmitted: (_) => _send(),
+                              style: TextStyle(
+                                fontSize: 15 * messageScale,
+                                color: AppTheme.textPrimary,
+                              ),
+                              cursorColor: AppTheme.violet,
+                              decoration: InputDecoration.collapsed(
+                                hintText: 'Mesaj yaz...',
+                                hintStyle: TextStyle(
+                                  fontSize: 14 * messageScale,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
