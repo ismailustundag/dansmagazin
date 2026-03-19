@@ -374,24 +374,39 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                           onSubmitted: (_) => _send(),
                           style: TextStyle(
                             fontSize: 15 * messageScale,
-                            color: AppTheme.textPrimary,
+                            color: Colors.white,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Mesaj yaz...',
-                            hintStyle: TextStyle(
-                              fontSize: 14 * messageScale,
-                              color: AppTheme.textSecondary,
-                            ),
-                            border: const OutlineInputBorder(),
+                            hintStyle: TextStyle(fontSize: 14 * messageScale, color: Colors.white70),
                             isDense: true,
-                            filled: true,
-                            fillColor: AppTheme.surfaceElevated,
+                            filled: false,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.white38),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.white38),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppTheme.violet, width: 1.4),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton(
                         onPressed: _sending ? null : _send,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.violet,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                         child: _sending
                             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                             : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
