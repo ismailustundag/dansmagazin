@@ -521,12 +521,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     _birthDateUi(),
                                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                                   ),
+                                  const SizedBox(height: 10),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton(
+                                      onPressed: _saving ? null : _pickBirthDate,
+                                      child: Text(t('select')),
+                                    ),
+                                  ),
                                 ],
                               ),
-                            ),
-                            OutlinedButton(
-                              onPressed: _saving ? null : _pickBirthDate,
-                              child: Text(t('select')),
                             ),
                           ],
                         ),

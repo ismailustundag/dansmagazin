@@ -360,14 +360,33 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         else
           Container(
             margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: AppTheme.panel(tone: AppTone.events, radius: 20),
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    t('events'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t('events'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _activeEventFilterCount > 0
+                            ? '${t('filter')} aktif: $_activeEventFilterCount'
+                            : 'Sehir, etkinlik turu ve dans turune gore filtrele',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                              fontSize: 12,
+                            ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 12),

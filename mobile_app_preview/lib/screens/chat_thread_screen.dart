@@ -365,17 +365,27 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _msgCtrl,
-                      minLines: 1,
-                      maxLines: 4,
-                      onChanged: _onDraftChanged,
-                      onSubmitted: (_) => _send(),
-                      style: TextStyle(fontSize: 15 * messageScale),
-                      decoration: InputDecoration(
-                        hintText: 'Mesaj yaz... 😀',
-                        hintStyle: TextStyle(fontSize: 14 * messageScale),
-                        isDense: true,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceElevated,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppTheme.borderSoft),
+                      ),
+                      child: TextField(
+                        controller: _msgCtrl,
+                        minLines: 1,
+                        maxLines: 4,
+                        onChanged: _onDraftChanged,
+                        onSubmitted: (_) => _send(),
+                        style: TextStyle(fontSize: 15 * messageScale),
+                        decoration: InputDecoration(
+                          hintText: 'Mesaj yaz... 😀',
+                          hintStyle: TextStyle(fontSize: 14 * messageScale),
+                          isDense: true,
+                          filled: false,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: InputBorder.none,
+                        ),
                       ),
                     ),
                   ),
