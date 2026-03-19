@@ -366,46 +366,41 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Material(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                constraints: const BoxConstraints(minHeight: 52),
-                                padding: const EdgeInsets.symmetric(horizontal: 14),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFFD1D5DB)),
-                                ),
-                                child: TextField(
-                                  controller: _msgCtrl,
-                                  minLines: 1,
-                                  maxLines: 4,
-                                  onChanged: _onDraftChanged,
-                                  onSubmitted: (_) => _send(),
-                                  textInputAction: TextInputAction.send,
-                                  style: TextStyle(
-                                    fontSize: 15 * messageScale,
-                                    color: Colors.black87,
-                                    height: 1.3,
-                                  ),
-                                  cursorColor: AppTheme.violet,
-                                  decoration: InputDecoration(
-                                    hintText: 'Mesaj yaz...',
-                                    hintStyle: TextStyle(
-                                      fontSize: 14 * messageScale,
-                                      color: const Color(0xFF6B7280),
-                                    ),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                                  ),
-                                ),
-                              ),
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 52),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceElevated,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppTheme.borderStrong.withOpacity(0.9)),
+                          ),
+                          child: TextField(
+                            controller: _msgCtrl,
+                            minLines: 1,
+                            maxLines: 4,
+                            onChanged: _onDraftChanged,
+                            onSubmitted: (_) => _send(),
+                            textInputAction: TextInputAction.send,
+                            textAlignVertical: TextAlignVertical.center,
+                            style: TextStyle(
+                              fontSize: 15 * messageScale,
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
                             ),
-                          ],
+                            cursorColor: AppTheme.violet,
+                            decoration: InputDecoration(
+                              hintText: 'Mesaj yaz...',
+                              hintStyle: TextStyle(
+                                fontSize: 14 * messageScale,
+                                color: AppTheme.textTertiary,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
