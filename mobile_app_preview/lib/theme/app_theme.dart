@@ -74,56 +74,56 @@ class AppTheme {
 
     final textTheme = base.textTheme.copyWith(
       headlineSmall: const TextStyle(
-        fontSize: 28,
+        fontSize: 26,
         height: 1.12,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
         letterSpacing: -0.4,
         color: textPrimary,
       ),
       titleLarge: const TextStyle(
-        fontSize: 24,
+        fontSize: 22,
         height: 1.15,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
         letterSpacing: -0.25,
         color: textPrimary,
       ),
       titleMedium: const TextStyle(
-        fontSize: 19,
+        fontSize: 17,
         height: 1.2,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
       titleSmall: const TextStyle(
-        fontSize: 16,
+        fontSize: 14,
         height: 1.25,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
       bodyLarge: const TextStyle(
-        fontSize: 15,
+        fontSize: 13,
         height: 1.45,
         color: textPrimary,
       ),
       bodyMedium: const TextStyle(
-        fontSize: 14,
+        fontSize: 12,
         height: 1.45,
         color: textPrimary,
       ),
       bodySmall: const TextStyle(
-        fontSize: 12,
+        fontSize: 10,
         height: 1.35,
         color: textSecondary,
       ),
       labelLarge: const TextStyle(
-        fontSize: 15,
+        fontSize: 13,
         height: 1.0,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
       labelMedium: const TextStyle(
-        fontSize: 12,
+        fontSize: 10,
         height: 1.0,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
     );
@@ -138,8 +138,8 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         titleTextStyle: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
           color: textPrimary,
         ),
@@ -167,17 +167,17 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: surfaceElevated,
-        contentTextStyle: const TextStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+        contentTextStyle: const TextStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceElevated,
-        labelStyle: const TextStyle(color: textSecondary, fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(color: textSecondary, fontWeight: FontWeight.w500, fontSize: 12),
         hintStyle: const TextStyle(color: textTertiary),
         helperStyle: const TextStyle(color: textTertiary),
-        errorStyle: const TextStyle(color: error, fontWeight: FontWeight.w600),
+        errorStyle: const TextStyle(color: error, fontWeight: FontWeight.w500, fontSize: 11),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: _inputBorder(borderSoft),
         enabledBorder: _inputBorder(borderSoft),
@@ -194,7 +194,7 @@ class AppTheme {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
           textStyle: MaterialStateProperty.all(
-            const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 0.1),
+            const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.1),
           ),
           backgroundColor: MaterialStateProperty.resolveWith((states) {
             if (states.contains(MaterialState.disabled)) return violet.withOpacity(0.35);
@@ -227,7 +227,7 @@ class AppTheme {
           }),
           foregroundColor: MaterialStateProperty.all(textPrimary),
           textStyle: MaterialStateProperty.all(
-            const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
           ),
         ),
       ),
@@ -235,7 +235,7 @@ class AppTheme {
         style: ButtonStyle(
           foregroundColor: MaterialStateProperty.all(textSecondary),
           textStyle: MaterialStateProperty.all(
-            const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
           ),
           padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
           shape: MaterialStateProperty.all(
@@ -249,8 +249,8 @@ class AppTheme {
         selectedColor: violet.withOpacity(0.22),
         secondarySelectedColor: violet.withOpacity(0.22),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        labelStyle: const TextStyle(color: textSecondary, fontWeight: FontWeight.w700),
-        secondaryLabelStyle: const TextStyle(color: textPrimary, fontWeight: FontWeight.w700),
+        labelStyle: const TextStyle(color: textSecondary, fontWeight: FontWeight.w500, fontSize: 12),
+        secondaryLabelStyle: const TextStyle(color: textPrimary, fontWeight: FontWeight.w500, fontSize: 12),
         brightness: Brightness.dark,
         shape: StadiumBorder(side: BorderSide(color: borderStrong.withOpacity(0.92))),
         side: BorderSide(color: borderStrong.withOpacity(0.92)),
@@ -270,8 +270,8 @@ class AppTheme {
         elevation: 0,
         selectedItemColor: violet,
         unselectedItemColor: textTertiary,
-        selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-        unselectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        selectedLabelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
       ),
       dividerTheme: const DividerThemeData(color: borderSoft, thickness: 1, space: 1),
       splashFactory: InkRipple.splashFactory,

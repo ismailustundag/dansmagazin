@@ -166,6 +166,100 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
+  Future<String?> _pickSingleOptionSheet({
+    required String title,
+    required List<MapEntry<String, String>> options,
+    required String currentValue,
+  }) async {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: false,
+      backgroundColor: AppTheme.surfaceSecondary,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return FractionallySizedBox(
+          heightFactor: 0.62,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.borderStrong,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                    itemCount: options.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final option = options[index];
+                      final selected = option.key == currentValue;
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Navigator.of(context).pop(option.key),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: selected ? AppTheme.surfaceElevated : AppTheme.surfacePrimary,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: selected ? AppTheme.orange.withOpacity(0.45) : AppTheme.borderSoft,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    option.value,
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                ),
+                                if (selected)
+                                  const Icon(Icons.check_rounded, color: AppTheme.orange, size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openEventFilters() async {
     var tempCity = _selectedEventCity;
     var tempKind = _selectedEventKind;
@@ -191,10 +285,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     children: [
                       Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'Etkinlikleri Filtrele',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                           ),
                           TextButton(
@@ -204,35 +300,103 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: tempCity,
-                        items: <DropdownMenuItem<String>>[
-                          DropdownMenuItem(value: '', child: Text(t('all_cities'))),
-                          ...kTurkiyeCitiesWithUnknown
-                              .map((city) => DropdownMenuItem<String>(value: city, child: Text(city))),
-                        ],
-                        onChanged: (value) => setSheetState(() => tempCity = value ?? ''),
-                        decoration: InputDecoration(
-                          labelText: t('city_filter'),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () async {
+                          final choice = await _pickSingleOptionSheet(
+                            title: t('city_filter'),
+                            currentValue: tempCity,
+                            options: <MapEntry<String, String>>[
+                              MapEntry('', t('all_cities')),
+                              ...kTurkiyeCitiesWithUnknown.map((city) => MapEntry(city, city)),
+                            ],
+                          );
+                          if (choice == null) return;
+                          setSheetState(() => tempCity = choice);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceElevated,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppTheme.borderSoft),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      t('city_filter'),
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: AppTheme.textSecondary,
+                                            fontSize: 11,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      tempCity.isEmpty ? t('all_cities') : tempCity,
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textSecondary),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                        value: tempKind,
-                        items: <DropdownMenuItem<String>>[
-                          DropdownMenuItem(value: '', child: Text(t('all_event_types'))),
-                          ..._eventKinds.map(
-                            (kind) => DropdownMenuItem<String>(
-                              value: kind,
-                              child: Text(_kindLabel(kind)),
-                            ),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () async {
+                          final choice = await _pickSingleOptionSheet(
+                            title: t('event_type'),
+                            currentValue: tempKind,
+                            options: <MapEntry<String, String>>[
+                              MapEntry('', t('all_event_types')),
+                              ..._eventKinds.map((kind) => MapEntry(kind, _kindLabel(kind))),
+                            ],
+                          );
+                          if (choice == null) return;
+                          setSheetState(() => tempKind = choice);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceElevated,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppTheme.borderSoft),
                           ),
-                        ],
-                        onChanged: (value) => setSheetState(() => tempKind = value ?? ''),
-                        decoration: InputDecoration(
-                          labelText: t('event_type'),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      t('event_type'),
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: AppTheme.textSecondary,
+                                            fontSize: 11,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      tempKind.isEmpty ? t('all_event_types') : _kindLabel(tempKind),
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textSecondary),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -362,46 +526,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: AppTheme.panel(tone: AppTone.events, radius: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t('events'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary,
-                      ),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _openEventFilters,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.orange,
+                  foregroundColor: AppTheme.textPrimary,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _activeEventFilterCount > 0
-                      ? '${t('filter')} aktif: $_activeEventFilterCount'
-                      : 'Sehir, etkinlik turu ve dans turune gore filtrele',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSecondary,
-                        fontSize: 12,
-                      ),
+                icon: const Icon(Icons.filter_alt_outlined, size: 18),
+                label: Text(
+                  _activeEventFilterCount > 0 ? '${t('filter')} ($_activeEventFilterCount)' : t('filter'),
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _openEventFilters,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.orange,
-                      foregroundColor: AppTheme.textPrimary,
-                    ),
-                    icon: const Icon(Icons.filter_alt_outlined, size: 18),
-                    label: Text(
-                      _activeEventFilterCount > 0 ? '${t('filter')} ($_activeEventFilterCount)' : t('filter'),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         if (_tabIndex == 0)
