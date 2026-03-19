@@ -585,6 +585,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
+    final sectionTitleStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      height: 1.2,
+      color: Colors.white.withOpacity(0.96),
+    );
+    final fieldValueStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w400,
+      height: 1.25,
+      color: Colors.white.withOpacity(0.88),
+    );
+    final groupTitleStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      height: 1.2,
+      color: Colors.white.withOpacity(0.68),
+    );
     return Scaffold(
       backgroundColor: const Color(0xFF0C111B),
       appBar: AppBar(
@@ -610,7 +628,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             children: [
                               Text(
                                 t('profile_photo'),
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                                style: sectionTitleStyle,
                               ),
                               const SizedBox(height: 8),
                               Wrap(
@@ -638,7 +656,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(t('username'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('username'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _usernameCtrl,
@@ -655,7 +673,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(t('city_of_residence'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('city_of_residence'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
                         InkWell(
                           borderRadius: BorderRadius.circular(16),
@@ -672,11 +690,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 Expanded(
                                   child: Text(
                                     _city.trim().isEmpty ? _defaultCity : _city.trim(),
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w400,
-                                      color: Colors.white,
-                                    ),
+                                    style: fieldValueStyle,
                                   ),
                                 ),
                                 Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.7)),
@@ -703,7 +717,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                       Expanded(
                                         child: Text(
                                           t('birth_date_label'),
-                                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                          style: sectionTitleStyle,
                                         ),
                                       ),
                                       OutlinedButton(
@@ -715,7 +729,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     _birthDateUi(),
-                                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                    style: fieldValueStyle.copyWith(color: Colors.white70),
                                   ),
                                 ],
                               ),
@@ -723,7 +737,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        Text(t('gender'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('gender'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           value: _genderValues.contains(_gender) ? _gender : 'unspecified',
@@ -748,48 +762,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(t('dance_interests'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('dance_interests'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
                         ..._danceInterestGroups.map(
                           (group) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: Wrap(
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 8,
-                              runSpacing: 8,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 2),
-                                  child: Text(
-                                    group.title,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                  ),
+                                Text(group.title, style: groupTitleStyle),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: group.items.map((item) {
+                                    final selected = _selectedDanceInterests.contains(item);
+                                    return FilterChip(
+                                      selected: selected,
+                                      showCheckmark: false,
+                                      label: Text(item),
+                                      onSelected: _saving ? null : (_) => _toggleDanceInterest(item),
+                                      backgroundColor: const Color(0xFF111827),
+                                      selectedColor: AppTheme.violet.withOpacity(0.22),
+                                      side: BorderSide(
+                                        color: selected ? AppTheme.violet.withOpacity(0.7) : Colors.white.withOpacity(0.08),
+                                      ),
+                                      labelStyle: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        color: selected ? Colors.white : Colors.white.withOpacity(0.86),
+                                      ),
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    );
+                                  }).toList(),
                                 ),
-                                ...group.items.map((item) {
-                                  final selected = _selectedDanceInterests.contains(item);
-                                  return FilterChip(
-                                    selected: selected,
-                                    showCheckmark: false,
-                                    label: Text(item),
-                                    onSelected: _saving ? null : (_) => _toggleDanceInterest(item),
-                                    backgroundColor: const Color(0xFF111827),
-                                    selectedColor: AppTheme.violet.withOpacity(0.22),
-                                    side: BorderSide(
-                                      color: selected ? AppTheme.violet.withOpacity(0.7) : Colors.white.withOpacity(0.08),
-                                    ),
-                                    labelStyle: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w400,
-                                      color: selected ? Colors.white : Colors.white.withOpacity(0.86),
-                                    ),
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
-                                  );
-                                }),
                               ],
                             ),
                           ),
@@ -811,7 +818,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(t('dance_school'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('dance_school'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _danceSchoolCtrl,
@@ -828,7 +835,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(t('about_profile'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        Text(t('about_profile'), style: sectionTitleStyle),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _aboutCtrl,
