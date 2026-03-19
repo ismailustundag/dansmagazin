@@ -365,9 +365,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 Expanded(
                   child: Text(
                     t('events'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
+                const SizedBox(width: 12),
                 OutlinedButton.icon(
                   onPressed: _openEventFilters,
                   style: OutlinedButton.styleFrom(

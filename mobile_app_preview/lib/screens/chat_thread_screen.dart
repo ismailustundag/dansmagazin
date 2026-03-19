@@ -267,136 +267,130 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _loading && _items.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null && _items.isEmpty
-                    ? Center(
-                        child: TextButton(
-                          onPressed: () => _refreshThread(),
-                          child: const Text('Mesajlar yüklenemedi, tekrar dene'),
-                        ),
-                      )
-                    : _items.isEmpty
-                        ? const Center(child: Text('Henüz mesaj yok.'))
-                        : ListView.builder(
-                            controller: _scrollCtrl,
-                            padding: const EdgeInsets.all(12),
-                            itemCount: _items.length,
-                            itemBuilder: (_, i) {
-                              final m = _items[i];
-                              final mine = m.senderAccountId == _meAccountId;
-                              final seenByPeer = mine && m.id > 0 && _peerLastReadMessageId >= m.id;
-                              return Align(
-                                alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  constraints: const BoxConstraints(maxWidth: 280),
-                                  decoration: BoxDecoration(
-                                    color: mine ? AppTheme.violet : AppTheme.surfaceSecondary,
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: mine
-                                          ? AppTheme.violet.withOpacity(0.28)
-                                          : AppTheme.borderSoft,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        m.body,
-                                        style: TextStyle(
-                                          fontSize: 15 * messageScale,
-                                          height: 1.35,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            formatDateTimeDdMmYyyyHmDot(m.createdAt),
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(0.7),
-                                              fontSize: 11 * messageScale,
-                                            ),
-                                          ),
-                                          if (mine) ...[
-                                            const SizedBox(width: 4),
-                                            Icon(
-                                              Icons.done_all,
-                                              size: 14 * messageScale,
-                                              color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ],
+      body: _loading && _items.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null && _items.isEmpty
+              ? Center(
+                  child: TextButton(
+                    onPressed: () => _refreshThread(),
+                    child: const Text('Mesajlar yüklenemedi, tekrar dene'),
+                  ),
+                )
+              : _items.isEmpty
+                  ? const Center(child: Text('Henüz mesaj yok.'))
+                  : ListView.builder(
+                      controller: _scrollCtrl,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _items.length,
+                      itemBuilder: (_, i) {
+                        final m = _items[i];
+                        final mine = m.senderAccountId == _meAccountId;
+                        final seenByPeer = mine && m.id > 0 && _peerLastReadMessageId >= m.id;
+                        return Align(
+                          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            constraints: const BoxConstraints(maxWidth: 280),
+                            decoration: BoxDecoration(
+                              color: mine ? AppTheme.violet : AppTheme.surfaceSecondary,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: mine
+                                    ? AppTheme.violet.withOpacity(0.28)
+                                    : AppTheme.borderSoft,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  m.body,
+                                  style: TextStyle(
+                                    fontSize: 15 * messageScale,
+                                    height: 1.35,
                                   ),
                                 ),
-                              );
-                            },
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      formatDateTimeDdMmYyyyHmDot(m.createdAt),
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 11 * messageScale,
+                                      ),
+                                    ),
+                                    if (mine) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.done_all,
+                                        size: 14 * messageScale,
+                                        color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
+                        );
+                      },
+                    ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+          decoration: BoxDecoration(
+            color: AppTheme.surfacePrimary,
+            border: Border(top: BorderSide(color: AppTheme.borderSoft.withOpacity(0.9))),
           ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-              decoration: BoxDecoration(
-                color: AppTheme.surfacePrimary,
-                border: Border(top: BorderSide(color: AppTheme.borderSoft.withOpacity(0.9))),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_peerTyping)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '${widget.peerName} yazıyor...',
+                    style: TextStyle(
+                      fontSize: 12 * messageScale,
+                      color: AppTheme.info,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              Row(
                 children: [
-                  if (_peerTyping)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        '${widget.peerName} yazıyor...',
-                        style: TextStyle(
-                          fontSize: 12 * messageScale,
-                          color: AppTheme.info,
-                          fontWeight: FontWeight.w600,
-                        ),
+                  Expanded(
+                    child: TextField(
+                      controller: _msgCtrl,
+                      minLines: 1,
+                      maxLines: 4,
+                      onChanged: _onDraftChanged,
+                      onSubmitted: (_) => _send(),
+                      style: TextStyle(fontSize: 15 * messageScale),
+                      decoration: InputDecoration(
+                        hintText: 'Mesaj yaz... 😀',
+                        hintStyle: TextStyle(fontSize: 14 * messageScale),
+                        isDense: true,
                       ),
                     ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _msgCtrl,
-                          minLines: 1,
-                          maxLines: 4,
-                          onChanged: _onDraftChanged,
-                          onSubmitted: (_) => _send(),
-                          style: TextStyle(fontSize: 15 * messageScale),
-                          decoration: InputDecoration(
-                            hintText: 'Mesaj yaz... 😀',
-                            hintStyle: TextStyle(fontSize: 14 * messageScale),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: _sending ? null : _send,
-                        child: _sending
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
-                      ),
-                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _sending ? null : _send,
+                    child: _sending
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

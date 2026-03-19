@@ -77,46 +77,6 @@ class _EventsScreenState extends State<EventsScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      I18n.t('events'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  I18n.t('events_filter_hint'),
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: 48,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: _kinds.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => _EventFilterChip(
-                  label: _kindLabel(_kinds[i]),
-                  selected: _selectedKind == _kinds[i],
-                  onTap: () => setState(() => _selectedKind = _kinds[i]),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
             Expanded(
               child: FutureBuilder<List<_EventItem>>(
                 future: _future,
@@ -132,7 +92,7 @@ class _EventsScreenState extends State<EventsScreen> {
                       ),
                     );
                   }
-                  final items = _filteredItems(snapshot.data ?? []);
+                  final items = snapshot.data ?? [];
                   if (items.isEmpty) {
                     return Center(
                       child: Text(I18n.t('no_filtered_events_found')),

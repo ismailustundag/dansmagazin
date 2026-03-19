@@ -241,9 +241,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           danceInterests: _profile?.danceInterests ?? '',
           danceSchool: _profile?.danceSchool ?? '',
           about: _profile?.about ?? '',
-          onEditProfileTap: _openEditProfile,
         ),
-        const SizedBox(height: 2),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _openEditProfile,
+            icon: const Icon(Icons.edit_rounded),
+            label: Text(t('edit_profile')),
+          ),
+        ),
+        const SizedBox(height: 14),
         _SectionTitle(title: t('quick_actions')),
         const SizedBox(height: 10),
         Row(
@@ -338,7 +345,6 @@ class _ProfileHeroCard extends StatelessWidget {
   final String danceInterests;
   final String danceSchool;
   final String about;
-  final VoidCallback onEditProfileTap;
 
   const _ProfileHeroCard({
     required this.displayName,
@@ -350,7 +356,6 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.danceInterests,
     required this.danceSchool,
     required this.about,
-    required this.onEditProfileTap,
   });
 
   Widget _profileVisual(ProfileCardPalette palette) {
@@ -438,126 +443,96 @@ class _ProfileHeroCard extends StatelessWidget {
     final t = I18n.t;
     final nameText = displayName.trim().toUpperCase();
     final palette = ProfileCardPalette.fromGender(gender);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 28),
-      child: Stack(
-        clipBehavior: Clip.none,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: palette.cardGradient,
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: palette.buttonFill.withOpacity(0.16),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+          const BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 24,
+            offset: Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: palette.cardGradient,
-              ),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
-              boxShadow: [
-                BoxShadow(
-                  color: palette.buttonFill.withOpacity(0.16),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-                const BoxShadow(
-                  color: Color(0x22000000),
-                  blurRadius: 24,
-                  offset: Offset(0, 14),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _profileVisual(palette),
-                const SizedBox(height: 12),
-                Text(
-                  nameText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    height: 1.02,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final cellWidth = (constraints.maxWidth - 10) / 2;
-                    return Wrap(
-                      spacing: 10,
-                      runSpacing: 12,
-                      children: [
-                        SizedBox(
-                          width: cellWidth,
-                          child: _infoCell(
-                            title: t('registration_date'),
-                            value: registeredAt,
-                            palette: palette,
-                          ),
-                        ),
-                        SizedBox(
-                          width: cellWidth,
-                          child: _infoCell(
-                            title: t('profile_id'),
-                            value: '$accountId',
-                            palette: palette,
-                          ),
-                        ),
-                        SizedBox(
-                          width: cellWidth,
-                          child: _infoCell(
-                            title: t('dance_interests'),
-                            value: danceInterests,
-                            palette: palette,
-                          ),
-                        ),
-                        SizedBox(
-                          width: cellWidth,
-                          child: _infoCell(
-                            title: t('dance_school'),
-                            value: danceSchool,
-                            palette: palette,
-                          ),
-                        ),
-                        if (about.trim().isNotEmpty)
-                          SizedBox(
-                            width: constraints.maxWidth,
-                            child: _infoCell(
-                              title: t('about_profile'),
-                              value: about,
-                              palette: palette,
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+          _profileVisual(palette),
+          const SizedBox(height: 12),
+          Text(
+            nameText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              height: 1.02,
             ),
           ),
-          Positioned(
-            right: 14,
-            bottom: -18,
-            child: ElevatedButton(
-              onPressed: onEditProfileTap,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: palette.buttonFill,
-                foregroundColor: palette.buttonForeground,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: Text(
-                t('edit_profile').toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cellWidth = (constraints.maxWidth - 10) / 2;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('registration_date'),
+                      value: registeredAt,
+                      palette: palette,
+                    ),
+                  ),
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('profile_id'),
+                      value: '$accountId',
+                      palette: palette,
+                    ),
+                  ),
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('dance_interests'),
+                      value: danceInterests,
+                      palette: palette,
+                    ),
+                  ),
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('dance_school'),
+                      value: danceSchool,
+                      palette: palette,
+                    ),
+                  ),
+                  if (about.trim().isNotEmpty)
+                    SizedBox(
+                      width: constraints.maxWidth,
+                      child: _infoCell(
+                        title: t('about_profile'),
+                        value: about,
+                        palette: palette,
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),

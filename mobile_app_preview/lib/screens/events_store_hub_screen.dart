@@ -22,7 +22,8 @@ class EventsStoreHubScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF080B14),
         appBar: AppBar(
           backgroundColor: const Color(0xFF0F172A),
-          title: const Text('Dansmagazin'),
+          automaticallyImplyLeading: false,
+          toolbarHeight: 0,
           bottom: TabBar(
             tabs: [
               Tab(icon: const Icon(Icons.event), text: I18n.t('events')),
