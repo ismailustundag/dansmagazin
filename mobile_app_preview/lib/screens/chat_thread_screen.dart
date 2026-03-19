@@ -288,6 +288,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             itemBuilder: (_, i) {
                               final m = _items[i];
                               final mine = m.senderAccountId == _meAccountId;
+                              final deliveredToServer = mine && m.id > 0;
                               final seenByPeer = mine && m.id > 0 && _peerLastReadMessageId >= m.id;
                               return Align(
                                 alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
@@ -325,11 +326,11 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                               fontSize: 11 * messageScale,
                                             ),
                                           ),
-                                          if (mine) ...[
+                                          if (deliveredToServer) ...[
                                             const SizedBox(width: 4),
                                             Icon(
-                                              Icons.done_all,
-                                              size: 14 * messageScale,
+                                              seenByPeer ? Icons.done_all : Icons.done,
+                                              size: 17 * messageScale,
                                               color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
                                             ),
                                           ],
