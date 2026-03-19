@@ -8,6 +8,7 @@ class I18n {
   static String t(String key) {
     final trMap = <String, String>{
       'news': 'Haberler',
+      'all': 'Tümü',
       'photos': 'Fotoğraflar',
       'shop': 'Alışveriş',
       'social': 'Sosyal',
@@ -144,6 +145,7 @@ class I18n {
       'example_messages_emojis': 'Ornek: Mesajlar ve emojiler 😀💬',
       'user_id': 'Kullanıcı ID',
       'events': 'Etkinlikler',
+      'events_filter_hint': 'Kategoriye göre filtrele',
       'events_load_error': 'Etkinlikler yüklenemedi, tekrar dene',
       'no_approved_events': 'Henüz onaylanmış etkinlik yok.',
       'store': 'Mağaza',
@@ -188,6 +190,7 @@ class I18n {
 
     final enMap = <String, String>{
       'news': 'News',
+      'all': 'All',
       'photos': 'Photos',
       'shop': 'Shop',
       'social': 'Social',
@@ -324,6 +327,7 @@ class I18n {
       'example_messages_emojis': 'Example: Messages and emojis 😀💬',
       'user_id': 'User ID',
       'events': 'Events',
+      'events_filter_hint': 'Filter by category',
       'events_load_error': 'Failed to load events, try again',
       'no_approved_events': 'No approved events yet.',
       'store': 'Store',
@@ -368,6 +372,7 @@ class I18n {
 
     final esMap = <String, String>{
       'news': 'Noticias',
+      'all': 'Todo',
       'photos': 'Fotos',
       'shop': 'Tienda',
       'social': 'Social',
@@ -504,6 +509,7 @@ class I18n {
       'example_messages_emojis': 'Ejemplo: Mensajes y emojis 😀💬',
       'user_id': 'ID de usuario',
       'events': 'Eventos',
+      'events_filter_hint': 'Filtrar por categoria',
       'events_load_error': 'No se pudieron cargar los eventos, inténtalo de nuevo',
       'no_approved_events': 'Aún no hay eventos aprobados.',
       'store': 'Tienda',

@@ -22,7 +22,9 @@ class EventsScreen extends StatefulWidget {
 
 class _EventsScreenState extends State<EventsScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
+  static const List<String> _kinds = ['all', 'dance_night', 'festival', 'competition', 'promo_lesson'];
   late Future<List<_EventItem>> _future;
+  String _selectedKind = 'all';
 
   @override
   void initState() {
@@ -42,6 +44,26 @@ class _EventsScreenState extends State<EventsScreen> {
     return items;
   }
 
+  List<_EventItem> _filteredItems(List<_EventItem> items) {
+    if (_selectedKind == 'all') return items;
+    return items.where((e) => e.eventKind.trim().toLowerCase() == _selectedKind).toList();
+  }
+
+  String _kindLabel(String kind) {
+    switch (kind) {
+      case 'dance_night':
+        return I18n.t('discover_dance_nights_tab');
+      case 'festival':
+        return I18n.t('discover_festivals_tab');
+      case 'competition':
+        return I18n.t('discover_competitions_tab');
+      case 'promo_lesson':
+        return I18n.t('discover_promo_lessons_tab');
+      default:
+        return I18n.t('all');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -56,7 +78,7 @@ class _EventsScreenState extends State<EventsScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
                   Expanded(
@@ -70,7 +92,31 @@ class _EventsScreenState extends State<EventsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  I18n.t('events_filter_hint'),
+                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 48,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                itemCount: _kinds.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => _EventFilterChip(
+                  label: _kindLabel(_kinds[i]),
+                  selected: _selectedKind == _kinds[i],
+                  onTap: () => setState(() => _selectedKind = _kinds[i]),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               child: FutureBuilder<List<_EventItem>>(
                 future: _future,
@@ -86,10 +132,10 @@ class _EventsScreenState extends State<EventsScreen> {
                       ),
                     );
                   }
-                  final items = snapshot.data ?? [];
+                  final items = _filteredItems(snapshot.data ?? []);
                   if (items.isEmpty) {
                     return Center(
-                      child: Text(I18n.t('no_approved_events')),
+                      child: Text(I18n.t('no_filtered_events_found')),
                     );
                   }
                   return ListView.builder(
@@ -254,6 +300,52 @@ class _EventCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EventFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _EventFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [Color(0xFFE58B8B), Color(0xFFB45F13)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: selected ? null : const Color(0xFF121826),
+          border: Border.all(
+            color: selected ? const Color(0x00FFFFFF) : Colors.white12,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
         ),
       ),
     );

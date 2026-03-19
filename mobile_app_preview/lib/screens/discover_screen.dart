@@ -22,25 +22,6 @@ String _formatEventDate(String raw) {
   return '$d.$m.$y';
 }
 
-String _normTr(String raw) {
-  return raw
-      .trim()
-      .toLowerCase()
-      .replaceAll('ı', 'i')
-      .replaceAll('İ', 'i')
-      .replaceAll('I', 'i')
-      .replaceAll('ş', 's')
-      .replaceAll('Ş', 's')
-      .replaceAll('ğ', 'g')
-      .replaceAll('Ğ', 'g')
-      .replaceAll('ü', 'u')
-      .replaceAll('Ü', 'u')
-      .replaceAll('ö', 'o')
-      .replaceAll('Ö', 'o')
-      .replaceAll('ç', 'c')
-      .replaceAll('Ç', 'c');
-}
-
 class DiscoverScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -52,12 +33,10 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
-  static const List<String> _tabs = ['all', 'dance_night', 'festival', 'competition', 'promo_lesson'];
 
   late Future<List<_EventItem>> _eventsFuture;
   late Future<List<_NewsItem>> _newsFuture;
   int _tabIndex = 0;
-  String _selectedCity = '';
 
   @override
   void initState() {
@@ -67,34 +46,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Future<List<_EventItem>> _fetchEvents() async {
-    final kind = _tabs[_tabIndex];
-    final city = _selectedCity;
-    final qp = <String, String>{'limit': '300'};
-    if (kind != 'all') qp['event_kind'] = kind;
-    // Sehir filtresini client-side yapiyoruz; Turkce karakter/kollasyon farklarinda
-    // backend tarafinda esitlik kacabiliyor.
-    final uri = Uri.parse('$_base/events').replace(queryParameters: qp);
+    final uri = Uri.parse('$_base/events').replace(queryParameters: const {'limit': '300'});
     final resp = await http.get(uri);
     if (resp.statusCode != 200) {
       throw Exception('Etkinlikler alınamadı (${resp.statusCode})');
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    var rows = (body['items'] as List<dynamic>? ?? [])
+    final rows = (body['items'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(_EventItem.fromJson)
         .toList();
-    if (kind != 'all') {
-      rows = rows.where((e) => e.eventKind.trim().toLowerCase() == kind).toList();
-    }
-    if (city.isNotEmpty) {
-      final cityN = _normTr(city);
-      rows = rows.where((e) => _normTr(e.city) == cityN).toList();
-    }
     rows.sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return rows;
   }
-
-  String _allCitiesLabel() => I18n.isEnglish ? 'All' : 'Tümü';
 
   Future<List<_NewsItem>> _fetchNews() async {
     final uri = Uri.parse('$_base/discover').replace(
@@ -138,54 +102,32 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       subtitle: '',
       onRefresh: _refresh,
       content: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _tabChip(0, t('discover_news_tab')),
-              const SizedBox(width: 8),
-              _tabChip(1, t('discover_dance_nights_tab')),
-              const SizedBox(width: 8),
-              _tabChip(2, t('discover_festivals_tab')),
-              const SizedBox(width: 8),
-              _tabChip(3, t('discover_competitions_tab')),
-              const SizedBox(width: 8),
-              _tabChip(4, t('discover_promo_lessons_tab')),
-            ],
-          ),
+        Row(
+          children: [
+            Expanded(child: _tabChip(0, t('news'))),
+            const SizedBox(width: 10),
+            Expanded(child: _tabChip(1, t('events'))),
+          ],
         ),
-        const SizedBox(height: 10),
-        if (_tabIndex != 0)
-          FutureBuilder<List<_EventItem>>(
-            future: _eventsFuture,
-            builder: (context, snapshot) {
-              final data = snapshot.data ?? const <_EventItem>[];
-              final cities = <String>{''};
-              for (final e in data) {
-                if (e.city.trim().isNotEmpty) cities.add(e.city.trim());
-              }
-              return DropdownButtonFormField<String>(
-                value: cities.contains(_selectedCity) ? _selectedCity : '',
-                items: cities
-                    .map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Text('${t('city_filter')}: ${c.isEmpty ? _allCitiesLabel() : c}'),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _selectedCity = v);
-                  _refresh();
-                },
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: const Color(0xFF111827),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              );
-            },
+        const SizedBox(height: 14),
+        if (_tabIndex == 0)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              t('news'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          )
+        else
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              t('events'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
           ),
-        const SizedBox(height: 12),
         if (_tabIndex == 0)
           FutureBuilder<List<_NewsItem>>(
             future: _newsFuture,
@@ -288,16 +230,38 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Widget _tabChip(int index, String label) {
     final selected = _tabIndex == index;
-    return ChoiceChip(
-      selected: selected,
-      label: Text(label),
-      selectedColor: const Color(0xFFE53935),
-      backgroundColor: const Color(0xFF121826),
-      labelStyle: TextStyle(color: selected ? Colors.white : Colors.white70),
-      onSelected: (_) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
         setState(() => _tabIndex = index);
         _refresh();
       },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [Color(0xFFE58B8B), Color(0xFFB45F13)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: selected ? null : const Color(0xFF121826),
+          border: Border.all(
+            color: selected ? const Color(0x00FFFFFF) : Colors.white12,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
     );
   }
 }
