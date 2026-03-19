@@ -242,10 +242,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   @override
   Widget build(BuildContext context) {
     final messageScale = AppSettings.textScale.value.clamp(0.90, 1.35).toDouble();
-    final composerHeight = _peerTyping ? 106.0 : 88.0;
     return Scaffold(
       backgroundColor: AppTheme.bgPrimary,
-      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: AppTheme.bgPrimary,
         title: Row(
@@ -269,9 +267,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           ],
         ),
       ),
-      body: Stack(
+      body: Column(
         children: [
-          Positioned.fill(
+          Expanded(
             child: _loading && _items.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null && _items.isEmpty
@@ -285,7 +283,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                         ? const Center(child: Text('Henüz mesaj yok.'))
                         : ListView.builder(
                             controller: _scrollCtrl,
-                            padding: EdgeInsets.fromLTRB(12, 12, 12, composerHeight + 20),
+                            padding: const EdgeInsets.all(12),
                             itemCount: _items.length,
                             itemBuilder: (_, i) {
                               final m = _items[i];
@@ -344,93 +342,63 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             },
                           ),
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Material(
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               color: AppTheme.surfacePrimary,
-              child: SafeArea(
-                top: false,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfacePrimary,
-                    border: Border(top: BorderSide(color: AppTheme.borderSoft.withOpacity(0.9))),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_peerTyping)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '${widget.peerName} yazıyor...',
+                        style: TextStyle(
+                          fontSize: 12 * messageScale,
+                          color: AppTheme.info,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  Row(
                     children: [
-                      if (_peerTyping)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Text(
-                            '${widget.peerName} yazıyor...',
-                            style: TextStyle(
-                              fontSize: 12 * messageScale,
-                              color: AppTheme.info,
-                              fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: TextField(
+                          controller: _msgCtrl,
+                          minLines: 1,
+                          maxLines: 4,
+                          onChanged: _onDraftChanged,
+                          onSubmitted: (_) => _send(),
+                          style: TextStyle(
+                            fontSize: 15 * messageScale,
+                            color: AppTheme.textPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Mesaj yaz...',
+                            hintStyle: TextStyle(
+                              fontSize: 14 * messageScale,
+                              color: AppTheme.textSecondary,
                             ),
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                            filled: true,
+                            fillColor: AppTheme.surfaceElevated,
                           ),
                         ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 56,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surfaceElevated,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: AppTheme.violet.withOpacity(0.45), width: 1.2),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.chat_bubble_outline_rounded,
-                                    color: AppTheme.textSecondary,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _msgCtrl,
-                                      onChanged: _onDraftChanged,
-                                      onSubmitted: (_) => _send(),
-                                      style: TextStyle(
-                                        fontSize: 15 * messageScale,
-                                        color: AppTheme.textPrimary,
-                                      ),
-                                      cursorColor: AppTheme.violet,
-                                      decoration: InputDecoration.collapsed(
-                                        hintText: 'Mesaj yaz...',
-                                        hintStyle: TextStyle(
-                                          fontSize: 14 * messageScale,
-                                          color: AppTheme.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: _sending ? null : _send,
-                              child: _sending
-                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
-                            ),
-                          ),
-                        ],
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _sending ? null : _send,
+                        child: _sending
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
           ),
