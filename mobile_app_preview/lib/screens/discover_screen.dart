@@ -175,7 +175,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       context: context,
       isScrollControlled: false,
       backgroundColor: AppTheme.surfaceSecondary,
-      surfaceTintColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
