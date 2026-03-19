@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -148,32 +150,93 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return cleaned.isEmpty ? raw : cleaned;
   }
 
-  Uri? _mapsUri() {
+  Uri? _normalizedDirectMapUri() {
     final direct = widget.venueMapUrl.trim();
-    if (direct.isNotEmpty) {
-      final normalized = direct.startsWith('http://') || direct.startsWith('https://')
-          ? direct
-          : (direct.startsWith('www.') ? 'https://$direct' : direct);
-      final directUri = Uri.tryParse(normalized);
-      if (directUri != null && directUri.hasScheme) return directUri;
+    if (direct.isEmpty) return null;
+    final normalized = direct.startsWith('http://') || direct.startsWith('https://')
+        ? direct
+        : (direct.startsWith('www.') ? 'https://$direct' : direct);
+    final directUri = Uri.tryParse(normalized);
+    if (directUri != null && directUri.hasScheme) {
+      return directUri;
+    }
+    return null;
+  }
+
+  String? _mapQueryFromUri(Uri uri) {
+    for (final key in const ['q', 'query', 'destination', 'daddr']) {
+      final value = (uri.queryParameters[key] ?? '').trim();
+      if (value.isNotEmpty) return value;
+    }
+    if (uri.pathSegments.isNotEmpty) {
+      final last = Uri.decodeComponent(uri.pathSegments.last).trim();
+      if (last.isNotEmpty && !last.contains('.')) return last.replaceAll('+', ' ');
+    }
+    return null;
+  }
+
+  String? _mapQuery() {
+    final directUri = _normalizedDirectMapUri();
+    if (directUri != null) {
+      final q = _mapQueryFromUri(directUri);
+      if (q != null && q.isNotEmpty) return q;
     }
     final sharedUrl = _extractFirstUrl(widget.venue.trim());
     if (sharedUrl != null) {
-      return Uri.tryParse(sharedUrl);
+      final sharedUri = Uri.tryParse(sharedUrl);
+      final q = sharedUri == null ? null : _mapQueryFromUri(sharedUri);
+      if (q != null && q.isNotEmpty) return q;
     }
     final q = _venueLabel().trim();
-    if (q.isEmpty) return null;
-    return Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(q)}');
+    return q.isEmpty ? null : q;
+  }
+
+  List<Uri> _mapLaunchCandidates() {
+    final out = <Uri>[];
+    final seen = <String>{};
+
+    void add(Uri? uri) {
+      if (uri == null) return;
+      final text = uri.toString();
+      if (text.isEmpty || seen.contains(text)) return;
+      seen.add(text);
+      out.add(uri);
+    }
+
+    final query = _mapQuery();
+    final directUri = _normalizedDirectMapUri();
+
+    if (query != null && query.isNotEmpty) {
+      final encoded = Uri.encodeComponent(query);
+      if (Platform.isAndroid) {
+        add(Uri.parse('geo:0,0?q=$encoded'));
+      } else if (Platform.isIOS) {
+        add(Uri.parse('comgooglemaps://?q=$encoded'));
+        add(Uri.parse('maps://?q=$encoded'));
+        add(Uri.parse('https://maps.apple.com/?q=$encoded'));
+      }
+      add(Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded'));
+    }
+
+    add(directUri);
+    return out;
   }
 
   Future<void> _openVenueInMaps() async {
-    final uri = _mapsUri();
-    if (uri == null) {
+    final candidates = _mapLaunchCandidates();
+    if (candidates.isEmpty) {
       _showMsg('Konum linki bulunamadı.');
       return;
     }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) _showMsg('Harita açılamadı.');
+    for (final uri in candidates) {
+      try {
+        final canOpen = await canLaunchUrl(uri);
+        if (!canOpen) continue;
+        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      } catch (_) {}
+    }
+    _showMsg('Harita açılamadı.');
   }
 
   DateTime? _parseEventDateForCalendar(String raw) {
@@ -300,7 +363,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Widget build(BuildContext context) {
     final buyUrl = _buyUrl();
     final venueLabel = _venueLabel();
-    final canOpenMaps = _mapsUri() != null;
+    final canOpenMaps = _mapLaunchCandidates().isNotEmpty;
     final canAddToCalendar = _parseEventDateForCalendar(widget.eventDate) != null;
     return Scaffold(
       backgroundColor: const Color(0xFF0B1020),
