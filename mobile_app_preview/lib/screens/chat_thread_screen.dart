@@ -373,26 +373,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             border: Border.all(color: Colors.white70),
                           ),
                           height: 52,
-                          alignment: Alignment.center,
-                          child: TextField(
-                            controller: _msgCtrl,
-                            maxLines: 1,
-                            onChanged: _onDraftChanged,
-                            onSubmitted: (_) => _send(),
-                            cursorColor: AppTheme.violet,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            'MESAJ INPUT',
                             style: TextStyle(
-                              fontSize: 15 * messageScale,
-                              color: Colors.black87,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Mesaj yaz...',
-                              hintStyle: TextStyle(
-                                fontSize: 14 * messageScale,
-                                color: Colors.black45,
-                              ),
-                              isCollapsed: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-                              border: InputBorder.none,
+                              fontSize: 16 * messageScale,
+                              color: Colors.black,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
