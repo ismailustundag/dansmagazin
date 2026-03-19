@@ -358,6 +358,14 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.about,
   });
 
+  List<String> _interestItems(String raw) {
+    return raw
+        .split(RegExp(r'[,;\n]+'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
+
   Widget _profileVisual(ProfileCardPalette palette) {
     if (avatarUrl.trim().isNotEmpty) {
       return ClipRRect(
@@ -402,6 +410,7 @@ class _ProfileHeroCard extends StatelessWidget {
     required String title,
     required String value,
     required ProfileCardPalette palette,
+    Widget? child,
   }) {
     final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
     return Container(
@@ -423,16 +432,17 @@ class _ProfileHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            resolvedValue,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFFFFF7F1),
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          child ??
+              Text(
+                resolvedValue,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFFFF7F1),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
         ],
       ),
     );
@@ -443,6 +453,7 @@ class _ProfileHeroCard extends StatelessWidget {
     final t = I18n.t;
     final nameText = displayName.trim().toUpperCase();
     final palette = ProfileCardPalette.fromGender(gender);
+    final interestItems = _interestItems(danceInterests);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -511,6 +522,32 @@ class _ProfileHeroCard extends StatelessWidget {
                       title: t('dance_interests'),
                       value: danceInterests,
                       palette: palette,
+                      child: interestItems.isEmpty
+                          ? null
+                          : Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: interestItems
+                                  .map(
+                                    (item) => Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(999),
+                                        border: Border.all(color: Colors.white.withOpacity(0.08)),
+                                      ),
+                                      child: Text(
+                                        item,
+                                        style: const TextStyle(
+                                          color: Color(0xFFFFF7F1),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
                     ),
                   ),
                   SizedBox(

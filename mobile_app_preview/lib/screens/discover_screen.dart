@@ -40,7 +40,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   late Future<List<_EventItem>> _eventsFuture;
   late Future<List<_NewsItem>> _newsFuture;
-  int _tabIndex = 0;
+  int _tabIndex = 1;
   String _selectedEventCity = '';
   String _selectedEventKind = '';
   final Set<String> _selectedDanceStyles = <String>{};
@@ -497,9 +497,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Widget build(BuildContext context) {
     final t = I18n.t;
     return ScreenShell(
-      title: t('discover_title'),
+      title: '',
       icon: Icons.local_activity,
       subtitle: '',
+      showHeader: false,
       tone: _tabIndex == 0 ? AppTone.discover : AppTone.events,
       onRefresh: _refresh,
       content: [
@@ -511,16 +512,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ],
         ),
         const SizedBox(height: 14),
-        if (_tabIndex == 0)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            alignment: Alignment.centerLeft,
-            child: Text(
-              t('news'),
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-            ),
-          )
-        else
+        if (_tabIndex != 0)
           Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
@@ -910,23 +902,6 @@ class _NewsCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      color: AppTheme.pink.withOpacity(0.16),
-                    ),
-                    child: Text(
-                      item.author.isNotEmpty ? item.author : 'Haber',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.pink,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
                   Text(
                     item.title,
                     maxLines: 3,
