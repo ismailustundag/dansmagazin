@@ -33,10 +33,12 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
+  static const List<String> _eventKinds = ['all', 'dance_night', 'festival', 'competition', 'promo_lesson'];
 
   late Future<List<_EventItem>> _eventsFuture;
   late Future<List<_NewsItem>> _newsFuture;
   int _tabIndex = 0;
+  String _selectedEventKind = 'all';
 
   @override
   void initState() {
@@ -93,6 +95,26 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     await f;
   }
 
+  List<_EventItem> _filteredEvents(List<_EventItem> items) {
+    if (_selectedEventKind == 'all') return items;
+    return items.where((e) => e.eventKind.trim().toLowerCase() == _selectedEventKind).toList();
+  }
+
+  String _kindLabel(String kind) {
+    switch (kind) {
+      case 'dance_night':
+        return I18n.t('discover_dance_nights_tab');
+      case 'festival':
+        return I18n.t('discover_festivals_tab');
+      case 'competition':
+        return I18n.t('discover_competitions_tab');
+      case 'promo_lesson':
+        return I18n.t('discover_promo_lessons_tab');
+      default:
+        return I18n.t('all');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
@@ -128,6 +150,30 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
           ),
+        if (_tabIndex == 1) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              t('events_filter_hint'),
+              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 46,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _eventKinds.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => _DiscoverFilterChip(
+                label: _kindLabel(_eventKinds[i]),
+                selected: _selectedEventKind == _eventKinds[i],
+                onTap: () => setState(() => _selectedEventKind = _eventKinds[i]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         if (_tabIndex == 0)
           FutureBuilder<List<_NewsItem>>(
             future: _newsFuture,
@@ -187,7 +233,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   onTap: _refresh,
                 );
               }
-              final items = snapshot.data ?? const <_EventItem>[];
+              final items = _filteredEvents(snapshot.data ?? const <_EventItem>[]);
               if (items.isEmpty) {
                 return _InfoCard(text: t('no_filtered_events_found'));
               }
@@ -259,6 +305,50 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           style: TextStyle(
             color: selected ? Colors.white : Colors.white70,
             fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscoverFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DiscoverFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [Color(0xFFE58B8B), Color(0xFFB45F13)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: selected ? null : const Color(0xFF121826),
+          border: Border.all(color: selected ? const Color(0x00FFFFFF) : Colors.white12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
           ),
         ),
       ),
