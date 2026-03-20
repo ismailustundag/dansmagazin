@@ -619,40 +619,38 @@ class _AuthScreenState extends State<AuthScreen> {
                                       ),
                               ),
                             ),
-                            if (showAppleSignIn) ...[
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                height: 54,
-                                child: OutlinedButton.icon(
-                                  onPressed: _loading ? null : _openAppleLogin,
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor: AppTheme.surfacePrimary.withOpacity(0.92),
-                                    side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
-                                  ),
-                                  icon: const Icon(Icons.apple),
-                                  label: const Text(
-                                    'Apple ile Giriş Yap',
-                                    style: TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ),
-                            ],
                             const SizedBox(height: 10),
-                            SizedBox(
-                              height: 54,
-                              child: OutlinedButton.icon(
-                                onPressed: _loading ? null : _openGoogleLogin,
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: AppTheme.surfacePrimary.withOpacity(0.92),
-                                  side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
-                                ),
-                                icon: const Icon(Icons.login_rounded),
-                                label: const Text(
-                                  'Google ile Giriş Yap',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
+                            if (showAppleSignIn)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _socialAuthButton(
+                                      platformLabel: 'Apple',
+                                      icon: const Icon(
+                                        Icons.apple,
+                                        size: 30,
+                                        color: AppTheme.textPrimary,
+                                      ),
+                                      onTap: _loading ? null : _openAppleLogin,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _socialAuthButton(
+                                      platformLabel: 'Google',
+                                      icon: _googleAuthBadge(),
+                                      onTap: _loading ? null : _openGoogleLogin,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              _socialAuthButton(
+                                platformLabel: 'Google',
+                                icon: _googleAuthBadge(),
+                                onTap: _loading ? null : _openGoogleLogin,
+                                fullWidth: true,
                               ),
-                            ),
                             if (widget.allowGuest) ...[
                               const SizedBox(height: 10),
                               SizedBox(
@@ -761,6 +759,84 @@ class _AuthScreenState extends State<AuthScreen> {
       decoration: InputDecoration(
         labelText: label,
         suffixIcon: suffixIcon,
+      ),
+    );
+  }
+
+  Widget _socialAuthButton({
+    required String platformLabel,
+    required Widget icon,
+    required VoidCallback? onTap,
+    bool fullWidth = false,
+  }) {
+    return Material(
+      color: AppTheme.surfacePrimary.withOpacity(0.94),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: fullWidth ? double.infinity : null,
+          height: 96,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.borderStrong.withOpacity(0.88)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.violet.withOpacity(0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              icon,
+              const SizedBox(height: 10),
+              Text(
+                '$platformLabel ile Giriş Yap',
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _googleAuthBadge() {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'G',
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF4285F4),
+          height: 1,
+        ),
       ),
     );
   }
