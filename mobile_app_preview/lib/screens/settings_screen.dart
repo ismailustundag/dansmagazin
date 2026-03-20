@@ -14,6 +14,7 @@ import '../services/i18n.dart';
 import '../services/legal_links.dart';
 import '../services/profile_api.dart';
 import '../services/turkiye_cities.dart';
+import 'blocked_users_screen.dart';
 import 'chat_thread_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -552,6 +553,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121826),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => BlockedUsersScreen(sessionToken: widget.sessionToken),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          const Icon(Icons.block_rounded, color: Colors.white70),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  I18n.t('blocked_users'),
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  I18n.t('blocked_users_hint'),
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

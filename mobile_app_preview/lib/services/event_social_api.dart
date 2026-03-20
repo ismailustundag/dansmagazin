@@ -113,6 +113,32 @@ class SocialUserSearchResult {
   });
 }
 
+class BlockedUserItem {
+  final int accountId;
+  final String name;
+  final String email;
+  final String avatarUrl;
+  final String blockedAt;
+
+  const BlockedUserItem({
+    required this.accountId,
+    required this.name,
+    required this.email,
+    required this.avatarUrl,
+    required this.blockedAt,
+  });
+
+  factory BlockedUserItem.fromJson(Map<String, dynamic> json) {
+    return BlockedUserItem(
+      accountId: (json['account_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      avatarUrl: (json['avatar_url'] ?? '').toString(),
+      blockedAt: (json['blocked_at'] ?? '').toString(),
+    );
+  }
+}
+
 class EventSocialApi {
   static const String _base = 'https://api2.dansmagazin.net';
 
@@ -328,6 +354,38 @@ class EventSocialApi {
     );
     if (resp.statusCode != 200) {
       throw EventSocialApiException(_parseError(resp.body, fallback: 'Kullanıcı şikayet edilemedi'));
+    }
+  }
+
+  static Future<List<BlockedUserItem>> blockedUsers({
+    required String sessionToken,
+    int limit = 200,
+  }) async {
+    final lim = limit < 1 ? 1 : (limit > 500 ? 500 : limit);
+    final resp = await http.get(
+      Uri.parse('$_base/profile/blocks?limit=$lim'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Engellenen kullanıcılar alınamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(BlockedUserItem.fromJson)
+        .toList();
+  }
+
+  static Future<void> unblockUser({
+    required String sessionToken,
+    required int targetAccountId,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/profile/blocks/$targetAccountId'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Kullanıcının engeli kaldırılamadı'));
     }
   }
 
