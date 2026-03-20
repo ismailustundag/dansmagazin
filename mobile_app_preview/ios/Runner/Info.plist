@@ -73,6 +73,8 @@
 	<string>Etkinlikleri yerel takviminize ekleyebilmek için takvim erişimi gerekir.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Etkinlikleri yerel takviminize ekleyebilmek için takvim erişimi gerekir.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
