@@ -300,6 +300,37 @@ class EventSocialApi {
     }
   }
 
+  static Future<void> blockUser({
+    required String sessionToken,
+    required int targetAccountId,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/friends/$targetAccountId/block'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Kullanıcı engellenemedi'));
+    }
+  }
+
+  static Future<void> reportUser({
+    required String sessionToken,
+    required int targetAccountId,
+    String reason = '',
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/friends/$targetAccountId/report'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'reason': reason.trim()}),
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Kullanıcı şikayet edilemedi'));
+    }
+  }
+
   static String _parseError(String body, {required String fallback}) {
     return parseApiErrorBody(body, fallback: fallback);
   }

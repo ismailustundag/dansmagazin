@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
@@ -253,6 +254,77 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Google ile giriş başarısız: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _openAppleLogin() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final isAvailable = await SignInWithApple.isAvailable();
+      if (!isAvailable) {
+        if (!mounted) return;
+        setState(() => _error = 'Apple ile giriş bu cihazda kullanılamıyor');
+        return;
+      }
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+      final identityToken = (credential.identityToken ?? '').trim();
+      if (identityToken.isEmpty) {
+        if (!mounted) return;
+        setState(() => _error = 'Apple kimlik doğrulama tokenı alınamadı');
+        return;
+      }
+
+      final givenName = (credential.givenName ?? '').trim();
+      final familyName = (credential.familyName ?? '').trim();
+      final fullName = [givenName, familyName].where((part) => part.isNotEmpty).join(' ').trim();
+
+      final session = await AuthApi.appleNativeLogin(
+        identityToken: identityToken,
+        appleUser: (credential.userIdentifier ?? '').trim(),
+        email: (credential.email ?? '').trim(),
+        name: fullName,
+        rememberMe: _rememberMe,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(
+        AuthResult(
+          action: AuthAction.login,
+          name: session.name.trim().isEmpty ? session.email.split('@').first : session.name,
+          email: session.email,
+          rememberMe: _rememberMe,
+          sessionToken: session.sessionToken,
+          accountId: session.accountId,
+          wpUserId: session.wpUserId,
+          wpRoles: session.wpRoles,
+          appRole: session.appRole,
+          canCreateMobileEvent: session.canCreateMobileEvent,
+        ),
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (!mounted) return;
+      final message = e.code == AuthorizationErrorCode.canceled
+          ? 'Apple girişi iptal edildi'
+          : 'Apple ile giriş başarısız: ${e.message ?? e.code.name}';
+      setState(() => _error = message);
+    } on AuthApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Apple ile giriş başarısız: $e');
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -550,6 +622,22 @@ class _AuthScreenState extends State<AuthScreen> {
                             SizedBox(
                               height: 54,
                               child: OutlinedButton.icon(
+                                onPressed: _loading ? null : _openAppleLogin,
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: AppTheme.surfacePrimary.withOpacity(0.92),
+                                  side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
+                                ),
+                                icon: const Icon(Icons.apple),
+                                label: const Text(
+                                  'Apple ile Giriş Yap',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 54,
+                              child: OutlinedButton.icon(
                                 onPressed: _loading ? null : _openGoogleLogin,
                                 style: OutlinedButton.styleFrom(
                                   backgroundColor: AppTheme.surfacePrimary.withOpacity(0.92),
@@ -557,7 +645,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ),
                                 icon: const Icon(Icons.login_rounded),
                                 label: const Text(
-                                  'Google ile Devam Et',
+                                  'Google ile Giriş Yap',
                                   style: TextStyle(fontWeight: FontWeight.w700),
                                 ),
                               ),

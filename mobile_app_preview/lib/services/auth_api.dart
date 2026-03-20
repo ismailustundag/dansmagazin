@@ -185,6 +185,26 @@ class AuthApi {
     return _parseSession(resp);
   }
 
+  static Future<AuthSession> appleNativeLogin({
+    required String identityToken,
+    required bool rememberMe,
+    String appleUser = '',
+    String email = '',
+    String name = '',
+  }) async {
+    final resp = await _postJsonWithRetry(
+      Uri.parse('$_base/auth/apple/native'),
+      body: {
+        'identity_token': identityToken.trim(),
+        'apple_user': appleUser.trim(),
+        'email': email.trim(),
+        'name': name.trim(),
+        'remember_me': rememberMe,
+      },
+    );
+    return _parseSession(resp);
+  }
+
   static AuthSession _parseSession(http.Response resp) {
     if (resp.statusCode != 200) {
       throw AuthApiException(_parseError(resp.body, fallback: 'Kimlik doğrulama başarısız'));

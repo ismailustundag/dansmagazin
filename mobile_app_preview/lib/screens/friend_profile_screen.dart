@@ -26,6 +26,8 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   late Future<_FriendProfile> _future;
   bool _removing = false;
+  bool _blocking = false;
+  bool _reporting = false;
 
   @override
   void initState() {
@@ -96,6 +98,98 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
     } finally {
       if (mounted) {
         setState(() => _removing = false);
+      }
+    }
+  }
+
+  Future<void> _blockUser(_FriendProfile profile) async {
+    if (_blocking) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(I18n.t('block_user')),
+        content: Text(I18n.t('block_user_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(I18n.t('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(I18n.t('block_user')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _blocking = true);
+    try {
+      await EventSocialApi.blockUser(
+        sessionToken: widget.sessionToken,
+        targetAccountId: profile.accountId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('block_user_done'))),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _blocking = false);
+      }
+    }
+  }
+
+  Future<void> _reportUser(_FriendProfile profile) async {
+    if (_reporting) return;
+    final noteCtrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(I18n.t('report_user_title')),
+        content: TextField(
+          controller: noteCtrl,
+          maxLines: 4,
+          decoration: InputDecoration(hintText: I18n.t('report_user_hint')),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(I18n.t('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(noteCtrl.text.trim()),
+            child: Text(I18n.t('report_user')),
+          ),
+        ],
+      ),
+    );
+    noteCtrl.dispose();
+    if (reason == null) return;
+    setState(() => _reporting = true);
+    try {
+      await EventSocialApi.reportUser(
+        sessionToken: widget.sessionToken,
+        targetAccountId: profile.accountId,
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('report_user_done'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _reporting = false);
       }
     }
   }
@@ -194,6 +288,32 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                         fillColor: const Color(0x26E58B8B),
                         foregroundColor: const Color(0xFFFFC2C2),
                         isLoading: _removing,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MiniProfileActionButton(
+                        label: t('report_user'),
+                        icon: Icons.flag_outlined,
+                        onTap: _reporting ? null : () => _reportUser(profile),
+                        fillColor: const Color(0x1AFFC34D),
+                        foregroundColor: const Color(0xFFFFD98A),
+                        isLoading: _reporting,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MiniProfileActionButton(
+                        label: t('block_user'),
+                        icon: Icons.block_rounded,
+                        onTap: _blocking ? null : () => _blockUser(profile),
+                        fillColor: const Color(0x18FF7C7C),
+                        foregroundColor: const Color(0xFFFFB3B3),
+                        isLoading: _blocking,
                       ),
                     ),
                   ],
@@ -498,6 +618,73 @@ class _ProfileActionButton extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniProfileActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final Color fillColor;
+  final Color foregroundColor;
+  final bool isLoading;
+
+  const _MiniProfileActionButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.fillColor,
+    required this.foregroundColor,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: fillColor,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: foregroundColor.withOpacity(0.16)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isLoading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(foregroundColor),
+                  ),
+                )
+              else
+                Icon(icon, color: foregroundColor, size: 15),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foregroundColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
