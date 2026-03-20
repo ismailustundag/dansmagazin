@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -625,10 +627,10 @@ class _AuthScreenState extends State<AuthScreen> {
                                 children: [
                                   Expanded(
                                     child: _socialAuthButton(
-                                      platformLabel: 'Apple',
+                                      label: 'Giriş Yap',
                                       icon: const Icon(
                                         Icons.apple,
-                                        size: 30,
+                                        size: 22,
                                         color: AppTheme.textPrimary,
                                       ),
                                       onTap: _loading ? null : _openAppleLogin,
@@ -637,7 +639,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: _socialAuthButton(
-                                      platformLabel: 'Google',
+                                      label: 'Giriş Yap',
                                       icon: _googleAuthBadge(),
                                       onTap: _loading ? null : _openGoogleLogin,
                                     ),
@@ -646,7 +648,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               )
                             else
                               _socialAuthButton(
-                                platformLabel: 'Google',
+                                label: 'Giriş Yap',
                                 icon: _googleAuthBadge(),
                                 onTap: _loading ? null : _openGoogleLogin,
                                 fullWidth: true,
@@ -764,41 +766,32 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _socialAuthButton({
-    required String platformLabel,
+    required String label,
     required Widget icon,
     required VoidCallback? onTap,
     bool fullWidth = false,
   }) {
     return Material(
       color: AppTheme.surfacePrimary.withOpacity(0.94),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
           width: fullWidth ? double.infinity : null,
-          height: 96,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppTheme.borderStrong.withOpacity(0.88)),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.violet.withOpacity(0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-              ),
-            ],
           ),
-          child: Column(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               icon,
-              const SizedBox(height: 10),
+              const SizedBox(width: 10),
               Text(
-                '$platformLabel ile Giriş Yap',
-                maxLines: 2,
-                textAlign: TextAlign.center,
+                label,
                 style: const TextStyle(
                   color: AppTheme.textPrimary,
                   fontSize: 13,
@@ -814,30 +807,61 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _googleAuthBadge() {
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: const Text(
-        'G',
-        style: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w800,
-          color: Color(0xFF4285F4),
-          height: 1,
-        ),
+    return const SizedBox(
+      width: 22,
+      height: 22,
+      child: CustomPaint(
+        painter: _GoogleLogoPainter(),
       ),
     );
   }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  const _GoogleLogoPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokeWidth = size.width * 0.18;
+    final rect = Rect.fromLTWH(
+      strokeWidth / 2,
+      strokeWidth / 2,
+      size.width - strokeWidth,
+      size.height - strokeWidth,
+    );
+
+    void drawArc(Color color, double startDeg, double sweepDeg) {
+      canvas.drawArc(
+        rect,
+        math.pi * startDeg / 180,
+        math.pi * sweepDeg / 180,
+        false,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    drawArc(const Color(0xFFEA4335), 210, 88);
+    drawArc(const Color(0xFFFBBC05), 140, 70);
+    drawArc(const Color(0xFF34A853), 52, 92);
+    drawArc(const Color(0xFF4285F4), -34, 94);
+
+    final barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    final midY = size.height * 0.52;
+    canvas.drawLine(
+      Offset(size.width * 0.56, midY),
+      Offset(size.width * 0.91, midY),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
