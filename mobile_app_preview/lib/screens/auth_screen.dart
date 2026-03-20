@@ -345,6 +345,7 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     final bgVideo = _bgVideoController;
     final theme = Theme.of(context);
+    final showAppleSignIn = theme.platform == TargetPlatform.iOS;
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -618,22 +619,24 @@ class _AuthScreenState extends State<AuthScreen> {
                                       ),
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              height: 54,
-                              child: OutlinedButton.icon(
-                                onPressed: _loading ? null : _openAppleLogin,
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: AppTheme.surfacePrimary.withOpacity(0.92),
-                                  side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
-                                ),
-                                icon: const Icon(Icons.apple),
-                                label: const Text(
-                                  'Apple ile Giriş Yap',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
+                            if (showAppleSignIn) ...[
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                height: 54,
+                                child: OutlinedButton.icon(
+                                  onPressed: _loading ? null : _openAppleLogin,
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: AppTheme.surfacePrimary.withOpacity(0.92),
+                                    side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
+                                  ),
+                                  icon: const Icon(Icons.apple),
+                                  label: const Text(
+                                    'Apple ile Giriş Yap',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                             const SizedBox(height: 10),
                             SizedBox(
                               height: 54,
