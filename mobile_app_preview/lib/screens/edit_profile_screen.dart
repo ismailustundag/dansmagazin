@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -554,42 +553,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _gender = picked);
   }
 
-  Future<String?> _pickAvatarPathIOSSafe() async {
-    if (!Platform.isIOS) return null;
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'],
-      allowMultiple: false,
-      withData: false,
-      withReadStream: false,
-      lockParentWindow: true,
-    );
-    if (result == null || result.files.isEmpty) return null;
-    return result.files.single.path;
-  }
-
   Future<void> _pickAvatar() async {
     if (_pickingAvatar) return;
     setState(() => _pickingAvatar = true);
     FocusScope.of(context).unfocus();
     try {
       await Future<void>.delayed(const Duration(milliseconds: 120));
-      String? selectedPath;
-      try {
-        selectedPath = await _pickAvatarPathIOSSafe();
-      } catch (_) {
-        selectedPath = null;
-      }
-      if (selectedPath == null || selectedPath.isEmpty) {
-        final img = await _picker.pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 90,
-          requestFullMetadata: false,
-          maxWidth: 1440,
-        );
-        if (img == null) return;
-        selectedPath = img.path;
-      }
+      final img = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+        requestFullMetadata: false,
+        maxWidth: 1440,
+      );
+      if (img == null) return;
+      final selectedPath = img.path;
       final path = selectedPath;
       if (path == null || path.isEmpty) return;
 
