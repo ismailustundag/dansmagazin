@@ -8,9 +8,9 @@ String sanitizeErrorText(
   if (text.isEmpty) return fallback;
 
   text = text
-      .replaceAll(RegExp(r'(?i)<br\s*/?>'), '\n')
-      .replaceAll(RegExp(r'(?i)</p\s*>'), '\n')
-      .replaceAll(RegExp(r'(?i)<li\b[^>]*>'), '• ')
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'</p\s*>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<li\b[^>]*>', caseSensitive: false), '• ')
       .replaceAll(RegExp(r'<[^>]+>'), ' ');
 
   const entities = <String, String>{
@@ -40,9 +40,9 @@ String sanitizeErrorText(
   }
 
   text = text
-      .replaceAll(RegExp(r'(?i)^hata\s*:\s*'), '')
-      .replaceAll(RegExp(r'(?i)^error\s*:\s*'), '')
-      .replaceAll(RegExp(r'(?i)parolanızı unuttunuz mu\??'), '')
+      .replaceAll(RegExp(r'^hata\s*:\s*', caseSensitive: false), '')
+      .replaceAll(RegExp(r'^error\s*:\s*', caseSensitive: false), '')
+      .replaceAll(RegExp(r'parolanızı unuttunuz mu\??', caseSensitive: false), '')
       .replaceAll(RegExp(r'\s+([,.:;!?])'), r'$1')
       .trim();
 
