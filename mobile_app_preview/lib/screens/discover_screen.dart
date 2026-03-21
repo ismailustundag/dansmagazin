@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/featured_events_api.dart';
 import '../services/i18n.dart';
 import '../services/turkiye_cities.dart';
 import '../theme/app_theme.dart';
@@ -40,6 +42,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   late Future<List<_EventItem>> _eventsFuture;
   late Future<List<_NewsItem>> _newsFuture;
+  late Future<List<_EventItem>> _featuredEventsFuture;
   int _tabIndex = 1;
   String _selectedEventCity = '';
   String _selectedEventKind = '';
@@ -54,6 +57,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       danceStyles: _selectedDanceStyles.toList(),
     );
     _newsFuture = _fetchNews();
+    _featuredEventsFuture = _fetchFeaturedEvents();
+  }
+
+  Future<List<_EventItem>> _fetchFeaturedEvents() async {
+    final items = await FeaturedEventsApi.fetchCurrent();
+    return items.map(_EventItem.fromFeatured).toList();
   }
 
   Future<List<_EventItem>> _fetchEvents({
@@ -120,7 +129,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       eventKind: _selectedEventKind,
       danceStyles: _selectedDanceStyles.toList(),
     );
-    setState(() => _eventsFuture = f);
+    final featured = _fetchFeaturedEvents();
+    setState(() {
+      _eventsFuture = f;
+      _featuredEventsFuture = featured;
+    });
     await f;
   }
 
@@ -493,6 +506,29 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     });
   }
 
+  void _openEventDetail(_EventItem item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EventDetailScreen(
+          title: item.name,
+          submissionId: item.id,
+          cover: item.cover,
+          description: item.description,
+          eventDate: item.eventDate,
+          venue: item.venue,
+          venueMapUrl: item.venueMapUrl,
+          organizer: item.organizer,
+          program: item.program,
+          entryFee: item.entryFee,
+          ticketUrl: item.ticketUrl,
+          wooProductId: item.wooProductId,
+          ticketSalesEnabled: item.ticketSalesEnabled,
+          sessionToken: widget.sessionToken,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
@@ -512,6 +548,28 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ],
         ),
         const SizedBox(height: 14),
+        if (_tabIndex != 0)
+          FutureBuilder<List<_EventItem>>(
+            future: _featuredEventsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  height: 172,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: AppTheme.panel(tone: AppTone.events, radius: 24, subtle: true),
+                );
+              }
+              final items = snapshot.data ?? const <_EventItem>[];
+              if (items.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _FeaturedEventsCarousel(
+                  items: items,
+                  onTap: _openEventDetail,
+                ),
+              );
+            },
+          ),
         if (_tabIndex != 0)
           Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -602,28 +660,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) => _EventCard(
                   item: items[i],
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => EventDetailScreen(
-                          title: items[i].name,
-                          submissionId: items[i].id,
-                          cover: items[i].cover,
-                          description: items[i].description,
-                          eventDate: items[i].eventDate,
-                          venue: items[i].venue,
-                          venueMapUrl: items[i].venueMapUrl,
-                          organizer: items[i].organizer,
-                          program: items[i].program,
-                          entryFee: items[i].entryFee,
-                          ticketUrl: items[i].ticketUrl,
-                          wooProductId: items[i].wooProductId,
-                          ticketSalesEnabled: items[i].ticketSalesEnabled,
-                          sessionToken: widget.sessionToken,
-                        ),
-                      ),
-                    );
-                  },
+                  onTap: () => _openEventDetail(items[i]),
                 ),
               );
             },
@@ -748,6 +785,26 @@ class _EventItem {
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
+    );
+  }
+
+  factory _EventItem.fromFeatured(FeaturedEventItem item) {
+    return _EventItem(
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      cover: item.cover,
+      eventDate: item.eventDate,
+      venue: item.venue,
+      venueMapUrl: item.venueMapUrl,
+      organizer: item.organizerName,
+      program: item.programText,
+      entryFee: item.entryFee,
+      ticketUrl: item.ticketUrl,
+      wooProductId: item.wooProductId,
+      city: item.city,
+      eventKind: item.eventKind,
+      ticketSalesEnabled: item.ticketSalesEnabled,
     );
   }
 }
@@ -944,6 +1001,197 @@ class _InfoCard extends StatelessWidget {
           if (actionText != null && onTap != null)
             TextButton(onPressed: onTap, child: Text(actionText!)),
         ],
+      ),
+    );
+  }
+}
+
+class _FeaturedEventsCarousel extends StatefulWidget {
+  final List<_EventItem> items;
+  final ValueChanged<_EventItem> onTap;
+
+  const _FeaturedEventsCarousel({
+    required this.items,
+    required this.onTap,
+  });
+
+  @override
+  State<_FeaturedEventsCarousel> createState() => _FeaturedEventsCarouselState();
+}
+
+class _FeaturedEventsCarouselState extends State<_FeaturedEventsCarousel> {
+  late final PageController _controller;
+  Timer? _timer;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(viewportFraction: 0.94);
+    _syncTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FeaturedEventsCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.items.length != widget.items.length) {
+      if (_index >= widget.items.length) _index = 0;
+      _syncTimer();
+    }
+  }
+
+  void _syncTimer() {
+    _timer?.cancel();
+    if (widget.items.length <= 1) return;
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_controller.hasClients || widget.items.isEmpty) return;
+      final next = (_index + 1) % widget.items.length;
+      _controller.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+      );
+      setState(() => _index = next);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 172,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: widget.items.length,
+            onPageChanged: (value) => setState(() => _index = value),
+            itemBuilder: (context, index) => Padding(
+              padding: EdgeInsets.only(right: index == widget.items.length - 1 ? 0 : 8),
+              child: _FeaturedEventBanner(
+                item: widget.items[index],
+                onTap: () => widget.onTap(widget.items[index]),
+              ),
+            ),
+          ),
+        ),
+        if (widget.items.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              widget.items.length,
+              (index) => AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: index == _index ? 20 : 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: index == _index ? AppTheme.orange : AppTheme.borderStrong,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FeaturedEventBanner extends StatelessWidget {
+  final _EventItem item;
+  final VoidCallback onTap;
+
+  const _FeaturedEventBanner({
+    required this.item,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        decoration: AppTheme.panel(tone: AppTone.events, radius: 24, elevated: true),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: item.cover.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: item.cover,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
+                      errorWidget: (_, __, ___) => Container(color: AppTheme.surfacePrimary),
+                    )
+                  : Container(color: AppTheme.surfacePrimary),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.08),
+                    Colors.black.withOpacity(0.32),
+                    Colors.black.withOpacity(0.74),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.orange.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: AppTheme.orange.withOpacity(0.28)),
+                    ),
+                    child: const Text(
+                      'Öne Çıkan',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    item.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${item.city} · ${_formatEventDate(item.eventDate)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          color: AppTheme.textPrimary.withOpacity(0.86),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

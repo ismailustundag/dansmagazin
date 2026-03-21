@@ -221,10 +221,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final initials = greetingName.trim().isNotEmpty ? greetingName.trim().substring(0, 1).toUpperCase() : 'U';
 
     return ScreenShell(
-      title: t('profile'),
-      icon: Icons.person,
+      title: t('edit_profile'),
+      icon: Icons.settings_rounded,
       subtitle: '',
       tone: AppTone.profile,
+      onHeaderTap: _openEditProfile,
+      titleFontSize: 21,
       headerTrailing: _TopIconButton(
         icon: Icons.notifications_none_rounded,
         badgeCount: 0,
@@ -241,14 +243,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           danceInterests: _profile?.danceInterests ?? '',
           danceSchool: _profile?.danceSchool ?? '',
           about: _profile?.about ?? '',
-        ),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _openEditProfile,
-            icon: const Icon(Icons.edit_rounded),
-            label: Text(t('edit_profile')),
-          ),
         ),
         const SizedBox(height: 14),
         _SectionTitle(title: t('quick_actions')),
