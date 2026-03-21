@@ -756,7 +756,11 @@ class _EventItem {
     final dt = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
     if (dt == null) return DateTime.utc(9999, 1, 1);
     final now = DateTime.now();
-    if (dt.isBefore(now)) return DateTime.utc(9999, 1, 1).add(now.difference(dt));
+    final eventDay = DateTime(dt.year, dt.month, dt.day);
+    final today = DateTime(now.year, now.month, now.day);
+    if (eventDay.isBefore(today)) {
+      return DateTime.utc(9999, 1, 1).add(today.difference(eventDay));
+    }
     return dt;
   }
 
