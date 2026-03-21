@@ -208,6 +208,7 @@ class _SelectedSlotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentItem = item;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -236,16 +237,16 @@ class _SelectedSlotCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item?.name ?? 'Bu slot boş',
+                  currentItem?.name ?? 'Bu slot boş',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  item == null
+                  currentItem == null
                       ? 'Aşağıdan bir etkinlik seçin'
-                      : '${item.city} · ${_formatFeaturedDate(item.eventDate)}',
+                      : '${currentItem.city} · ${_formatFeaturedDate(currentItem.eventDate)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
@@ -253,7 +254,7 @@ class _SelectedSlotCard extends StatelessWidget {
               ],
             ),
           ),
-          if (item != null)
+          if (currentItem != null)
             IconButton(
               onPressed: onRemove,
               icon: const Icon(Icons.close_rounded, color: AppTheme.textSecondary),
