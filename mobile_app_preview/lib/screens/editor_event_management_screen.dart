@@ -10,6 +10,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/error_message.dart';
 import '../services/profile_api.dart';
 import '../services/turkiye_cities.dart';
+import '../theme/app_theme.dart';
 import 'chat_thread_screen.dart';
 import 'editor_news_management_screen.dart';
 
@@ -222,7 +223,11 @@ class EditorEventManagementScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Etkinlik Yönetimi')),
+      backgroundColor: AppTheme.bgPrimary,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgPrimary,
+        title: const Text('Etkinlik Yönetimi'),
+      ),
       body: SafeArea(
         top: false,
         child: ListView(
@@ -322,29 +327,31 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF121826),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
-        ),
+        decoration: AppTheme.panel(tone: AppTone.admin, radius: 18, subtle: true),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFFE53935)),
+            Icon(icon, color: AppTheme.cyan),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 3),
-                  Text(subtitle, style: const TextStyle(color: Colors.white70)),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13.5),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white54),
+            const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
           ],
         ),
       ),
@@ -370,7 +377,7 @@ class _DanceStylesField extends StatelessWidget {
         children: [
           const Text(
             'Dans Türleri',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -384,10 +391,11 @@ class _DanceStylesField extends StatelessWidget {
                     onSelected: onToggle == null ? null : (_) => onToggle!(style),
                     selectedColor: const Color(0xFFE58B8B),
                     checkmarkColor: Colors.white,
-                    backgroundColor: const Color(0xFF111827),
+                    backgroundColor: AppTheme.surfacePrimary,
                     labelStyle: TextStyle(
-                      color: selectedStyles.contains(style) ? Colors.white : Colors.white70,
+                      color: selectedStyles.contains(style) ? Colors.white : AppTheme.textSecondary,
                       fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
                     ),
                     side: BorderSide(
                       color: selectedStyles.contains(style) ? const Color(0x00FFFFFF) : Colors.white12,
@@ -416,17 +424,13 @@ class _TicketSalesHelpCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121826),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-      ),
+      decoration: AppTheme.panel(tone: AppTone.admin, radius: 18, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Etkinlik biletinizin satışa açılmasını istiyorsanız Dansmagazin ile iletişime geçin.',
-            style: TextStyle(fontSize: 13.5, color: Colors.white70, height: 1.35),
+            style: TextStyle(fontSize: 13.5, color: AppTheme.textSecondary, height: 1.35),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -961,13 +965,23 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
   }
 
   Future<void> _openEdit(_ManagedEventItem item) async {
-    final changed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
-      builder: (_) => _EditManagedEventSheet(
-        sessionToken: widget.sessionToken,
-        item: item,
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => Scaffold(
+          backgroundColor: AppTheme.bgPrimary,
+          appBar: AppBar(
+            backgroundColor: AppTheme.bgPrimary,
+            title: const Text('Etkinliği Yönet'),
+          ),
+          body: SafeArea(
+            top: false,
+            child: _EditManagedEventSheet(
+              sessionToken: widget.sessionToken,
+              item: item,
+            ),
+          ),
+        ),
       ),
     );
     if (changed == true && mounted) {
@@ -978,7 +992,11 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Etkinliği Yönet')),
+      backgroundColor: AppTheme.bgPrimary,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgPrimary,
+        title: const Text('Etkinliği Yönet'),
+      ),
       body: SafeArea(
         top: false,
         child: RefreshIndicator(
@@ -1019,20 +1037,17 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                   final status = e.status.trim().isEmpty ? '-' : e.status;
                   return InkWell(
                     onTap: () => _openEdit(e),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(18),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121826),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
-                      ),
+                      padding: const EdgeInsets.all(14),
+                      decoration: AppTheme.panel(tone: AppTone.events, radius: 18, subtle: true),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (e.coverUrl.isNotEmpty)
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                               child: Image.network(
                                 e.coverUrl,
                                 width: 72,
@@ -1050,10 +1065,10 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                               width: 72,
                               height: 54,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1F2937),
-                                borderRadius: BorderRadius.circular(8),
+                                color: AppTheme.surfacePrimary,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.image_not_supported_outlined, color: Colors.white54),
+                              child: const Icon(Icons.image_not_supported_outlined, color: AppTheme.textSecondary),
                             ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1062,26 +1077,38 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                               children: [
                                 Text(
                                   e.name,
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   e.eventDate.isEmpty ? 'Tarih yok' : _toDisplayDate(e.eventDate),
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12.5),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Durum: $status',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.cyan.withOpacity(0.14),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    'Durum: $status',
+                                    style: const TextStyle(
+                                      color: AppTheme.cyan,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right, color: Colors.white54),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
                         ],
                       ),
                     ),
@@ -1270,32 +1297,47 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-                    child: const Text('Kapat'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      child: ListView(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: AppTheme.panel(tone: AppTone.events, radius: 20, elevated: true),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.item.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.item.eventDate.isEmpty ? 'Tarih bilgisi yok' : _toDisplayDate(widget.item.eventDate),
+                  style: const TextStyle(fontSize: 13.5, color: AppTheme.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.item.city.trim().isEmpty ? 'Şehir belirtilmedi' : widget.item.city,
+                  style: const TextStyle(fontSize: 13.5, color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _section(
+            'Genel Bilgiler',
+            [
               _txt(_descCtrl, 'Detaylar', maxLines: 3),
               _txt(_programCtrl, 'Program', maxLines: 3),
+              _txt(_orgCtrl, 'Organizatör'),
+            ],
+          ),
+          _section(
+            'Mekan ve Tür',
+            [
               _txt(_venueNameCtrl, 'Mekan Adı'),
               _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
               DropdownButtonFormField<String>(
@@ -1304,12 +1346,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                     .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
                     .toList(),
                 onChanged: _saving ? null : (v) => setState(() => _city = v ?? _city),
-                decoration: InputDecoration(
-                  labelText: 'Şehir',
-                  filled: true,
-                  fillColor: const Color(0xFF111827),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
+                decoration: _fieldDecoration('Şehir'),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
@@ -1328,12 +1365,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                             _repeatWeekly = false;
                           }
                         }),
-                decoration: InputDecoration(
-                  labelText: 'Etkinlik Türü',
-                  filled: true,
-                  fillColor: const Color(0xFF111827),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
+                decoration: _fieldDecoration('Etkinlik Türü'),
               ),
               const SizedBox(height: 4),
               _DanceStylesField(
@@ -1348,7 +1380,11 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                           }
                         }),
               ),
-              _txt(_orgCtrl, 'Organizatör'),
+            ],
+          ),
+          _section(
+            'Tarih ve Tekrar',
+            [
               _dateTimeRow(_dateCtrl, _timeCtrl),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1371,34 +1407,53 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                       (i) => DropdownMenuItem<int>(value: i, child: Text(_weekdayLabels[i])),
                     ),
                     onChanged: _saving ? null : (v) => setState(() => _repeatWeekday = v ?? _repeatWeekday),
-                    decoration: InputDecoration(
-                      labelText: 'Tekrar Günü',
-                      filled: true,
-                      fillColor: const Color(0xFF111827),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
+                    decoration: _fieldDecoration('Tekrar Günü'),
                   ),
                 ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  child: Text(_saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'),
-                ),
-              ),
-              const SizedBox(height: 12),
+            ],
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+          ],
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              child: Text(_saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _section(
+            'Bilet Desteği',
+            [
               _TicketSalesHelpCard(
                 sessionToken: widget.sessionToken,
                 busy: _saving,
               ),
             ],
           ),
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, List<Widget> children) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
       ),
     );
   }
@@ -1417,12 +1472,24 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         keyboardType: keyboardType ?? (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
         textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
         enableInteractiveSelection: true,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: const Color(0xFF111827),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+        decoration: _fieldDecoration(label),
+      ),
+    );
+  }
+
+  InputDecoration _fieldDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: AppTheme.surfacePrimary,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: AppTheme.borderSoft),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
       ),
     );
   }
@@ -1482,8 +1549,16 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: const Color(0xFF111827),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          fillColor: AppTheme.surfacePrimary,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppTheme.borderSoft),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
+          ),
           suffixIcon: const Icon(Icons.access_time),
         ),
       ),
@@ -1500,8 +1575,16 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: const Color(0xFF111827),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          fillColor: AppTheme.surfacePrimary,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppTheme.borderSoft),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
+          ),
           suffixIcon: const Icon(Icons.calendar_month),
         ),
       ),
