@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/date_time_format.dart';
 import '../services/i18n.dart';
@@ -120,7 +119,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final loaded = await _FavoriteStore.load(widget.accountId);
+    final loaded = await _FavoriteStore.load(widget.sessionToken);
     if (!mounted) return;
     setState(() => _favorites = loaded);
   }
@@ -1007,7 +1006,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final loaded = await _FavoriteStore.load(widget.accountId);
+    final loaded = await _FavoriteStore.load(widget.sessionToken);
     if (!mounted) return;
     setState(() => _favorites = loaded);
   }
@@ -1122,11 +1121,12 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
     }
     final isFav = _isFavorite(photo.url);
     if (isFav) {
-      await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
+      await _FavoriteStore.remove(widget.sessionToken, photo.id);
     } else {
       await _FavoriteStore.add(
-        widget.accountId,
+        widget.sessionToken,
         _FavoritePhoto(
+          id: photo.id,
           url: photo.url,
           thumbUrl: photo.thumbUrl,
           albumSlug: widget.album.slug,
@@ -1522,7 +1522,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final loaded = await _FavoriteStore.load(widget.accountId);
+    final loaded = await _FavoriteStore.load(widget.sessionToken);
     if (!mounted) return;
     setState(() => _favorites = loaded);
   }
@@ -1536,11 +1536,12 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     }
     final isFav = _isFavorite(photo.url);
     if (isFav) {
-      await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
+      await _FavoriteStore.remove(widget.sessionToken, photo.id);
     } else {
       await _FavoriteStore.add(
-        widget.accountId,
+        widget.sessionToken,
         _FavoritePhoto(
+          id: photo.id,
           url: photo.url,
           thumbUrl: photo.thumbUrl,
           albumSlug: widget.album.slug,
@@ -1932,9 +1933,15 @@ class _TopLikedGrid extends StatelessWidget {
 class _FavoriteGrid extends StatelessWidget {
   final List<_FavoritePhoto> photos;
   final int accountId;
+  final String sessionToken;
   final Future<void> Function(String url) onUnfavorite;
 
-  const _FavoriteGrid({required this.photos, required this.accountId, required this.onUnfavorite});
+  const _FavoriteGrid({
+    required this.photos,
+    required this.accountId,
+    required this.sessionToken,
+    required this.onUnfavorite,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1967,6 +1974,7 @@ class _FavoriteGrid extends StatelessWidget {
                         photos: sorted,
                         initialIndex: i,
                         accountId: accountId,
+                        sessionToken: sessionToken,
                       ),
                     ),
                   );
@@ -2133,6 +2141,7 @@ class _Photo {
 }
 
 class _FavoritePhoto {
+  final int id;
   final String url;
   final String thumbUrl;
   final String albumSlug;
@@ -2140,6 +2149,7 @@ class _FavoritePhoto {
   final String createdAt;
 
   const _FavoritePhoto({
+    required this.id,
     required this.url,
     required this.thumbUrl,
     required this.albumSlug,
@@ -2148,6 +2158,7 @@ class _FavoritePhoto {
   });
 
   Map<String, dynamic> toJson() => {
+        'id': id,
         'url': url,
         'thumb_url': thumbUrl,
         'album_slug': albumSlug,
@@ -2157,6 +2168,7 @@ class _FavoritePhoto {
 
   factory _FavoritePhoto.fromJson(Map<String, dynamic> json) {
     return _FavoritePhoto(
+      id: (json['id'] as num?)?.toInt() ?? 0,
       url: (json['url'] ?? '').toString(),
       thumbUrl: (json['thumb_url'] ?? '').toString(),
       albumSlug: (json['album_slug'] ?? '').toString(),
@@ -2167,64 +2179,72 @@ class _FavoritePhoto {
 }
 
 class _FavoriteStore {
-  static String _key(int accountId) => 'favorite_photos_v2_user_$accountId';
+  static const String _base = 'https://api2.dansmagazin.net/photos';
 
-  static Future<List<_FavoritePhoto>> load(int accountId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final rows = prefs.getStringList(_key(accountId)) ?? const [];
-    return rows
-        .map((e) {
-          try {
-            return _FavoritePhoto.fromJson(jsonDecode(e) as Map<String, dynamic>);
-          } catch (_) {
-            return null;
-          }
-        })
-        .whereType<_FavoritePhoto>()
+  static Map<String, String> _headers(String sessionToken) {
+    return {
+      if (sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${sessionToken.trim()}',
+    };
+  }
+
+  static String _parseError(String body, {required String fallback}) {
+    try {
+      final raw = jsonDecode(body);
+      if (raw is Map<String, dynamic>) {
+        final detail = (raw['detail'] ?? raw['message'] ?? raw['error'] ?? '').toString().trim();
+        if (detail.isNotEmpty) return detail;
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
+  static Future<List<_FavoritePhoto>> load(String sessionToken) async {
+    if (sessionToken.trim().isEmpty) return const [];
+    final resp = await http.get(
+      Uri.parse('$_base/favorites'),
+      headers: _headers(sessionToken),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Favoriler yüklenemedi'));
+    }
+    final map = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (map['items'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(_FavoritePhoto.fromJson)
+        .where((item) => item.url.trim().isNotEmpty)
         .toList();
   }
 
-  static Future<void> add(int accountId, _FavoritePhoto photo) async {
-    final prefs = await SharedPreferences.getInstance();
-    final current = await load(accountId);
-    final exists = current.any((p) => p.url == photo.url);
-    if (!exists) {
-      current.add(photo);
+  static Future<void> add(String sessionToken, _FavoritePhoto photo) async {
+    if (sessionToken.trim().isEmpty) {
+      throw Exception('Favorilere eklemek için giriş yapın.');
     }
-    final rows = current.map((p) => jsonEncode(p.toJson())).toList();
-    await prefs.setStringList(_key(accountId), rows);
+    if (photo.id <= 0) {
+      throw Exception('Geçersiz fotoğraf');
+    }
+    final resp = await http.post(
+      Uri.parse('$_base/items/${photo.id}/favorite'),
+      headers: _headers(sessionToken),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Favori güncellenemedi'));
+    }
   }
 
-  static Future<void> removeByUrl(int accountId, String url) async {
-    final prefs = await SharedPreferences.getInstance();
-    final current = await load(accountId);
-    current.removeWhere((p) => p.url == url);
-    final rows = current.map((p) => jsonEncode(p.toJson())).toList();
-    await prefs.setStringList(_key(accountId), rows);
-  }
-}
-
-class _AlbumLikeStore {
-  static String _key(int accountId) => 'liked_albums_v1_user_$accountId';
-
-  static Future<Set<String>> load(int accountId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final rows = prefs.getStringList(_key(accountId)) ?? const <String>[];
-    return rows.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
-  }
-
-  static Future<void> add(int accountId, String slug) async {
-    final prefs = await SharedPreferences.getInstance();
-    final set = await load(accountId);
-    set.add(slug);
-    await prefs.setStringList(_key(accountId), set.toList()..sort());
-  }
-
-  static Future<void> remove(int accountId, String slug) async {
-    final prefs = await SharedPreferences.getInstance();
-    final set = await load(accountId);
-    set.remove(slug);
-    await prefs.setStringList(_key(accountId), set.toList()..sort());
+  static Future<void> remove(String sessionToken, int photoId) async {
+    if (sessionToken.trim().isEmpty) {
+      throw Exception('Favorilerden çıkarmak için giriş yapın.');
+    }
+    if (photoId <= 0) {
+      throw Exception('Geçersiz fotoğraf');
+    }
+    final resp = await http.post(
+      Uri.parse('$_base/items/$photoId/unfavorite'),
+      headers: _headers(sessionToken),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Favori güncellenemedi'));
+    }
   }
 }
 
@@ -2232,11 +2252,13 @@ class _FavoriteViewerScreen extends StatefulWidget {
   final List<_FavoritePhoto> photos;
   final int initialIndex;
   final int accountId;
+  final String sessionToken;
 
   const _FavoriteViewerScreen({
     required this.photos,
     required this.initialIndex,
     required this.accountId,
+    required this.sessionToken,
   });
 
   @override
@@ -2257,7 +2279,7 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final loaded = await _FavoriteStore.load(widget.accountId);
+    final loaded = await _FavoriteStore.load(widget.sessionToken);
     if (!mounted) return;
     setState(() => _favorites = loaded);
   }
@@ -2266,9 +2288,9 @@ class _FavoriteViewerScreenState extends State<_FavoriteViewerScreen> {
 
   Future<void> _toggleFavorite(_FavoritePhoto photo) async {
     if (_isFavorite(photo.url)) {
-      await _FavoriteStore.removeByUrl(widget.accountId, photo.url);
+      await _FavoriteStore.remove(widget.sessionToken, photo.id);
     } else {
-      await _FavoriteStore.add(widget.accountId, photo);
+      await _FavoriteStore.add(widget.sessionToken, photo);
     }
     await _loadFavorites();
   }

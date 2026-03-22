@@ -103,7 +103,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _openPhotos() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MyPhotosScreen(accountId: widget.accountId),
+        builder: (_) => MyPhotosScreen(
+          accountId: widget.accountId,
+          sessionToken: widget.sessionToken,
+        ),
       ),
     );
   }
