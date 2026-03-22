@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'notifications_api.dart';
@@ -23,6 +24,7 @@ class PushNotificationsService {
   static StreamSubscription<RemoteMessage>? _onMessageSub;
   static StreamSubscription<RemoteMessage>? _onMessageOpenedSub;
   static Future<void> Function(String route)? _onRouteTap;
+  static const MethodChannel _badgeChannel = MethodChannel('dansmagazin/badge');
 
   static const AndroidNotificationChannel _androidChannel =
       AndroidNotificationChannel(
@@ -120,6 +122,13 @@ class PushNotificationsService {
   static Future<void> primeSystemPermissionPrompt() async {
     await _ensureLocalReady();
     await _requestPlatformNotificationPermission();
+  }
+
+  static Future<void> clearBadge() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    try {
+      await _badgeChannel.invokeMethod<void>('clearBadge');
+    } catch (_) {}
   }
 
   static Future<void> initForSession(

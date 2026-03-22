@@ -90,10 +90,12 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(_appLifecycleObserver);
     AppSettings.language.addListener(_onLanguageChanged);
     NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
     _initDeepLinks();
     unawaited(PushNotificationsService.primeSystemPermissionPrompt());
+    unawaited(PushNotificationsService.clearBadge());
     _restoreSession();
   }
 
@@ -104,6 +106,7 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(_appLifecycleObserver);
     AppSettings.language.removeListener(_onLanguageChanged);
     NotificationCenter.totalCount.removeListener(_onNotificationCountChanged);
     _notifTimer?.cancel();
@@ -111,6 +114,10 @@ class _RootScreenState extends State<RootScreen> {
     PushNotificationsService.dispose();
     super.dispose();
   }
+
+  late final WidgetsBindingObserver _appLifecycleObserver = _RootLifecycleObserver(
+    onResumed: () => PushNotificationsService.clearBadge(),
+  );
 
   static bool _readBoolParam(String? v) {
     final s = (v ?? '').trim().toLowerCase();
@@ -911,6 +918,19 @@ class _OnboardingStep {
     required this.titleKey,
     required this.bodyKey,
   });
+}
+
+class _RootLifecycleObserver with WidgetsBindingObserver {
+  final Future<void> Function() onResumed;
+
+  _RootLifecycleObserver({required this.onResumed});
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(onResumed());
+    }
+  }
 }
 
 class _OnboardingDialog extends StatefulWidget {

@@ -61,6 +61,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationCenter.summary.addListener(_onExternalSummary);
     _summary = NotificationCenter.summary.value;
     _loading = false;
+    unawaited(PushNotificationsService.clearBadge());
     _refresh();
     _timer = Timer.periodic(const Duration(seconds: 8), (_) => _refresh(silent: true));
   }
