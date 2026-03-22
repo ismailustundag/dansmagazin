@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/error_message.dart';
+import '../theme/app_theme.dart';
 
 class EditorNewsCreateScreen extends StatefulWidget {
   final String sessionToken;
@@ -224,14 +225,24 @@ class _ManageNewsScreenState extends State<ManageNewsScreen> {
   }
 
   Future<void> _openEdit(_ManagedNewsItem item, bool isSuperAdmin) async {
-    final changed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
-      builder: (_) => _EditNewsSubmissionSheet(
-        sessionToken: widget.sessionToken,
-        item: item,
-        isSuperAdmin: isSuperAdmin,
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => Scaffold(
+          backgroundColor: AppTheme.bgPrimary,
+          appBar: AppBar(
+            backgroundColor: AppTheme.bgPrimary,
+            title: const Text('Haberi Yönet'),
+          ),
+          body: SafeArea(
+            top: false,
+            child: _EditNewsSubmissionSheet(
+              sessionToken: widget.sessionToken,
+              item: item,
+              isSuperAdmin: isSuperAdmin,
+            ),
+          ),
+        ),
       ),
     );
     if (changed == true && mounted) {
@@ -242,7 +253,11 @@ class _ManageNewsScreenState extends State<ManageNewsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Haberleri Yönet')),
+      backgroundColor: AppTheme.bgPrimary,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgPrimary,
+        title: const Text('Haberleri Yönet'),
+      ),
       body: SafeArea(
         top: false,
         child: RefreshIndicator(
@@ -284,20 +299,17 @@ class _ManageNewsScreenState extends State<ManageNewsScreen> {
                   final item = data.items[i];
                   return InkWell(
                     onTap: () => _openEdit(item, data.isSuperAdmin),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(18),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121826),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
-                      ),
+                      padding: const EdgeInsets.all(14),
+                      decoration: AppTheme.panel(tone: AppTone.admin, radius: 18, subtle: true),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (item.coverUrl.isNotEmpty)
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                               child: Image.network(
                                 item.coverUrl,
                                 width: 72,
@@ -315,7 +327,7 @@ class _ManageNewsScreenState extends State<ManageNewsScreen> {
                               children: [
                                 Text(
                                   item.title,
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                                 ),
@@ -324,14 +336,15 @@ class _ManageNewsScreenState extends State<ManageNewsScreen> {
                                   item.submitterName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12.5),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 6),
                                 _statusChip(item.status),
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right, color: Colors.white54),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
                         ],
                       ),
                     ),
@@ -350,10 +363,10 @@ class _ManageNewsScreenState extends State<ManageNewsScreen> {
       width: 72,
       height: 54,
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2937),
-        borderRadius: BorderRadius.circular(8),
+        color: AppTheme.surfacePrimary,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(Icons.image_not_supported_outlined, color: Colors.white54),
+      child: const Icon(Icons.image_not_supported_outlined, color: AppTheme.textSecondary),
     );
   }
 
@@ -370,9 +383,9 @@ class _ManageNewsScreenState extends State<ManageNewsScreen> {
       _ => 'Onay Bekliyor',
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
-      child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(999)),
+      child: Text(text, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -602,28 +615,36 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Haber Talebi',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-                    child: const Text('Kapat'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      child: ListView(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: AppTheme.panel(tone: AppTone.admin, radius: 20, elevated: true),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.item.submitterName.trim().isEmpty ? 'Gönderen bilgisi yok' : widget.item.submitterName,
+                  style: const TextStyle(fontSize: 13.5, color: AppTheme.textSecondary),
+                ),
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerLeft, child: _statusChip(widget.item.status)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _section(
+            'İçerik',
+            [
               _txt(_titleCtrl, 'Haber Başlığı'),
               _txt(_bodyCtrl, 'Haber Metni', maxLines: 8),
               _txt(
@@ -631,6 +652,11 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
                 'Kaynak Linki (opsiyonel)',
                 keyboardType: TextInputType.url,
               ),
+            ],
+          ),
+          _section(
+            'Görsel ve Yayın',
+            [
               Row(
                 children: [
                   Expanded(
@@ -643,16 +669,12 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
                 ],
               ),
               if (_coverFile != null) ...[
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.file(File(_coverFile!.path), height: 180, fit: BoxFit.cover),
-                ),
+                const SizedBox(height: 10),
+                _coverPreview(Image.file(File(_coverFile!.path), height: 180, fit: BoxFit.cover)),
               ] else if (widget.item.coverUrl.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
+                const SizedBox(height: 10),
+                _coverPreview(
+                  Image.network(
                     widget.item.coverUrl,
                     height: 180,
                     width: double.infinity,
@@ -661,53 +683,22 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
                   ),
                 ),
               ],
-              if (widget.isSuperAdmin) ...[
-                const SizedBox(height: 10),
-                _txt(_adminNoteCtrl, 'Admin Notu', maxLines: 2),
-              ],
               if (widget.item.wpPostUrl.trim().isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  padding: const EdgeInsets.only(top: 8),
                   child: TextButton.icon(
                     onPressed: _openWpPost,
                     icon: const Icon(Icons.open_in_new),
                     label: const Text('WP Yayınını Aç'),
                   ),
                 ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-                ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save_outlined),
-                  label: const Text('Değişiklikleri Kaydet'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _saving ? null : _deleteSubmission,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                  ),
-                  icon: const Icon(Icons.delete_forever_outlined),
-                  label: const Text('Haberi Sil'),
-                ),
-              ),
-              if (widget.isSuperAdmin) ...[
-                const SizedBox(height: 8),
+            ],
+          ),
+          if (widget.isSuperAdmin)
+            _section(
+              'Moderasyon',
+              [
+                _txt(_adminNoteCtrl, 'Admin Notu', maxLines: 2),
                 Row(
                   children: [
                     Expanded(
@@ -727,9 +718,39 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
                   ],
                 ),
               ],
-            ],
+            ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+          ],
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: const Text('Değişiklikleri Kaydet'),
+            ),
           ),
-        ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _saving ? null : _deleteSubmission,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+              ),
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: const Text('Haberi Sil'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -741,17 +762,76 @@ class _EditNewsSubmissionSheetState extends State<_EditNewsSubmissionSheet> {
     TextInputType? keyboardType,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: c,
         maxLines: maxLines,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: const Color(0xFF111827),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+        keyboardType: keyboardType ?? (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
+        textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+        enableInteractiveSelection: true,
+        decoration: _fieldDecoration(label),
+      ),
+    );
+  }
+
+  Widget _section(String title, List<Widget> children) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: AppTheme.panel(tone: AppTone.admin, radius: 20, subtle: true),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _coverPreview(Widget child) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: child,
+    );
+  }
+
+  Widget _statusChip(String raw) {
+    final s = raw.trim().toLowerCase();
+    final color = switch (s) {
+      'approved' => const Color(0xFF1E7D44),
+      'rejected' => const Color(0xFF8B1C1C),
+      _ => const Color(0xFF7A5D00),
+    };
+    final text = switch (s) {
+      'approved' => 'Onaylandı',
+      'rejected' => 'Reddedildi',
+      _ => 'Onay Bekliyor',
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(999)),
+      child: Text(text, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  InputDecoration _fieldDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: AppTheme.surfacePrimary,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: AppTheme.borderSoft),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
       ),
     );
   }

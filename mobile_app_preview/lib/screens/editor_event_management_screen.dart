@@ -96,6 +96,13 @@ String _toApiDateTime(String dateRaw, String timeRaw) {
   return '$day $hh:$mm:00';
 }
 
+DateTime? _combineDateAndTime(String dateRaw, String timeRaw) {
+  final d = _parseEventDate(dateRaw.trim());
+  if (d == null) return null;
+  final t = _parseTimeOfDay(timeRaw.trim());
+  return DateTime(d.year, d.month, d.day, t?.hour ?? 0, t?.minute ?? 0);
+}
+
 class _VenueParts {
   final String name;
   final String mapUrl;
@@ -1128,6 +1135,8 @@ class _ManagedEventItem {
   final String name;
   final String description;
   final String eventDate;
+  final String startAt;
+  final String endAt;
   final String venue;
   final String venueMapUrl;
   final String city;
@@ -1147,6 +1156,8 @@ class _ManagedEventItem {
     required this.name,
     required this.description,
     required this.eventDate,
+    required this.startAt,
+    required this.endAt,
     required this.venue,
     required this.venueMapUrl,
     required this.city,
@@ -1163,11 +1174,16 @@ class _ManagedEventItem {
   });
 
   factory _ManagedEventItem.fromJson(Map<String, dynamic> json) {
+    final startAt = (json['start_at'] ?? '').toString();
+    final endAt = (json['end_at'] ?? '').toString();
+    final eventDate = (json['event_date'] ?? '').toString();
     return _ManagedEventItem(
       submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
-      eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
+      eventDate: startAt.isNotEmpty ? startAt : eventDate,
+      startAt: startAt,
+      endAt: endAt,
       venue: (json['venue'] ?? '').toString(),
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
@@ -1201,8 +1217,10 @@ class _EditManagedEventSheet extends StatefulWidget {
 class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   static const String _base = 'https://api2.dansmagazin.net';
   late final TextEditingController _descCtrl;
-  late final TextEditingController _dateCtrl;
-  late final TextEditingController _timeCtrl;
+  late final TextEditingController _startDateCtrl;
+  late final TextEditingController _startTimeCtrl;
+  late final TextEditingController _endDateCtrl;
+  late final TextEditingController _endTimeCtrl;
   late final TextEditingController _venueNameCtrl;
   late final TextEditingController _venueMapCtrl;
   late final TextEditingController _orgCtrl;
@@ -1221,10 +1239,19 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   void initState() {
     super.initState();
     final parts = _splitVenue(widget.item.venue, mapUrl: widget.item.venueMapUrl);
-    final parsedDate = _parseEventDate(widget.item.eventDate);
+    final parsedDate = _parseEventDate(widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate);
+    final endSource = widget.item.endAt.isNotEmpty
+        ? widget.item.endAt
+        : (widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate);
     _descCtrl = TextEditingController(text: widget.item.description);
-    _dateCtrl = TextEditingController(text: _toDisplayDate(widget.item.eventDate));
-    _timeCtrl = TextEditingController(text: _toDisplayTime(widget.item.eventDate));
+    _startDateCtrl = TextEditingController(
+      text: _toDisplayDate(widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate),
+    );
+    _startTimeCtrl = TextEditingController(
+      text: _toDisplayTime(widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate),
+    );
+    _endDateCtrl = TextEditingController(text: _toDisplayDate(endSource));
+    _endTimeCtrl = TextEditingController(text: _toDisplayTime(endSource));
     _venueNameCtrl = TextEditingController(text: parts.name);
     _venueMapCtrl = TextEditingController(text: parts.mapUrl);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
@@ -1246,8 +1273,10 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   @override
   void dispose() {
     _descCtrl.dispose();
-    _dateCtrl.dispose();
-    _timeCtrl.dispose();
+    _startDateCtrl.dispose();
+    _startTimeCtrl.dispose();
+    _endDateCtrl.dispose();
+    _endTimeCtrl.dispose();
     _venueNameCtrl.dispose();
     _venueMapCtrl.dispose();
     _orgCtrl.dispose();
@@ -1256,6 +1285,20 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   }
 
   Future<void> _save() async {
+    final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
+    final endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    if (startMoment == null) {
+      setState(() => _error = 'Başlangıç tarihi ve saati zorunlu.');
+      return;
+    }
+    if (endMoment == null) {
+      setState(() => _error = 'Bitiş tarihi ve saati zorunlu.');
+      return;
+    }
+    if (endMoment.isBefore(startMoment)) {
+      setState(() => _error = 'Bitiş tarihi başlangıçtan önce olamaz.');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -1268,9 +1311,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       )
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['description'] = _descCtrl.text.trim()
-        ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
-        ..fields['start_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
-        ..fields['end_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
+        ..fields['event_date'] = _toApiDate(_startDateCtrl.text.trim())
+        ..fields['start_at'] = _toApiDateTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim())
+        ..fields['end_at'] = _toApiDateTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim())
         ..fields['venue'] = _venueNameCtrl.text.trim()
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
@@ -1385,7 +1428,21 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
           _section(
             'Tarih ve Tekrar',
             [
-              _dateTimeRow(_dateCtrl, _timeCtrl),
+              _dateTimeBlock(
+                title: 'Başlangıç',
+                dateCtrl: _startDateCtrl,
+                timeCtrl: _startTimeCtrl,
+                dateLabel: 'Başlangıç Tarihi',
+                timeLabel: 'Başlangıç Saati',
+                updateRepeatWeekday: true,
+              ),
+              _dateTimeBlock(
+                title: 'Bitiş',
+                dateCtrl: _endDateCtrl,
+                timeCtrl: _endTimeCtrl,
+                dateLabel: 'Bitiş Tarihi',
+                timeLabel: 'Bitiş Saati',
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Tekrarlayan Etkinlik'),
@@ -1500,7 +1557,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     return 'dance_night';
   }
 
-  Future<void> _pickDate(TextEditingController ctrl) async {
+  Future<void> _pickDate(TextEditingController ctrl, {bool updateRepeatWeekday = false}) async {
     final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
     final date = await showDatePicker(
       context: context,
@@ -1510,7 +1567,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     );
     if (date == null || !mounted) return;
     ctrl.text = _toDisplayDate(date.toIso8601String());
-    if (_repeatWeekly && !_isPromoLesson) {
+    if (updateRepeatWeekday && _repeatWeekly && !_isPromoLesson) {
       setState(() => _repeatWeekday = date.weekday - 1);
     }
   }
@@ -1524,16 +1581,33 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     ctrl.text = '$h.$m';
   }
 
-  Widget _dateTimeRow(TextEditingController dateCtrl, TextEditingController timeCtrl) {
-    return Row(
+  Widget _dateTimeBlock({
+    required String title,
+    required TextEditingController dateCtrl,
+    required TextEditingController timeCtrl,
+    required String dateLabel,
+    required String timeLabel,
+    bool updateRepeatWeekday = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          flex: 2,
-          child: _dateField(dateCtrl, 'Etkinlik Tarihi'),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _timeField(timeCtrl, 'Saat'),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _dateField(dateCtrl, dateLabel, updateRepeatWeekday: updateRepeatWeekday),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _timeField(timeCtrl, timeLabel),
+            ),
+          ],
         ),
       ],
     );
@@ -1565,13 +1639,13 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     );
   }
 
-  Widget _dateField(TextEditingController c, String label) {
+  Widget _dateField(TextEditingController c, String label, {bool updateRepeatWeekday = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: c,
         readOnly: true,
-        onTap: () => _pickDate(c),
+        onTap: () => _pickDate(c, updateRepeatWeekday: updateRepeatWeekday),
         decoration: InputDecoration(
           labelText: label,
           filled: true,
@@ -1610,8 +1684,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final _venueNameCtrl = TextEditingController();
   final _venueMapCtrl = TextEditingController();
   final _orgCtrl = TextEditingController();
-  final _dateCtrl = TextEditingController();
-  final _timeCtrl = TextEditingController();
+  final _startDateCtrl = TextEditingController();
+  final _startTimeCtrl = TextEditingController();
+  final _endDateCtrl = TextEditingController();
+  final _endTimeCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
   final List<String> _cities = kTurkiyeCities;
   String _city = 'İstanbul';
@@ -1634,13 +1710,15 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     _venueNameCtrl.dispose();
     _venueMapCtrl.dispose();
     _orgCtrl.dispose();
-    _dateCtrl.dispose();
-    _timeCtrl.dispose();
+    _startDateCtrl.dispose();
+    _startTimeCtrl.dispose();
+    _endDateCtrl.dispose();
+    _endTimeCtrl.dispose();
     _feeCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDate(TextEditingController ctrl) async {
+  Future<void> _pickDate(TextEditingController ctrl, {bool updateRepeatWeekday = false}) async {
     final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
     final date = await showDatePicker(
       context: context,
@@ -1650,7 +1728,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
     if (date == null || !mounted) return;
     ctrl.text = _toDisplayDate(date.toIso8601String());
-    if (_repeatWeekly && !_isPromoLesson) {
+    if (updateRepeatWeekday && _repeatWeekly && !_isPromoLesson) {
       setState(() => _repeatWeekday = date.weekday - 1);
     }
   }
@@ -1667,6 +1745,20 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   Future<void> _submit() async {
     if (_eventCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Etkinlik adı zorunlu.');
+      return;
+    }
+    final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
+    final endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    if (startMoment == null) {
+      setState(() => _error = 'Başlangıç tarihi ve saati zorunlu.');
+      return;
+    }
+    if (endMoment == null) {
+      setState(() => _error = 'Bitiş tarihi ve saati zorunlu.');
+      return;
+    }
+    if (endMoment.isBefore(startMoment)) {
+      setState(() => _error = 'Bitiş tarihi başlangıçtan önce olamaz.');
       return;
     }
     setState(() {
@@ -1688,9 +1780,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
         ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
-        ..fields['event_date'] = _toApiDate(_dateCtrl.text.trim())
-        ..fields['start_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
-        ..fields['end_at'] = _toApiDateTime(_dateCtrl.text.trim(), _timeCtrl.text.trim())
+        ..fields['event_date'] = _toApiDate(_startDateCtrl.text.trim())
+        ..fields['start_at'] = _toApiDateTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim())
+        ..fields['end_at'] = _toApiDateTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim())
         ..fields['entry_fee'] = _feeCtrl.text.trim();
       final token = widget.sessionToken.trim();
       if (token.isNotEmpty) req.headers['Authorization'] = 'Bearer $token';
@@ -1789,7 +1881,21 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                         }),
               ),
               _txt(_orgCtrl, 'Organizatör'),
-              _dateTimeRow(_dateCtrl, _timeCtrl),
+              _dateTimeBlock(
+                title: 'Başlangıç',
+                dateCtrl: _startDateCtrl,
+                timeCtrl: _startTimeCtrl,
+                dateLabel: 'Başlangıç Tarihi',
+                timeLabel: 'Başlangıç Saati',
+                updateRepeatWeekday: true,
+              ),
+              _dateTimeBlock(
+                title: 'Bitiş',
+                dateCtrl: _endDateCtrl,
+                timeCtrl: _endTimeCtrl,
+                dateLabel: 'Bitiş Tarihi',
+                timeLabel: 'Bitiş Saati',
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Tekrarlayan Etkinlik'),
@@ -1912,16 +2018,33 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
   }
 
-  Widget _dateTimeRow(TextEditingController dateCtrl, TextEditingController timeCtrl) {
-    return Row(
+  Widget _dateTimeBlock({
+    required String title,
+    required TextEditingController dateCtrl,
+    required TextEditingController timeCtrl,
+    required String dateLabel,
+    required String timeLabel,
+    bool updateRepeatWeekday = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          flex: 2,
-          child: _dateField(dateCtrl, 'Etkinlik Tarihi'),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _timeField(timeCtrl, 'Saat'),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _dateField(dateCtrl, dateLabel, updateRepeatWeekday: updateRepeatWeekday),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _timeField(timeCtrl, timeLabel),
+            ),
+          ],
         ),
       ],
     );
@@ -1945,13 +2068,13 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
   }
 
-  Widget _dateField(TextEditingController c, String label) {
+  Widget _dateField(TextEditingController c, String label, {bool updateRepeatWeekday = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: c,
         readOnly: true,
-        onTap: () => _pickDate(c),
+        onTap: () => _pickDate(c, updateRepeatWeekday: updateRepeatWeekday),
         decoration: InputDecoration(
           labelText: label,
           filled: true,
