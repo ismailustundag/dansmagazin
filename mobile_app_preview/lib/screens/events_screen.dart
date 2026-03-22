@@ -112,6 +112,7 @@ class _EventsScreenState extends State<EventsScreen> {
                               cover: items[i].cover,
                               description: items[i].description,
                               eventDate: items[i].eventDate,
+                              endAt: items[i].endAt,
                               venue: items[i].venue,
                               venueMapUrl: items[i].venueMapUrl,
                               organizer: items[i].organizer,
@@ -143,6 +144,7 @@ class _EventItem {
   final String description;
   final String cover;
   final String eventDate;
+  final String endAt;
   final double entryFee;
   final String ticketUrl;
   final String venue;
@@ -160,6 +162,7 @@ class _EventItem {
     required this.description,
     required this.cover,
     required this.eventDate,
+    required this.endAt,
     required this.entryFee,
     required this.ticketUrl,
     required this.venue,
@@ -173,7 +176,8 @@ class _EventItem {
   });
 
   DateTime get sortKey {
-    final dt = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
+    final parsed = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
+    final dt = parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
     if (dt == null) return DateTime.utc(9999, 1, 1);
     final now = DateTime.now();
     final eventDay = DateTime(dt.year, dt.month, dt.day);
@@ -199,6 +203,7 @@ class _EventItem {
       description: (json['description'] ?? '').toString(),
       cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),
       eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
+      endAt: (json['end_at'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
       ticketUrl: absUrl(json['ticket_url'] ?? json['link'] ?? '', host: 'https://www.dansmagazin.net'),
       venue: (json['venue'] ?? '').toString(),

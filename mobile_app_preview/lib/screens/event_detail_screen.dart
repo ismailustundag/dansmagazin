@@ -15,6 +15,7 @@ class EventDetailScreen extends StatefulWidget {
   final String cover;
   final String description;
   final String eventDate;
+  final String endAt;
   final String venue;
   final String venueMapUrl;
   final String organizer;
@@ -32,6 +33,7 @@ class EventDetailScreen extends StatefulWidget {
     required this.cover,
     required this.description,
     required this.eventDate,
+    required this.endAt,
     required this.venue,
     required this.venueMapUrl,
     required this.organizer,
@@ -308,9 +310,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       _showMsg('Etkinlik tarihi geçersiz.');
       return;
     }
+    final explicitEnd = _parseEventDateForCalendar(widget.endAt);
     final hasTime = _eventHasTime(widget.eventDate);
     final startDate = hasTime ? start : DateTime(start.year, start.month, start.day, 10, 0);
-    final endDate = hasTime ? startDate.add(const Duration(hours: 2)) : startDate.add(const Duration(hours: 1));
+    final endDate = explicitEnd != null
+        ? (_eventHasTime(widget.endAt)
+            ? explicitEnd
+            : DateTime(explicitEnd.year, explicitEnd.month, explicitEnd.day, 23, 59))
+        : (hasTime ? startDate.add(const Duration(hours: 2)) : startDate.add(const Duration(hours: 1)));
     final details = widget.description.trim().isEmpty ? widget.title.trim() : widget.description.trim();
     final event = Event(
       title: widget.title.trim().isEmpty ? 'Etkinlik' : widget.title.trim(),
@@ -533,7 +540,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _line(Icons.calendar_month, _fmtDate(widget.eventDate)),
+                _line(Icons.calendar_month, 'Başlangıç: ${_fmtDate(widget.eventDate)}'),
+                if (widget.endAt.trim().isNotEmpty && widget.endAt.trim() != widget.eventDate.trim())
+                  _line(Icons.schedule, 'Bitiş: ${_fmtDate(widget.endAt)}'),
                 if (venueLabel.isNotEmpty) _line(Icons.location_on, venueLabel),
                 if (widget.organizer.trim().isNotEmpty) _line(Icons.public, widget.organizer.trim()),
               ],

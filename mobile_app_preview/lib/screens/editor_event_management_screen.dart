@@ -26,7 +26,7 @@ DateTime? _parseEventDate(String raw) {
     if (d != null && m != null && y != null) return DateTime(y, m, d);
   }
   final dt = DateTime.tryParse(v) ?? DateTime.tryParse(v.replaceAll(' ', 'T'));
-  if (dt != null) return dt;
+  if (dt != null) return dt.isUtc ? dt.toLocal() : dt;
   final ymd = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(v);
   if (ymd != null) {
     final y = int.tryParse(ymd.group(1)!);
@@ -960,10 +960,12 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
       throw Exception('Etkinlik listesi alınamadı (${res.statusCode})');
     }
     final map = jsonDecode(res.body) as Map<String, dynamic>;
-    return (map['items'] as List<dynamic>? ?? [])
+    final items = (map['items'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(_ManagedEventItem.fromJson)
         .toList();
+    items.sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    return items;
   }
 
   Future<void> _refresh() async {
@@ -1199,6 +1201,20 @@ class _ManagedEventItem {
       coverUrl: (json['cover_url'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
     );
+  }
+
+  DateTime get sortKey {
+    final raw = startAt.isNotEmpty ? startAt : eventDate;
+    final parsed = DateTime.tryParse(raw.trim().replaceAll(' ', 'T'));
+    final dt = parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
+    if (dt == null) return DateTime.utc(9999, 1, 1);
+    final now = DateTime.now();
+    final itemDay = DateTime(dt.year, dt.month, dt.day);
+    final today = DateTime(now.year, now.month, now.day);
+    if (itemDay.isBefore(today)) {
+      return DateTime.utc(9999, 1, 1).add(today.difference(itemDay));
+    }
+    return dt;
   }
 }
 

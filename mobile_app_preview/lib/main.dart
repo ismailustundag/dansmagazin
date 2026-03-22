@@ -732,6 +732,7 @@ class _RootScreenState extends State<RootScreen> {
             cover: _asAbsUrl((ev['cover'] ?? ev['cover_url'] ?? ev['image'] ?? '').toString()),
             description: (ev['description'] ?? '').toString(),
             eventDate: (ev['start_at'] ?? ev['event_date'] ?? '').toString(),
+            endAt: (ev['end_at'] ?? '').toString(),
             venue: (ev['venue'] ?? '').toString(),
             venueMapUrl: (ev['venue_map_url'] ?? '').toString(),
             organizer: (ev['organizer_name'] ?? '').toString(),

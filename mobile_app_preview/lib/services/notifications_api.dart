@@ -191,7 +191,7 @@ class NotificationsApi {
     int limit = 100,
   }) async {
     final q = query.trim();
-    final lim = limit < 1 ? 1 : (limit > 100 ? 100 : limit);
+    final lim = limit < 1 ? 1 : (limit > 50 ? 50 : limit);
     final resp = await http.get(
       Uri.parse('$_base/profile/users/search?q=${Uri.encodeQueryComponent(q)}&limit=$lim'),
       headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},

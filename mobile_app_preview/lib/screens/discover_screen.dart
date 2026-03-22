@@ -515,6 +515,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           cover: item.cover,
           description: item.description,
           eventDate: item.eventDate,
+          endAt: item.endAt,
           venue: item.venue,
           venueMapUrl: item.venueMapUrl,
           organizer: item.organizer,
@@ -723,6 +724,7 @@ class _EventItem {
   final String description;
   final String cover;
   final String eventDate;
+  final String endAt;
   final String venue;
   final String venueMapUrl;
   final String organizer;
@@ -740,6 +742,7 @@ class _EventItem {
     required this.description,
     required this.cover,
     required this.eventDate,
+    required this.endAt,
     required this.venue,
     required this.venueMapUrl,
     required this.organizer,
@@ -753,7 +756,8 @@ class _EventItem {
   });
 
   DateTime get sortKey {
-    final dt = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
+    final parsed = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
+    final dt = parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
     if (dt == null) return DateTime.utc(9999, 1, 1);
     final now = DateTime.now();
     final eventDay = DateTime(dt.year, dt.month, dt.day);
@@ -779,6 +783,7 @@ class _EventItem {
       description: (json['description'] ?? '').toString(),
       cover: absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),
       eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
+      endAt: (json['end_at'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       organizer: (json['organizer_name'] ?? '').toString(),
@@ -799,6 +804,7 @@ class _EventItem {
       description: item.description,
       cover: item.cover,
       eventDate: item.eventDate,
+      endAt: item.endAt,
       venue: item.venue,
       venueMapUrl: item.venueMapUrl,
       organizer: item.organizerName,

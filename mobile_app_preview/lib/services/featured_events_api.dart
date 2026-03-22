@@ -11,6 +11,7 @@ class FeaturedEventItem {
   final String description;
   final String cover;
   final String eventDate;
+  final String endAt;
   final String venue;
   final String venueMapUrl;
   final String organizerName;
@@ -29,6 +30,7 @@ class FeaturedEventItem {
     required this.description,
     required this.cover,
     required this.eventDate,
+    required this.endAt,
     required this.venue,
     required this.venueMapUrl,
     required this.organizerName,
@@ -57,6 +59,7 @@ class FeaturedEventItem {
       description: (json['description'] ?? '').toString(),
       cover: _absUrl(json['cover'] ?? json['cover_url'] ?? json['image']),
       eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
+      endAt: (json['end_at'] ?? '').toString(),
       venue: (json['venue'] ?? '').toString(),
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       organizerName: (json['organizer_name'] ?? '').toString(),
