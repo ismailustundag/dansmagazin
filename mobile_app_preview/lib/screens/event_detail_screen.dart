@@ -52,12 +52,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   bool _openingCheckout = false;
   bool _loadingAttendees = true;
   bool _loadingComments = true;
+  bool _loadingRaffle = true;
   bool _changingAttendance = false;
   bool _savingComment = false;
+  bool _joiningRaffle = false;
   bool _joined = false;
   List<EventAttendee> _attendees = const [];
   List<EventCommentItem> _comments = const [];
+  EventRaffleDetail? _raffle;
   String? _commentsError;
+  String? _raffleError;
   int? _deletingCommentId;
   bool _editingComment = false;
   final TextEditingController _commentCtrl = TextEditingController();
@@ -67,6 +71,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     super.initState();
     _loadAttendees();
     _loadComments();
+    _loadRaffle();
   }
 
   @override
@@ -181,6 +186,33 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       setState(() => _commentsError = 'Yorumlar yüklenemedi.');
     } finally {
       if (mounted) setState(() => _loadingComments = false);
+    }
+  }
+
+  Future<void> _loadRaffle() async {
+    if (!mounted) return;
+    setState(() {
+      _loadingRaffle = true;
+      _raffleError = null;
+    });
+    try {
+      final result = await EventSocialApi.raffle(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _raffle = result.raffle;
+        _raffleError = null;
+      });
+    } on EventSocialApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _raffleError = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _raffleError = 'Çekiliş bilgisi yüklenemedi.');
+    } finally {
+      if (mounted) setState(() => _loadingRaffle = false);
     }
   }
 
@@ -315,6 +347,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       _showMsg(e.message);
     } finally {
       if (mounted) setState(() => _changingAttendance = false);
+    }
+  }
+
+  Future<void> _joinRaffle() async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      _showMsg('Çekilişe katılmak için önce giriş yapmalısın.');
+      return;
+    }
+    setState(() => _joiningRaffle = true);
+    try {
+      final raffle = await EventSocialApi.joinRaffle(
+        submissionId: widget.submissionId,
+        sessionToken: token,
+      );
+      if (!mounted) return;
+      setState(() => _raffle = raffle);
+      _showMsg('Çekilişe katıldın. Sonuçlar bitişten sonra açıklanacak.');
+    } on EventSocialApiException catch (e) {
+      _showMsg(e.message);
+    } finally {
+      if (mounted) setState(() => _joiningRaffle = false);
     }
   }
 
@@ -559,6 +613,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ),
               ),
             ),
+          if (_loadingRaffle || _raffle != null || (_raffleError ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _raffleSection(),
+          ],
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(14),
@@ -749,6 +807,151 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _raffleSection() {
+    if (_loadingRaffle) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: AppTheme.panel(tone: AppTone.events, radius: 22, subtle: true),
+        child: const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator())),
+      );
+    }
+    if ((_raffleError ?? '').trim().isNotEmpty) {
+      return _commentNotice(_raffleError!);
+    }
+    final raffle = _raffle;
+    if (raffle == null) return const SizedBox.shrink();
+
+    final winnerSummary = raffle.winnerCount == 1 ? '1 kazanan' : '${raffle.winnerCount} kazanan';
+    final stateLabel = switch (raffle.state) {
+      'scheduled' => 'Yakında Başlıyor',
+      'active' => 'Katılıma Açık',
+      'closed' => 'Sonuç Bekleniyor',
+      'drawn' => 'Sonuçlandı',
+      _ => 'Çekiliş',
+    };
+    final stateColor = switch (raffle.state) {
+      'scheduled' => AppTheme.info,
+      'active' => AppTheme.orange,
+      'closed' => AppTheme.warning,
+      'drawn' => AppTheme.success,
+      _ => AppTheme.textSecondary,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: AppTheme.panel(tone: AppTone.events, radius: 22, subtle: true),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Etkinlik Çekilişi',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: stateColor.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  stateLabel,
+                  style: TextStyle(
+                    color: stateColor,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Katılım: ${_fmtDate(raffle.startsAt)} - ${_fmtDate(raffle.endsAt)}',
+            style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${raffle.entryCount} katılımcı • $winnerSummary',
+            style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          if (raffle.state == 'scheduled')
+            _commentNotice('Çekiliş henüz başlamadı. Başlangıç saatinde katılım butonu açılacak.')
+          else if (raffle.state == 'active' && widget.sessionToken.trim().isEmpty)
+            _commentNotice('Çekilişe katılmak için önce giriş yapmalısın.')
+          else if (raffle.state == 'active' && raffle.hasJoined)
+            _commentNotice('Çekilişe katıldın. Sonuçlar bitişten sonra açıklanacak.')
+          else if (raffle.state == 'active')
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _joiningRaffle ? null : _joinRaffle,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.orange,
+                  foregroundColor: AppTheme.textPrimary,
+                ),
+                icon: _joiningRaffle
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.celebration_outlined),
+                label: Text(_joiningRaffle ? 'Kaydediliyor...' : 'Çekilişe Katıl'),
+              ),
+            )
+          else if (raffle.state == 'closed')
+            _commentNotice('Çekiliş süresi bitti. Yönetici kazananları açıkladığında burada görünecek.')
+          else
+            const SizedBox.shrink(),
+          if (raffle.winners.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Kazananlar',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            ...raffle.winners.map(
+              (winner) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppTheme.orange.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        winner.position.toString(),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

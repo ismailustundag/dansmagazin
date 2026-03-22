@@ -101,6 +101,92 @@ class EventCommentsResult {
   });
 }
 
+class EventRaffleWinner {
+  final int position;
+  final int accountId;
+  final String name;
+
+  const EventRaffleWinner({
+    required this.position,
+    required this.accountId,
+    required this.name,
+  });
+
+  factory EventRaffleWinner.fromJson(Map<String, dynamic> json) {
+    return EventRaffleWinner(
+      position: (json['position'] as num?)?.toInt() ?? 0,
+      accountId: (json['account_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+    );
+  }
+}
+
+class EventRaffleDetail {
+  final int id;
+  final int submissionId;
+  final String startsAt;
+  final String endsAt;
+  final int winnerCount;
+  final int entryCount;
+  final String state;
+  final bool isDrawn;
+  final bool hasJoined;
+  final bool canJoin;
+  final bool canManage;
+  final bool canDraw;
+  final String drawnAt;
+  final List<EventRaffleWinner> winners;
+
+  const EventRaffleDetail({
+    required this.id,
+    required this.submissionId,
+    required this.startsAt,
+    required this.endsAt,
+    required this.winnerCount,
+    required this.entryCount,
+    required this.state,
+    required this.isDrawn,
+    required this.hasJoined,
+    required this.canJoin,
+    required this.canManage,
+    required this.canDraw,
+    required this.drawnAt,
+    required this.winners,
+  });
+
+  factory EventRaffleDetail.fromJson(Map<String, dynamic> json) {
+    return EventRaffleDetail(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
+      startsAt: (json['starts_at'] ?? '').toString(),
+      endsAt: (json['ends_at'] ?? '').toString(),
+      winnerCount: (json['winner_count'] as num?)?.toInt() ?? 0,
+      entryCount: (json['entry_count'] as num?)?.toInt() ?? 0,
+      state: (json['state'] ?? '').toString(),
+      isDrawn: json['is_drawn'] == true,
+      hasJoined: json['has_joined'] == true,
+      canJoin: json['can_join'] == true,
+      canManage: json['can_manage'] == true,
+      canDraw: json['can_draw'] == true,
+      drawnAt: (json['drawn_at'] ?? '').toString(),
+      winners: (json['winners'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(EventRaffleWinner.fromJson)
+          .toList(),
+    );
+  }
+}
+
+class EventRaffleResult {
+  final bool canManage;
+  final EventRaffleDetail? raffle;
+
+  const EventRaffleResult({
+    required this.canManage,
+    required this.raffle,
+  });
+}
+
 class FriendRequestItem {
   final int requestId;
   final int peerAccountId;
@@ -322,6 +408,96 @@ class EventSocialApi {
     if (resp.statusCode != 200) {
       throw EventSocialApiException(_parseError(resp.body, fallback: 'Katılım iptal edilemedi'));
     }
+  }
+
+  static Future<EventRaffleResult> raffle({
+    required int submissionId,
+    String? sessionToken,
+  }) async {
+    final headers = <String, String>{};
+    final t = (sessionToken ?? '').trim();
+    if (t.isNotEmpty) headers['Authorization'] = 'Bearer $t';
+    final resp = await http.get(
+      Uri.parse('$_base/events/$submissionId/raffle'),
+      headers: headers,
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Çekiliş bilgisi alınamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final raffleJson = body['raffle'];
+    return EventRaffleResult(
+      canManage: body['can_manage'] == true,
+      raffle: raffleJson is Map<String, dynamic> ? EventRaffleDetail.fromJson(raffleJson) : null,
+    );
+  }
+
+  static Future<EventRaffleDetail> upsertRaffle({
+    required int submissionId,
+    required String sessionToken,
+    required String startsAt,
+    required String endsAt,
+    required int winnerCount,
+  }) async {
+    final resp = await http.put(
+      Uri.parse('$_base/events/$submissionId/raffle'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'starts_at': startsAt,
+        'ends_at': endsAt,
+        'winner_count': winnerCount,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Çekiliş kaydedilemedi'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final raffleJson = body['raffle'];
+    if (raffleJson is! Map<String, dynamic>) {
+      throw EventSocialApiException('Geçersiz çekiliş cevabı');
+    }
+    return EventRaffleDetail.fromJson(raffleJson);
+  }
+
+  static Future<EventRaffleDetail> joinRaffle({
+    required int submissionId,
+    required String sessionToken,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/events/$submissionId/raffle/join'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Çekilişe katılım kaydedilemedi'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final raffleJson = body['raffle'];
+    if (raffleJson is! Map<String, dynamic>) {
+      throw EventSocialApiException('Geçersiz çekiliş cevabı');
+    }
+    return EventRaffleDetail.fromJson(raffleJson);
+  }
+
+  static Future<EventRaffleDetail> drawRaffle({
+    required int submissionId,
+    required String sessionToken,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/events/$submissionId/raffle/draw'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Kazananlar belirlenemedi'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final raffleJson = body['raffle'];
+    if (raffleJson is! Map<String, dynamic>) {
+      throw EventSocialApiException('Geçersiz çekiliş cevabı');
+    }
+    return EventRaffleDetail.fromJson(raffleJson);
   }
 
   static Future<Map<String, dynamic>> addFriend({

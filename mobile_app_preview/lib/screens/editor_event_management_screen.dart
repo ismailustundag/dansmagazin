@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/error_message.dart';
+import '../services/event_social_api.dart';
 import '../services/profile_api.dart';
 import '../services/turkiye_cities.dart';
 import '../theme/app_theme.dart';
@@ -1469,6 +1470,11 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                 ),
             ],
           ),
+          _EventRaffleSection(
+            sessionToken: widget.sessionToken,
+            submissionId: widget.item.submissionId,
+            eventName: widget.item.name,
+          ),
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(_error!, style: const TextStyle(color: Colors.redAccent)),
@@ -1664,6 +1670,599 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       ),
     );
   }
+}
+
+class _EventRaffleSection extends StatefulWidget {
+  final String sessionToken;
+  final int submissionId;
+  final String eventName;
+
+  const _EventRaffleSection({
+    required this.sessionToken,
+    required this.submissionId,
+    required this.eventName,
+  });
+
+  @override
+  State<_EventRaffleSection> createState() => _EventRaffleSectionState();
+}
+
+class _EventRaffleSectionState extends State<_EventRaffleSection> {
+  bool _loading = true;
+  bool _drawing = false;
+  String? _error;
+  EventRaffleDetail? _raffle;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final result = await EventSocialApi.raffle(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _raffle = result.raffle;
+        _error = null;
+      });
+    } on EventSocialApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Çekiliş bilgisi alınamadı: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _openEditor() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _EventRaffleEditorScreen(
+          sessionToken: widget.sessionToken,
+          submissionId: widget.submissionId,
+          eventName: widget.eventName,
+          raffle: _raffle,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      await _load();
+    }
+  }
+
+  Future<void> _draw() async {
+    final raffle = _raffle;
+    if (raffle == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceSecondary,
+        title: const Text('Kazananları Belirle'),
+        content: Text(
+          '${raffle.entryCount} katılımcı arasından ${raffle.winnerCount} kazanan seçilecek. Bu işlemden sonra sonuçlar değiştirilemez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Belirle'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _drawing = true);
+    try {
+      final updated = await EventSocialApi.drawRaffle(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() => _raffle = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kazananlar belirlendi.')),
+      );
+    } on EventSocialApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _drawing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final raffle = _raffle;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Etkinlik İçi Çekiliş',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          if (_loading)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+          else if ((_error ?? '').trim().isNotEmpty) ...[
+            Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: _load, child: const Text('Tekrar Dene')),
+            ),
+          ] else if (raffle == null) ...[
+            const Text(
+              'Bu etkinlik için henüz çekiliş oluşturulmamış.',
+              style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _openEditor,
+                icon: const Icon(Icons.celebration_outlined),
+                label: const Text('Etkinlik İçi Çekiliş Oluştur'),
+              ),
+            ),
+          ] else ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _RaffleMetaChip(label: _raffleStateLabel(raffle.state)),
+                _RaffleMetaChip(label: '${raffle.entryCount} katılımcı'),
+                _RaffleMetaChip(label: '${raffle.winnerCount} kazanan'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _RaffleInfoRow(label: 'Başlangıç', value: _toDisplayRaffleMoment(raffle.startsAt)),
+            _RaffleInfoRow(label: 'Bitiş', value: _toDisplayRaffleMoment(raffle.endsAt)),
+            if (raffle.drawnAt.trim().isNotEmpty)
+              _RaffleInfoRow(label: 'Çekiliş Sonucu', value: _toDisplayRaffleMoment(raffle.drawnAt)),
+            if (raffle.winners.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Kazananlar', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              ...raffle.winners.map(
+                (winner) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppTheme.orange.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          winner.position.toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: raffle.isDrawn ? null : _openEditor,
+                  icon: const Icon(Icons.edit_calendar_outlined),
+                  label: Text(raffle.isDrawn ? 'Sonuçlandı' : 'Çekilişi Güncelle'),
+                ),
+                if (raffle.canDraw)
+                  ElevatedButton.icon(
+                    onPressed: _drawing ? null : _draw,
+                    icon: _drawing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.auto_awesome),
+                    label: Text(_drawing ? 'Belirleniyor...' : 'Kazananları Belirle'),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EventRaffleEditorScreen extends StatefulWidget {
+  final String sessionToken;
+  final int submissionId;
+  final String eventName;
+  final EventRaffleDetail? raffle;
+
+  const _EventRaffleEditorScreen({
+    required this.sessionToken,
+    required this.submissionId,
+    required this.eventName,
+    required this.raffle,
+  });
+
+  @override
+  State<_EventRaffleEditorScreen> createState() => _EventRaffleEditorScreenState();
+}
+
+class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
+  late final TextEditingController _startDateCtrl;
+  late final TextEditingController _startTimeCtrl;
+  late final TextEditingController _endDateCtrl;
+  late final TextEditingController _endTimeCtrl;
+  late final TextEditingController _winnerCountCtrl;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final raffle = widget.raffle;
+    _startDateCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayDate(raffle.startsAt));
+    _startTimeCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayTime(raffle.startsAt));
+    _endDateCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayDate(raffle.endsAt));
+    _endTimeCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayTime(raffle.endsAt));
+    _winnerCountCtrl = TextEditingController(text: raffle == null ? '1' : raffle.winnerCount.toString());
+  }
+
+  @override
+  void dispose() {
+    _startDateCtrl.dispose();
+    _startTimeCtrl.dispose();
+    _endDateCtrl.dispose();
+    _endTimeCtrl.dispose();
+    _winnerCountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate(TextEditingController ctrl) async {
+    final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      initialDate: initial,
+    );
+    if (date == null || !mounted) return;
+    ctrl.text = _toDisplayDate(date.toIso8601String());
+  }
+
+  Future<void> _pickTime(TextEditingController ctrl) async {
+    final initial = _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 18, minute: 0);
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked == null || !mounted) return;
+    final h = picked.hour.toString().padLeft(2, '0');
+    final m = picked.minute.toString().padLeft(2, '0');
+    ctrl.text = '$h.$m';
+  }
+
+  Future<void> _save() async {
+    final startsAt = _toApiDateTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
+    final endsAt = _toApiDateTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
+    final endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    final winnerCount = int.tryParse(_winnerCountCtrl.text.trim());
+    if (startMoment == null || endMoment == null) {
+      setState(() => _error = 'Başlangıç ve bitiş tarihi zorunlu.');
+      return;
+    }
+    if (!endMoment.isAfter(startMoment)) {
+      setState(() => _error = 'Bitiş zamanı başlangıçtan sonra olmalı.');
+      return;
+    }
+    if (winnerCount == null || winnerCount < 1 || winnerCount > 100) {
+      setState(() => _error = 'Kazanan sayısı 1 ile 100 arasında olmalı.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await EventSocialApi.upsertRaffle(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+        startsAt: startsAt,
+        endsAt: endsAt,
+        winnerCount: winnerCount,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } on EventSocialApiException catch (e) {
+      setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.bgPrimary,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgPrimary,
+        title: const Text('Etkinlik İçi Çekiliş'),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: AppTheme.panel(tone: AppTone.events, radius: 20, elevated: true),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.eventName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Katılım aralığını ve kaç kişinin kazanacağını belirle. Süre bittiğinde kazananları mevcut etkinlik yönetim ekranından seçeceksin.',
+                    style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Katılım Zamanı', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 12),
+                  _RaffleDateTimeBlock(
+                    title: 'Başlangıç',
+                    dateCtrl: _startDateCtrl,
+                    timeCtrl: _startTimeCtrl,
+                    dateLabel: 'Başlangıç Tarihi',
+                    timeLabel: 'Başlangıç Saati',
+                    onPickDate: _pickDate,
+                    onPickTime: _pickTime,
+                  ),
+                  const SizedBox(height: 8),
+                  _RaffleDateTimeBlock(
+                    title: 'Bitiş',
+                    dateCtrl: _endDateCtrl,
+                    timeCtrl: _endTimeCtrl,
+                    dateLabel: 'Bitiş Tarihi',
+                    timeLabel: 'Bitiş Saati',
+                    onPickDate: _pickDate,
+                    onPickTime: _pickTime,
+                  ),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: _winnerCountCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: _raffleFieldDecoration('Kaç Kazanan'),
+                  ),
+                ],
+              ),
+            ),
+            if ((_error ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'Kaydediliyor...' : 'Çekilişi Kaydet'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RaffleDateTimeBlock extends StatelessWidget {
+  final String title;
+  final TextEditingController dateCtrl;
+  final TextEditingController timeCtrl;
+  final String dateLabel;
+  final String timeLabel;
+  final Future<void> Function(TextEditingController controller) onPickDate;
+  final Future<void> Function(TextEditingController controller) onPickTime;
+
+  const _RaffleDateTimeBlock({
+    required this.title,
+    required this.dateCtrl,
+    required this.timeCtrl,
+    required this.dateLabel,
+    required this.timeLabel,
+    required this.onPickDate,
+    required this.onPickTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TextField(
+                  controller: dateCtrl,
+                  readOnly: true,
+                  onTap: () => onPickDate(dateCtrl),
+                  decoration: _raffleFieldDecoration(dateLabel, suffixIcon: Icons.calendar_month),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TextField(
+                  controller: timeCtrl,
+                  readOnly: true,
+                  onTap: () => onPickTime(timeCtrl),
+                  decoration: _raffleFieldDecoration(timeLabel, suffixIcon: Icons.access_time),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RaffleMetaChip extends StatelessWidget {
+  final String label;
+
+  const _RaffleMetaChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.cyan.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppTheme.cyan,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _RaffleInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _RaffleInfoRow({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 76,
+            child: Text(
+              label,
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12.5),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w600, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+InputDecoration _raffleFieldDecoration(String label, {IconData? suffixIcon}) {
+  return InputDecoration(
+    labelText: label,
+    filled: true,
+    fillColor: AppTheme.surfacePrimary,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: AppTheme.borderSoft),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
+    ),
+    suffixIcon: suffixIcon == null ? null : Icon(suffixIcon),
+  );
+}
+
+String _raffleStateLabel(String state) {
+  switch (state.trim().toLowerCase()) {
+    case 'scheduled':
+      return 'Yakında Başlıyor';
+    case 'active':
+      return 'Katılıma Açık';
+    case 'closed':
+      return 'Sonuç Bekleniyor';
+    case 'drawn':
+      return 'Sonuçlandı';
+    default:
+      return 'Çekiliş';
+  }
+}
+
+String _toDisplayRaffleMoment(String raw) {
+  final date = _toDisplayDate(raw);
+  final time = _toDisplayTime(raw);
+  if (time.trim().isEmpty) return date;
+  return '$date • $time';
 }
 
 class _CreateEventSheet extends StatefulWidget {
