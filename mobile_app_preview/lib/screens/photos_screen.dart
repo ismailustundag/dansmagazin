@@ -6,10 +6,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/date_time_format.dart';
 import '../services/i18n.dart';
+import '../services/photo_flow_api.dart';
 import '../theme/app_theme.dart';
 import 'screen_shell.dart';
 
@@ -77,8 +79,13 @@ class _PhotosScreenState extends State<PhotosScreen> {
   static const String _albumsUrl = 'https://api2.dansmagazin.net/photos';
 
   late Future<_PhotosFeed> _feedFuture;
-  int _tab = 0; // 0: Fotograflar, 1: Videolar, 2: Favoriler
+  late Future<List<PhotoFlowPost>> _communityFeedFuture;
+  int _tab = 0; // 0: Akis, 1: Albumler, 2: Videolar
   List<_FavoritePhoto> _favorites = [];
+  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _postCtrl = TextEditingController();
+  XFile? _selectedPostImage;
+  bool _sendingPost = false;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
 
   void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
@@ -102,7 +109,14 @@ class _PhotosScreenState extends State<PhotosScreen> {
   void initState() {
     super.initState();
     _feedFuture = _fetchFeed();
+    _communityFeedFuture = _fetchCommunityFeed();
     _loadFavorites();
+  }
+
+  @override
+  void dispose() {
+    _postCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFavorites() async {
@@ -172,11 +186,115 @@ class _PhotosScreenState extends State<PhotosScreen> {
     );
   }
 
+  Future<List<PhotoFlowPost>> _fetchCommunityFeed() {
+    return PhotoFlowApi.fetch(sessionToken: widget.sessionToken);
+  }
+
   Future<void> _refresh() async {
     setState(() {
       _feedFuture = _fetchFeed();
+      _communityFeedFuture = _fetchCommunityFeed();
     });
     await _feedFuture;
+  }
+
+  Future<void> _pickPostImage() async {
+    try {
+      final img = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 82,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (!mounted || img == null) return;
+      setState(() => _selectedPostImage = img);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fotoğraf seçilemedi')),
+      );
+    }
+  }
+
+  void _clearPostImage() {
+    setState(() => _selectedPostImage = null);
+  }
+
+  Future<void> _sharePost() async {
+    if (!_isLoggedIn) {
+      _promptLogin('Akışta paylaşım yapmak için giriş yapın.');
+      return;
+    }
+    final text = _postCtrl.text.trim();
+    final imagePath = _selectedPostImage?.path.trim() ?? '';
+    if (text.isEmpty && imagePath.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Metin veya fotoğraf ekleyin')),
+      );
+      return;
+    }
+    setState(() => _sendingPost = true);
+    try {
+      await PhotoFlowApi.createPost(
+        widget.sessionToken,
+        text: text,
+        imagePath: imagePath.isEmpty ? null : imagePath,
+      );
+      _postCtrl.clear();
+      if (mounted) {
+        setState(() {
+          _selectedPostImage = null;
+          _communityFeedFuture = _fetchCommunityFeed();
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _sendingPost = false);
+    }
+  }
+
+  Future<void> _toggleFeedLike(PhotoFlowPost post) async {
+    if (!_isLoggedIn) {
+      _promptLogin('Gönderi beğenmek için giriş yapın.');
+      return;
+    }
+    try {
+      await PhotoFlowApi.setLike(
+        widget.sessionToken,
+        postId: post.id,
+        like: !post.likedByMe,
+      );
+      if (!mounted) return;
+      setState(() => _communityFeedFuture = _fetchCommunityFeed());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _openRepliesSheet(PhotoFlowPost post) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _RepliesSheet(
+        post: post,
+        sessionToken: widget.sessionToken,
+        onRequireLogin: widget.onRequireLogin,
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _communityFeedFuture = _fetchCommunityFeed());
   }
 
   Future<void> _openTopLikedViewer(List<_Photo> photos, int initialIndex) async {
@@ -216,110 +334,143 @@ class _PhotosScreenState extends State<PhotosScreen> {
       title: I18n.t('photos'),
       icon: Icons.photo_library,
       subtitle: _isLoggedIn ? I18n.t('photos_subtitle_logged_in') : I18n.t('photos_subtitle_guest'),
+      showHeader: false,
       tone: AppTone.photos,
       content: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            _tabChip(0, I18n.t('photos')),
-            _tabChip(1, I18n.t('videos')),
-            _tabChip(2, I18n.t('favorites')),
+            _tabChip(0, 'Akış'),
+            _tabChip(1, 'Albümler'),
+            _tabChip(2, I18n.t('videos')),
           ],
         ),
         const SizedBox(height: 12),
-        FutureBuilder<_PhotosFeed>(
-          future: _feedFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 30),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            if (snapshot.hasError) {
-              return _ErrorCard(
-                text: I18n.t('photo_albums_load_error'),
-                onRetry: _refresh,
-              );
-            }
-
-            final feed = snapshot.data ?? const _PhotosFeed();
-            final albums = feed.albums;
-            final topLiked = feed.topLiked;
-            if (_tab == 1) {
-              return _InfoCard(
-                text: I18n.t('videos_coming_soon'),
-              );
-            }
-
-            if (_tab == 2) {
-              if (!_isLoggedIn) {
-                return _LoginRequiredCard(
-                  text: I18n.t('favorites_login_required'),
-                  onLoginTap: widget.onRequireLogin,
+        if (_tab == 0)
+          _FlowComposerCard(
+            controller: _postCtrl,
+            selectedImagePath: _selectedPostImage?.path,
+            sending: _sendingPost,
+            onPickImage: _pickPostImage,
+            onClearImage: _clearPostImage,
+            onSubmit: _sharePost,
+          ),
+        if (_tab == 0) const SizedBox(height: 12),
+        if (_tab == 0)
+          FutureBuilder<List<PhotoFlowPost>>(
+            future: _communityFeedFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 30),
+                  child: Center(child: CircularProgressIndicator()),
                 );
               }
-              return _FavoriteGrid(
-                photos: _favorites,
-                accountId: widget.accountId,
-                onUnfavorite: (url) async {
-                  await _FavoriteStore.removeByUrl(widget.accountId, url);
-                  await _loadFavorites();
-                },
+              if (snapshot.hasError) {
+                return _ErrorCard(
+                  text: 'Akış yüklenemedi.',
+                  onRetry: () async {
+                    setState(() => _communityFeedFuture = _fetchCommunityFeed());
+                  },
+                );
+              }
+              final posts = snapshot.data ?? const <PhotoFlowPost>[];
+              if (posts.isEmpty) {
+                return const _InfoCard(text: 'Henüz paylaşım yok. İlk anıyı sen paylaş.');
+              }
+              return Column(
+                children: posts
+                    .map(
+                      (post) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _FeedPostCard(
+                          post: post,
+                          onLikeTap: () => _toggleFeedLike(post),
+                          onReplyTap: () => _openRepliesSheet(post),
+                        ),
+                      ),
+                    )
+                    .toList(),
               );
-            }
+            },
+          ),
+        if (_tab != 0)
+          FutureBuilder<_PhotosFeed>(
+            future: _feedFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 30),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return _ErrorCard(
+                  text: I18n.t('photo_albums_load_error'),
+                  onRetry: _refresh,
+                );
+              }
 
-            final list = albums;
-            if (list.isEmpty && topLiked.isEmpty) {
-              return _InfoCard(text: I18n.t('no_albums_found'));
-            }
+              final feed = snapshot.data ?? const _PhotosFeed();
+              final albums = feed.albums;
+              final topLiked = feed.topLiked;
+              if (_tab == 2) {
+                return _InfoCard(
+                  text: I18n.t('videos_coming_soon'),
+                );
+              }
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ...list.map(
-                  (album) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _AlbumCard(
-                      album: album,
-                      liked: album.likedByMe,
-                      onLikeTap: () => _toggleAlbumLike(album),
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => AlbumPhotosScreen(
-                              album: album,
-                              accountId: widget.accountId,
-                              sessionToken: widget.sessionToken,
-                              onRequireLogin: widget.onRequireLogin,
+              final list = albums;
+              if (list.isEmpty && topLiked.isEmpty) {
+                return _InfoCard(text: I18n.t('no_albums_found'));
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...list.map(
+                    (album) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _AlbumCard(
+                        album: album,
+                        liked: album.likedByMe,
+                        onLikeTap: () => _toggleAlbumLike(album),
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AlbumPhotosScreen(
+                                album: album,
+                                accountId: widget.accountId,
+                                sessionToken: widget.sessionToken,
+                                onRequireLogin: widget.onRequireLogin,
+                              ),
                             ),
-                          ),
-                        );
-                        await _loadFavorites();
-                      },
+                          );
+                          await _loadFavorites();
+                        },
+                      ),
                     ),
                   ),
-                ),
-                if (topLiked.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      I18n.t('top_liked_photos'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  if (topLiked.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        I18n.t('top_liked_photos'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      ),
                     ),
-                  ),
-                  _TopLikedGrid(
-                    photos: topLiked,
-                    onTap: (index) => _openTopLikedViewer(topLiked, index),
-                  ),
-                  const SizedBox(height: 14),
+                    _TopLikedGrid(
+                      photos: topLiked,
+                      onTap: (index) => _openTopLikedViewer(topLiked, index),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                 ],
-              ],
-            );
-          },
-        ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -346,6 +497,445 @@ class _PhotosFeed {
     this.albums = const [],
     this.topLiked = const [],
   });
+}
+
+class _FlowComposerCard extends StatelessWidget {
+  final TextEditingController controller;
+  final String? selectedImagePath;
+  final bool sending;
+  final VoidCallback onPickImage;
+  final VoidCallback onClearImage;
+  final VoidCallback onSubmit;
+
+  const _FlowComposerCard({
+    required this.controller,
+    required this.selectedImagePath,
+    required this.sending,
+    required this.onPickImage,
+    required this.onClearImage,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: AppTheme.panel(tone: AppTone.photos, radius: 22, elevated: true),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: controller,
+            minLines: 3,
+            maxLines: 6,
+            decoration: InputDecoration(
+              hintText: 'Haydi Sende bir Dans fotoğrafı yada anını paylaş',
+              filled: true,
+              fillColor: AppTheme.surfacePrimary,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide(color: AppTheme.borderSoft),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide(color: AppTheme.borderSoft),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
+              ),
+            ),
+          ),
+          if ((selectedImagePath ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Stack(
+                children: [
+                  Image.file(
+                    File(selectedImagePath!),
+                    width: double.infinity,
+                    height: 220,
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: InkWell(
+                      onTap: onClearImage,
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfacePrimary.withOpacity(0.86),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: sending ? null : onPickImage,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Fotoğraf Ekle'),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: sending ? null : onSubmit,
+                icon: sending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_rounded),
+                label: Text(sending ? 'Gönderiliyor' : I18n.t('share')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedPostCard extends StatelessWidget {
+  final PhotoFlowPost post;
+  final VoidCallback onLikeTap;
+  final VoidCallback onReplyTap;
+
+  const _FeedPostCard({
+    required this.post,
+    required this.onLikeTap,
+    required this.onReplyTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = post.imageThumbUrl.isNotEmpty ? post.imageThumbUrl : post.imageUrl;
+    return Container(
+      decoration: AppTheme.panel(tone: AppTone.photos, radius: 22, elevated: true),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: AppTheme.surfacePrimary,
+                backgroundImage: post.authorAvatarUrl.trim().isNotEmpty
+                    ? CachedNetworkImageProvider(post.authorAvatarUrl)
+                    : null,
+                child: post.authorAvatarUrl.trim().isEmpty
+                    ? Text(
+                        post.authorName.isNotEmpty ? post.authorName.substring(0, 1).toUpperCase() : '?',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.authorName,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatDateTimeDdMmYyyyHmDot(post.createdAt, fallback: '-'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (post.body.trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              post.body,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+            ),
+          ],
+          if (imageUrl.trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: CachedNetworkImage(
+                imageUrl: imageUrl,
+                width: double.infinity,
+                height: 260,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              InkWell(
+                onTap: onLikeTap,
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        post.likedByMe ? Icons.favorite : Icons.favorite_border,
+                        color: post.likedByMe ? AppTheme.pink : AppTheme.textSecondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 6),
+                      Text('${post.likeCount}'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 18),
+              InkWell(
+                onTap: onReplyTap,
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.chat_bubble_outline_rounded, size: 19, color: AppTheme.textSecondary),
+                      const SizedBox(width: 6),
+                      Text('${post.replyCount} yanıt'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (post.replies.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...post.replies.take(2).map(
+              (reply) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: RichText(
+                  text: TextSpan(
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+                    children: [
+                      TextSpan(
+                        text: '${reply.authorName}: ',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      TextSpan(text: reply.body),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (post.replyCount > 2)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: TextButton(
+                  onPressed: onReplyTap,
+                  child: const Text('Tüm yanıtları gör'),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RepliesSheet extends StatefulWidget {
+  final PhotoFlowPost post;
+  final String sessionToken;
+  final VoidCallback? onRequireLogin;
+
+  const _RepliesSheet({
+    required this.post,
+    required this.sessionToken,
+    this.onRequireLogin,
+  });
+
+  @override
+  State<_RepliesSheet> createState() => _RepliesSheetState();
+}
+
+class _RepliesSheetState extends State<_RepliesSheet> {
+  late PhotoFlowPost _post;
+  final TextEditingController _replyCtrl = TextEditingController();
+  bool _sending = false;
+
+  bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _post = widget.post;
+  }
+
+  @override
+  void dispose() {
+    _replyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendReply() async {
+    if (!_isLoggedIn) {
+      Navigator.of(context).pop();
+      widget.onRequireLogin?.call();
+      return;
+    }
+    final text = _replyCtrl.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _sending = true);
+    try {
+      final updated = await PhotoFlowApi.addReply(
+        widget.sessionToken,
+        postId: _post.id,
+        text: text,
+      );
+      if (!mounted) return;
+      _replyCtrl.clear();
+      setState(() => _post = updated);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.78,
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.borderStrong,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Yanıtlar',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                children: [
+                  _FeedPostCard(
+                    post: _post,
+                    onLikeTap: () {},
+                    onReplyTap: () {},
+                  ),
+                  const SizedBox(height: 12),
+                  if (_post.replies.isEmpty)
+                    const _InfoCard(text: 'Henüz yanıt yok. İlk yorumu sen bırak.')
+                  else
+                    ..._post.replies.map(
+                      (reply) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(14),
+                        decoration: AppTheme.panel(tone: AppTone.photos, radius: 18, subtle: true),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              reply.authorName,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              formatDateTimeDdMmYyyyHmDot(reply.createdAt, fallback: '-'),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(reply.body),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceSecondary,
+                border: Border(top: BorderSide(color: AppTheme.borderSoft)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _replyCtrl,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Yanıtını yaz',
+                        filled: true,
+                        fillColor: AppTheme.surfacePrimary,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: AppTheme.borderSoft),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: AppTheme.borderSoft),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    onPressed: _sending ? null : _sendReply,
+                    child: Text(_sending ? '...' : 'Yanıtla'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AlbumDetailFeed {
