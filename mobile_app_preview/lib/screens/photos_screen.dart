@@ -978,6 +978,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   bool _showFavoritesOnly = false;
   static const int _pageSize = 100;
   static const int _prefetchCount = 12;
+  int _currentPage = 1;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
 
   void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
@@ -1000,6 +1001,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
   @override
   void initState() {
     super.initState();
+    _currentPage = 1;
     _photosFuture = _fetchPhotos();
     _loadFavorites();
   }
@@ -1079,6 +1081,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
 
   Future<void> _refreshAlbum() async {
     setState(() {
+      _currentPage = 1;
       _photosFuture = _fetchPhotos(page: 1);
     });
     await _photosFuture;
@@ -1180,6 +1183,11 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
         ),
       ),
     );
+    if (mounted) {
+      setState(() {
+        _photosFuture = _fetchPhotos(page: _currentPage);
+      });
+    }
     await _loadFavorites();
   }
 
@@ -1280,6 +1288,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                           );
                           if (!mounted) return;
                           setState(() {
+                            _currentPage = 1;
                             _photosFuture = _fetchPhotos(page: 1);
                           });
                           await _loadFavorites();
@@ -1392,6 +1401,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
                                 ? null
                                 : () {
                                     setState(() {
+                                      _currentPage = pageNum;
                                       _photosFuture = _fetchPhotos(page: pageNum);
                                     });
                                   },
