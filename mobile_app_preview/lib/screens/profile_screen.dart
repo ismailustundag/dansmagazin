@@ -12,6 +12,7 @@ import 'edit_profile_screen.dart';
 import 'editor_event_management_screen.dart';
 import 'my_photos_screen.dart';
 import 'notifications_screen.dart';
+import 'photo_polls_admin_screen.dart';
 import 'screen_shell.dart';
 import 'settings_screen.dart';
 import 'tickets_screen.dart';
@@ -316,6 +317,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+          if (widget.appRole == 'super_admin') ...[
+            const SizedBox(height: 10),
+            _ProfileListCard(
+              title: 'Anket Oluştur',
+              subtitle: 'Akış içindeki anketleri oluştur ve yönet',
+              icon: Icons.poll_outlined,
+              accent: _sky,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PhotoPollsAdminScreen(sessionToken: widget.sessionToken),
+                ),
+              ),
+            ),
+          ],
         ],
         const SizedBox(height: 14),
         _SectionTitle(title: t('account_tools')),
