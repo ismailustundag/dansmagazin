@@ -16,11 +16,9 @@ class PhotoPollsAdminScreen extends StatefulWidget {
 }
 
 class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
-  final TextEditingController _questionCtrl = TextEditingController();
-  final List<TextEditingController> _optionCtrls = [
-    TextEditingController(),
-    TextEditingController(),
-  ];
+  final TextEditingController _titleCtrl = TextEditingController();
+  final List<_QuestionEditor> _questionEditors = [_QuestionEditor()];
+  final Set<int> _busyPollIds = <int>{};
   bool _showResultsAfterVote = true;
   bool _saving = false;
   bool _loading = true;
@@ -35,9 +33,9 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
 
   @override
   void dispose() {
-    _questionCtrl.dispose();
-    for (final ctrl in _optionCtrls) {
-      ctrl.dispose();
+    _titleCtrl.dispose();
+    for (final editor in _questionEditors) {
+      editor.dispose();
     }
     super.dispose();
   }
@@ -58,34 +56,63 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
-  void _addOption() {
-    if (_optionCtrls.length >= 8) return;
-    setState(() => _optionCtrls.add(TextEditingController()));
+  void _addQuestion() {
+    if (_questionEditors.length >= 10) return;
+    setState(() => _questionEditors.add(_QuestionEditor()));
   }
 
-  void _removeOption(int index) {
-    if (_optionCtrls.length <= 2) return;
-    final ctrl = _optionCtrls.removeAt(index);
+  void _removeQuestion(int index) {
+    if (_questionEditors.length <= 1) return;
+    final editor = _questionEditors.removeAt(index);
+    editor.dispose();
+    setState(() {});
+  }
+
+  void _addOption(_QuestionEditor editor) {
+    if (editor.optionCtrls.length >= 8) return;
+    setState(() => editor.optionCtrls.add(TextEditingController()));
+  }
+
+  void _removeOption(_QuestionEditor editor, int index) {
+    if (editor.optionCtrls.length <= 2) return;
+    final ctrl = editor.optionCtrls.removeAt(index);
     ctrl.dispose();
     setState(() {});
   }
 
   Future<void> _save() async {
     if (_saving) return;
-    final question = _questionCtrl.text.trim();
-    final options = _optionCtrls.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
-    if (question.length < 5) {
-      setState(() => _error = 'Anket sorusu en az 5 karakter olmalı.');
+    final title = _titleCtrl.text.trim();
+    if (title.length < 3) {
+      setState(() => _error = 'Anket başlığı en az 3 karakter olmalı.');
       return;
     }
-    if (options.length < 2) {
-      setState(() => _error = 'En az 2 seçenek girin.');
-      return;
+    final questions = <PhotoPollDraftQuestion>[];
+    for (int i = 0; i < _questionEditors.length; i++) {
+      final editor = _questionEditors[i];
+      final questionText = editor.questionCtrl.text.trim();
+      final options = editor.optionCtrls.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+      if (questionText.length < 5) {
+        setState(() => _error = '${i + 1}. soru en az 5 karakter olmalı.');
+        return;
+      }
+      if (options.length < 2) {
+        setState(() => _error = '${i + 1}. soru için en az 2 seçenek girin.');
+        return;
+      }
+      if (options.toSet().length != options.length) {
+        setState(() => _error = '${i + 1}. sorudaki seçenekler benzersiz olmalı.');
+        return;
+      }
+      questions.add(PhotoPollDraftQuestion(question: questionText, options: options));
     }
+
     setState(() {
       _saving = true;
       _error = '';
@@ -93,18 +120,18 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
     try {
       final created = await PhotoPollsApi.create(
         widget.sessionToken,
-        question: question,
-        options: options,
+        title: title,
+        questions: questions,
         showResultsAfterVote: _showResultsAfterVote,
       );
       if (!mounted) return;
-      _questionCtrl.clear();
-      for (final ctrl in _optionCtrls) {
-        ctrl.clear();
+      _titleCtrl.clear();
+      for (final editor in _questionEditors) {
+        editor.dispose();
       }
-      while (_optionCtrls.length > 2) {
-        _optionCtrls.removeLast().dispose();
-      }
+      _questionEditors
+        ..clear()
+        ..add(_QuestionEditor());
       setState(() {
         _showResultsAfterVote = true;
         _polls = [created, ..._polls];
@@ -116,7 +143,81 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _toggleActive(PhotoPoll poll) async {
+    if (_busyPollIds.contains(poll.id)) return;
+    setState(() => _busyPollIds.add(poll.id));
+    try {
+      final updated = await PhotoPollsApi.setActive(
+        widget.sessionToken,
+        pollId: poll.id,
+        active: !poll.isActive,
+      );
+      if (!mounted) return;
+      setState(() {
+        _polls = _polls.map((item) => item.id == poll.id ? updated : item).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(updated.isActive ? 'Anket yeniden yayına alındı.' : 'Anket yayından kaldırıldı.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _busyPollIds.remove(poll.id));
+      }
+    }
+  }
+
+  Future<void> _delete(PhotoPoll poll) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Anketi Sil'),
+            content: Text('"${poll.title}" anketini tamamen silmek istediğine emin misin?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('İptal'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || _busyPollIds.contains(poll.id)) return;
+    setState(() => _busyPollIds.add(poll.id));
+    try {
+      await PhotoPollsApi.delete(widget.sessionToken, pollId: poll.id);
+      if (!mounted) return;
+      setState(() {
+        _polls = _polls.where((item) => item.id != poll.id).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Anket silindi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _busyPollIds.remove(poll.id));
+      }
     }
   }
 
@@ -126,7 +227,7 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
       backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
         backgroundColor: AppTheme.bgPrimary,
-        title: const Text('Anket Oluştur'),
+        title: const Text('Anketleri Yönet'),
       ),
       body: SafeArea(
         top: false,
@@ -142,49 +243,42 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         TextField(
-                          controller: _questionCtrl,
-                          minLines: 2,
-                          maxLines: 4,
+                          controller: _titleCtrl,
                           decoration: const InputDecoration(
-                            labelText: 'Anket Sorusu',
-                            hintText: 'Topluluğa sormak istediğin soruyu yaz',
+                            labelText: 'Anket Başlığı',
+                            hintText: 'Örn: Bahar Festivali geri bildirim anketi',
                           ),
                         ),
                         const SizedBox(height: 14),
-                        Text(
-                          'Seçenekler',
-                          style: Theme.of(context).textTheme.titleSmall,
+                        Row(
+                          children: [
+                            Text(
+                              'Soru Sayısı: ${_questionEditors.length}',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: _questionEditors.length <= 1 ? null : () => _removeQuestion(_questionEditors.length - 1),
+                              icon: const Icon(Icons.remove_circle_outline),
+                            ),
+                            IconButton(
+                              onPressed: _questionEditors.length >= 10 ? null : _addQuestion,
+                              icon: const Icon(Icons.add_circle_outline),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
-                        for (int i = 0; i < _optionCtrls.length; i++) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _optionCtrls[i],
-                                  decoration: InputDecoration(
-                                    labelText: 'Seçenek ${i + 1}',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                onPressed: _optionCtrls.length <= 2 ? null : () => _removeOption(i),
-                                icon: const Icon(Icons.remove_circle_outline),
-                              ),
-                            ],
+                        for (int i = 0; i < _questionEditors.length; i++) ...[
+                          _QuestionEditorCard(
+                            index: i,
+                            editor: _questionEditors[i],
+                            canRemove: _questionEditors.length > 1,
+                            onRemove: () => _removeQuestion(i),
+                            onAddOption: () => _addOption(_questionEditors[i]),
+                            onRemoveOption: (optionIndex) => _removeOption(_questionEditors[i], optionIndex),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                         ],
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: _optionCtrls.length >= 8 ? null : _addOption,
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('Seçenek Ekle'),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
                         SwitchListTile.adaptive(
                           value: _showResultsAfterVote,
                           contentPadding: EdgeInsets.zero,
@@ -205,7 +299,7 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
                           child: ElevatedButton.icon(
                             onPressed: _saving ? null : _save,
                             icon: const Icon(Icons.poll_outlined),
-                            label: Text(_saving ? 'Oluşturuluyor...' : 'Anket Oluştur'),
+                            label: Text(_saving ? 'Kaydediliyor...' : 'Anket Oluştur'),
                           ),
                         ),
                       ],
@@ -223,7 +317,12 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
                     ..._polls.map(
                       (poll) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _AdminPollCard(poll: poll),
+                        child: _AdminPollCard(
+                          poll: poll,
+                          busy: _busyPollIds.contains(poll.id),
+                          onToggleActive: () => _toggleActive(poll),
+                          onDelete: () => _delete(poll),
+                        ),
                       ),
                     ),
                 ],
@@ -233,10 +332,101 @@ class _PhotoPollsAdminScreenState extends State<PhotoPollsAdminScreen> {
   }
 }
 
+class _QuestionEditorCard extends StatelessWidget {
+  final int index;
+  final _QuestionEditor editor;
+  final bool canRemove;
+  final VoidCallback onRemove;
+  final VoidCallback onAddOption;
+  final ValueChanged<int> onRemoveOption;
+
+  const _QuestionEditorCard({
+    required this.index,
+    required this.editor,
+    required this.canRemove,
+    required this.onRemove,
+    required this.onAddOption,
+    required this.onRemoveOption,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.panel(tone: AppTone.admin, radius: 18, subtle: true),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Soru ${index + 1}',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const Spacer(),
+              if (canRemove)
+                IconButton(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+            ],
+          ),
+          TextField(
+            controller: editor.questionCtrl,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Soru Metni',
+              hintText: 'Örn: En çok hangi bölümü beğendin?',
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Seçenekler',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          for (int i = 0; i < editor.optionCtrls.length; i++) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: editor.optionCtrls[i],
+                    decoration: InputDecoration(labelText: 'Seçenek ${i + 1}'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: editor.optionCtrls.length <= 2 ? null : () => onRemoveOption(i),
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          TextButton.icon(
+            onPressed: editor.optionCtrls.length >= 8 ? null : onAddOption,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Seçenek Ekle'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AdminPollCard extends StatelessWidget {
   final PhotoPoll poll;
+  final bool busy;
+  final VoidCallback onToggleActive;
+  final VoidCallback onDelete;
 
-  const _AdminPollCard({required this.poll});
+  const _AdminPollCard({
+    required this.poll,
+    required this.busy,
+    required this.onToggleActive,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -246,11 +436,37 @@ class _AdminPollCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            poll.question,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  poll.title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: poll.isActive ? AppTheme.cyan.withOpacity(0.16) : AppTheme.surfaceSecondary,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  poll.isActive ? 'Yayında' : 'Pasif',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: poll.isActive ? AppTheme.cyan : AppTheme.textSecondary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          Text(
+            '${poll.questionCount} soru',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+          ),
+          const SizedBox(height: 4),
           Text(
             poll.showResultsAfterVote
                 ? 'Oy verdikten sonra sonuçlar görünüyor'
@@ -258,19 +474,35 @@ class _AdminPollCard extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
           ),
           const SizedBox(height: 12),
-          ...poll.options.map(
-            (option) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(child: Text(option.text)),
-                  Text(
-                    '${option.voteCount ?? 0} oy',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+          ...poll.questions.take(3).map(
+                (question) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '• ${question.text}',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                ],
+                ),
               ),
+          if (poll.questions.length > 3)
+            Text(
+              '+ ${poll.questions.length - 3} soru daha',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
             ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: busy ? null : onToggleActive,
+                icon: Icon(poll.isActive ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                label: Text(poll.isActive ? 'Yayından Kaldır' : 'Yayına Al'),
+              ),
+              const SizedBox(width: 10),
+              TextButton.icon(
+                onPressed: busy ? null : onDelete,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Sil'),
+              ),
+            ],
           ),
         ],
       ),
@@ -293,5 +525,20 @@ class _AdminInfoCard extends StatelessWidget {
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
       ),
     );
+  }
+}
+
+class _QuestionEditor {
+  final TextEditingController questionCtrl = TextEditingController();
+  final List<TextEditingController> optionCtrls = [
+    TextEditingController(),
+    TextEditingController(),
+  ];
+
+  void dispose() {
+    questionCtrl.dispose();
+    for (final ctrl in optionCtrls) {
+      ctrl.dispose();
+    }
   }
 }

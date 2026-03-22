@@ -13,6 +13,7 @@ import '../services/i18n.dart';
 import '../services/photo_flow_api.dart';
 import '../services/photo_polls_api.dart';
 import '../theme/app_theme.dart';
+import 'photo_poll_detail_screen.dart';
 import 'screen_shell.dart';
 
 Uri _encodedUri(String rawUrl) => Uri.parse(Uri.encodeFull(rawUrl.trim()));
@@ -81,7 +82,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   late Future<_PhotosFeed> _feedFuture;
   late Future<List<PhotoFlowPost>> _communityFeedFuture;
   late Future<List<PhotoPoll>> _pollsFuture;
-  int _tab = 0; // 0: Akis, 1: Anket, 2: Fotograf, 3: Videolar
+  int _tab = 0; // 0: Akis, 1: Anket, 2: Fotograf, 3: Video
   List<_FavoritePhoto> _favorites = [];
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _postCtrl = TextEditingController();
@@ -304,34 +305,17 @@ class _PhotosScreenState extends State<PhotosScreen> {
     setState(() => _communityFeedFuture = _fetchCommunityFeed());
   }
 
-  Future<void> _votePoll(PhotoPoll poll, PhotoPollOption option) async {
-    if (!_isLoggedIn) {
-      _promptLogin('Anket oylamak için giriş yapın.');
-      return;
-    }
-    if (poll.hasVoted) return;
-    try {
-      final updated = await PhotoPollsApi.vote(
-        widget.sessionToken,
-        pollId: poll.id,
-        optionId: option.id,
-      );
-      if (!mounted) return;
-      setState(() {
-        _pollsFuture = _replacePollInFuture(updated);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
-  }
-
-  Future<List<PhotoPoll>> _replacePollInFuture(PhotoPoll updated) async {
-    final current = await _pollsFuture;
-    final next = current.map((poll) => poll.id == updated.id ? updated : poll).toList();
-    return next;
+  Future<void> _openPollDetail(PhotoPoll poll) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => PhotoPollDetailScreen(
+          sessionToken: widget.sessionToken,
+          initialPoll: poll,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _pollsFuture = _fetchPolls());
   }
 
   Future<void> _openTopLikedViewer(List<_Photo> photos, int initialIndex) async {
@@ -374,14 +358,15 @@ class _PhotosScreenState extends State<PhotosScreen> {
       showHeader: false,
       tone: AppTone.photos,
       content: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        Row(
           children: [
-            _tabChip(0, 'Akış'),
-            _tabChip(1, 'Anket'),
-            _tabChip(2, 'Fotoğraf'),
-            _tabChip(3, I18n.t('videos')),
+            Expanded(child: _tabChip(0, 'Akış')),
+            const SizedBox(width: 8),
+            Expanded(child: _tabChip(1, 'Anket')),
+            const SizedBox(width: 8),
+            Expanded(child: _tabChip(2, 'Fotoğraf')),
+            const SizedBox(width: 8),
+            Expanded(child: _tabChip(3, 'Video')),
           ],
         ),
         const SizedBox(height: 12),
@@ -452,22 +437,27 @@ class _PhotosScreenState extends State<PhotosScreen> {
                 );
               }
               final polls = snapshot.data ?? const <PhotoPoll>[];
-              if (polls.isEmpty) {
-                return const _InfoCard(text: 'Şu an aktif anket yok.');
-              }
               return Column(
-                children: polls
-                    .map(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Anketler',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  if (polls.isEmpty)
+                    const _InfoCard(text: 'Şu an aktif anket yok.')
+                  else
+                    ...polls.map(
                       (poll) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _PollCard(
+                        child: _PollListCard(
                           poll: poll,
-                          isLoggedIn: _isLoggedIn,
-                          onVote: (option) => _votePoll(poll, option),
+                          onTap: () => _openPollDetail(poll),
                         ),
                       ),
-                    )
-                    .toList(),
+                    ),
+                ],
               );
             },
           ),
@@ -553,14 +543,30 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
   Widget _tabChip(int value, String label) {
     final selected = _tab == value;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => setState(() => _tab = value),
-      selectedColor: AppTheme.cyan.withOpacity(0.28),
-      backgroundColor: AppTheme.surfaceSecondary,
-      labelStyle: TextStyle(color: selected ? AppTheme.textPrimary : AppTheme.textSecondary),
-      side: BorderSide(color: selected ? Colors.transparent : AppTheme.borderSoft),
+    return InkWell(
+      onTap: () => setState(() => _tab = value),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.cyan.withOpacity(0.28) : AppTheme.surfaceSecondary,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: selected ? Colors.transparent : AppTheme.borderSoft),
+        ),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: TextStyle(
+              color: selected ? AppTheme.textPrimary : AppTheme.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -833,130 +839,72 @@ class _FeedPostCard extends StatelessWidget {
   }
 }
 
-class _PollCard extends StatelessWidget {
+class _PollListCard extends StatelessWidget {
   final PhotoPoll poll;
-  final bool isLoggedIn;
-  final ValueChanged<PhotoPollOption> onVote;
+  final VoidCallback onTap;
 
-  const _PollCard({
+  const _PollListCard({
     required this.poll,
-    required this.isLoggedIn,
-    required this.onVote,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final canVote = isLoggedIn && !poll.hasVoted && poll.isActive;
-    final canViewResults = poll.canViewResults;
-    return Container(
-      decoration: AppTheme.panel(tone: AppTone.photos, radius: 22, elevated: true),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.violet.withOpacity(0.16),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        decoration: AppTheme.panel(tone: AppTone.photos, radius: 22, elevated: true),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.violet.withOpacity(0.16),
+                  ),
+                  child: const Icon(Icons.poll_outlined, size: 18, color: AppTheme.violet),
                 ),
-                child: const Icon(Icons.poll_outlined, size: 18, color: AppTheme.violet),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  poll.question,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ...poll.options.map(
-            (option) {
-              final percentage = option.percentage ?? 0;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: InkWell(
-                  onTap: canVote ? () => onVote(option) : null,
-                  borderRadius: BorderRadius.circular(18),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfacePrimary,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: option.myVote ? AppTheme.cyan : AppTheme.borderSoft,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        if (canViewResults)
-                          Positioned.fill(
-                            child: FractionallySizedBox(
-                              alignment: Alignment.centerLeft,
-                              widthFactor: (percentage.clamp(0, 100)) / 100,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppTheme.cyan.withOpacity(0.14),
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                              ),
-                            ),
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  option.text,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        fontWeight: option.myVote ? FontWeight.w700 : FontWeight.w500,
-                                      ),
-                                ),
-                              ),
-                              if (option.myVote)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 8),
-                                  child: Icon(Icons.check_circle_rounded, size: 18, color: AppTheme.cyan),
-                                ),
-                              if (canViewResults)
-                                Text(
-                                  '%${percentage.toStringAsFixed(percentage.truncateToDouble() == percentage ? 0 : 1)}',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: AppTheme.textSecondary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    poll.title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
-              );
-            },
-          ),
-          if (!isLoggedIn)
+                const SizedBox(width: 10),
+                const Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondary),
+              ],
+            ),
+            const SizedBox(height: 12),
             Text(
-              'Oy kullanmak için giriş yapın.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-            )
-          else if (poll.hasVoted && !canViewResults)
-            Text(
-              'Oyun kaydedildi.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-            )
-          else if (canViewResults)
-            Text(
-              '${poll.totalVotes ?? 0} oy',
+              '${poll.questionCount} soru',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
             ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              poll.hasVoted
+                  ? 'Bu ankete oy verdin'
+                  : (poll.isActive ? 'Oylamaya açık' : 'Yayından kaldırıldı'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: poll.hasVoted ? AppTheme.cyan : AppTheme.textSecondary,
+                    fontWeight: poll.hasVoted ? FontWeight.w700 : FontWeight.w500,
+                  ),
+            ),
+            if (poll.canViewResults) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${poll.totalVotes ?? 0} kişi oy kullandı',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

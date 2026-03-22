@@ -320,8 +320,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (widget.appRole == 'super_admin') ...[
             const SizedBox(height: 10),
             _ProfileListCard(
-              title: 'Anket Oluştur',
-              subtitle: 'Akış içindeki anketleri oluştur ve yönet',
+              title: 'Anketleri Yönet',
+              subtitle: 'Akış içindeki anketleri oluştur, yayından kaldır ve sil',
               icon: Icons.poll_outlined,
               accent: _sky,
               onTap: () => Navigator.of(context).push(

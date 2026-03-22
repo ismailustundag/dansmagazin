@@ -29,46 +29,98 @@ class PhotoPollOption {
   }
 }
 
-class PhotoPoll {
+class PhotoPollQuestion {
   final int id;
-  final String question;
-  final bool showResultsAfterVote;
-  final bool isActive;
-  final bool hasVoted;
+  final String text;
   final int? myOptionId;
-  final bool canViewResults;
-  final int? totalVotes;
-  final String createdAt;
   final List<PhotoPollOption> options;
 
-  const PhotoPoll({
+  const PhotoPollQuestion({
     required this.id,
-    required this.question,
-    required this.showResultsAfterVote,
-    required this.isActive,
-    required this.hasVoted,
+    required this.text,
     required this.myOptionId,
-    required this.canViewResults,
-    required this.totalVotes,
-    required this.createdAt,
     required this.options,
   });
 
-  factory PhotoPoll.fromJson(Map<String, dynamic> json) {
-    return PhotoPoll(
+  factory PhotoPollQuestion.fromJson(Map<String, dynamic> json) {
+    return PhotoPollQuestion(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      question: (json['question'] ?? '').toString(),
-      showResultsAfterVote: json['show_results_after_vote'] == true,
-      isActive: json['is_active'] != false,
-      hasVoted: json['has_voted'] == true,
+      text: (json['text'] ?? '').toString(),
       myOptionId: (json['my_option_id'] as num?)?.toInt(),
-      canViewResults: json['can_view_results'] == true,
-      totalVotes: (json['total_votes'] as num?)?.toInt(),
-      createdAt: (json['created_at'] ?? '').toString(),
       options: (json['options'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(PhotoPollOption.fromJson)
           .toList(),
+    );
+  }
+}
+
+class PhotoPollDraftQuestion {
+  final String question;
+  final List<String> options;
+
+  const PhotoPollDraftQuestion({
+    required this.question,
+    required this.options,
+  });
+}
+
+class PhotoPoll {
+  final int id;
+  final String title;
+  final int questionCount;
+  final bool showResultsAfterVote;
+  final bool isActive;
+  final bool hasVoted;
+  final bool canViewResults;
+  final int? totalVotes;
+  final String createdAt;
+  final List<PhotoPollQuestion> questions;
+
+  const PhotoPoll({
+    required this.id,
+    required this.title,
+    required this.questionCount,
+    required this.showResultsAfterVote,
+    required this.isActive,
+    required this.hasVoted,
+    required this.canViewResults,
+    required this.totalVotes,
+    required this.createdAt,
+    required this.questions,
+  });
+
+  factory PhotoPoll.fromJson(Map<String, dynamic> json) {
+    final questionsJson = (json['questions'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(PhotoPollQuestion.fromJson)
+        .toList();
+    final legacyOptions = (json['options'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(PhotoPollOption.fromJson)
+        .toList();
+    final title = (json['question'] ?? '').toString();
+    final fallbackQuestions = questionsJson.isNotEmpty
+        ? questionsJson
+        : [
+            PhotoPollQuestion(
+              id: (json['id'] as num?)?.toInt() ?? 0,
+              text: title,
+              myOptionId: (json['my_option_id'] as num?)?.toInt(),
+              options: legacyOptions,
+            ),
+          ];
+    return PhotoPoll(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      title: title,
+      questionCount: (json['question_count'] as num?)?.toInt() ?? fallbackQuestions.length,
+      showResultsAfterVote: json['show_results_after_vote'] == true,
+      isActive: json['is_active'] != false,
+      hasVoted: json['has_voted'] == true,
+      canViewResults: json['can_view_results'] == true,
+      totalVotes: (json['total_votes'] as num?)?.toInt(),
+      createdAt: (json['created_at'] ?? '').toString(),
+      questions: fallbackQuestions,
     );
   }
 }
@@ -116,15 +168,36 @@ class PhotoPollsApi {
         .toList();
   }
 
-  static Future<PhotoPoll> vote(
+  static Future<PhotoPoll> fetchOne(
     String sessionToken, {
     required int pollId,
-    required int optionId,
+    bool includeInactive = false,
   }) async {
+    final uri = Uri.parse('$_base/$pollId').replace(
+      queryParameters: {
+        if (includeInactive) 'include_inactive': 'true',
+      },
+    );
+    final resp = await http.get(uri, headers: _headers(sessionToken));
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Anket yüklenemedi'));
+    }
+    final map = jsonDecode(resp.body) as Map<String, dynamic>;
+    return PhotoPoll.fromJson((map['item'] as Map<String, dynamic>? ?? const {}));
+  }
+
+  static Future<PhotoPoll> submit(
+    String sessionToken, {
+    required int pollId,
+    required Map<int, int> answers,
+  }) async {
+    final bodyAnswers = answers.entries
+        .map((entry) => {'question_id': entry.key, 'option_id': entry.value})
+        .toList();
     final resp = await http.post(
-      Uri.parse('$_base/$pollId/vote'),
+      Uri.parse('$_base/$pollId/submit'),
       headers: _headers(sessionToken, jsonBody: true),
-      body: jsonEncode({'option_id': optionId}),
+      body: jsonEncode({'answers': bodyAnswers}),
     );
     if (resp.statusCode != 200) {
       throw Exception(_parseError(resp.body, fallback: 'Oy gönderilemedi'));
@@ -135,16 +208,23 @@ class PhotoPollsApi {
 
   static Future<PhotoPoll> create(
     String sessionToken, {
-    required String question,
-    required List<String> options,
+    required String title,
+    required List<PhotoPollDraftQuestion> questions,
     required bool showResultsAfterVote,
   }) async {
     final resp = await http.post(
       Uri.parse('$_base/admin'),
       headers: _headers(sessionToken, jsonBody: true),
       body: jsonEncode({
-        'question': question,
-        'options': options,
+        'title': title,
+        'questions': questions
+            .map(
+              (question) => {
+                'question': question.question,
+                'options': question.options,
+              },
+            )
+            .toList(),
         'show_results_after_vote': showResultsAfterVote,
       }),
     );
@@ -153,5 +233,35 @@ class PhotoPollsApi {
     }
     final map = jsonDecode(resp.body) as Map<String, dynamic>;
     return PhotoPoll.fromJson((map['item'] as Map<String, dynamic>? ?? const {}));
+  }
+
+  static Future<PhotoPoll> setActive(
+    String sessionToken, {
+    required int pollId,
+    required bool active,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/$pollId/state'),
+      headers: _headers(sessionToken, jsonBody: true),
+      body: jsonEncode({'active': active}),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Anket durumu güncellenemedi'));
+    }
+    final map = jsonDecode(resp.body) as Map<String, dynamic>;
+    return PhotoPoll.fromJson((map['item'] as Map<String, dynamic>? ?? const {}));
+  }
+
+  static Future<void> delete(
+    String sessionToken, {
+    required int pollId,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/$pollId'),
+      headers: _headers(sessionToken),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Anket silinemedi'));
+    }
   }
 }
