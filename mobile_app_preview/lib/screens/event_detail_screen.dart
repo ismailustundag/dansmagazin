@@ -57,9 +57,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   bool _joined = false;
   List<EventAttendee> _attendees = const [];
   List<EventCommentItem> _comments = const [];
-  bool _canComment = false;
   String? _commentsError;
   int? _deletingCommentId;
+  bool _editingComment = false;
   final TextEditingController _commentCtrl = TextEditingController();
 
   @override
@@ -165,12 +165,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       if (!mounted) return;
       setState(() {
         _comments = result.items;
-        _canComment = result.canComment;
         _commentsError = null;
         final myComment = result.myComment;
-        if (myComment != null) {
+        if (_editingComment && myComment != null) {
           _commentCtrl.text = myComment.body;
-        } else if (!result.canComment) {
+        } else if (myComment == null) {
           _commentCtrl.clear();
         }
       });
@@ -376,6 +375,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         body: body,
       );
       _commentCtrl.text = saved.body;
+      _editingComment = false;
       await _loadComments();
       _showMsg(updating ? 'Yorumun güncellendi.' : 'Yorumun paylaşıldı.');
     } on EventSocialApiException catch (e) {
@@ -419,6 +419,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       );
       if (_myComment?.id == item.id) {
         _commentCtrl.clear();
+        _editingComment = false;
       }
       await _loadComments();
       _showMsg('Yorum silindi.');
@@ -427,6 +428,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     } finally {
       if (mounted) setState(() => _deletingCommentId = null);
     }
+  }
+
+  void _startEditingComment(EventCommentItem item) {
+    _commentCtrl.text = item.body;
+    setState(() => _editingComment = true);
+  }
+
+  void _cancelEditingComment() {
+    setState(() => _editingComment = false);
+    _commentCtrl.clear();
   }
 
   String _contentText() {
@@ -668,7 +679,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 const SizedBox(height: 10),
                 if (widget.sessionToken.trim().isEmpty)
                   _commentNotice('Yorum yazmak için giriş yapmalısın.')
-                else if (_myComment != null || _canComment) ...[
+                else if (_editingComment || _myComment == null) ...[
                   TextField(
                     controller: _commentCtrl,
                     minLines: 3,
@@ -695,18 +706,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          _myComment == null
-                              ? 'Bu etkinlik serisi için tek yorum bırakabilir, sonra düzenleyebilirsin.'
-                              : 'Yorumunu dilediğin zaman güncelleyebilirsin.',
-                          style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 12,
-                            height: 1.35,
-                          ),
+                      const Spacer(),
+                      if (_editingComment)
+                        TextButton(
+                          onPressed: _savingComment ? null : _cancelEditingComment,
+                          child: const Text('İptal'),
                         ),
-                      ),
                       const SizedBox(width: 12),
                       FilledButton(
                         onPressed: _savingComment ? null : _saveComment,
@@ -716,14 +721,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Text(_myComment == null ? 'Yorum Yap' : 'Yorumu Güncelle'),
+                            : Text(_editingComment ? 'Kaydet' : 'Yorum Yap'),
                       ),
                     ],
                   ),
                 ] else
-                  _commentNotice(
-                    'Yorum yazmak için bu etkinlik serisinin daha önce katıldığın bir buluşması olmalı.',
-                  ),
+                  const SizedBox.shrink(),
                 const SizedBox(height: 14),
                 if (_loadingComments)
                   const Center(
@@ -823,27 +826,49 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
                 ),
               ),
-              if (item.canDelete)
-                InkWell(
-                  onTap: _deletingCommentId == item.id ? null : () => _deleteComment(item),
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfacePrimary.withOpacity(0.8),
-                      shape: BoxShape.circle,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (item.canEdit)
+                    InkWell(
+                      onTap: () => _startEditingComment(item),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfacePrimary.withOpacity(0.8),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.edit_outlined, size: 18),
+                      ),
                     ),
-                    child: _deletingCommentId == item.id
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.delete_outline_rounded, size: 18),
-                  ),
-                ),
+                  if (item.canDelete) ...[
+                    if (item.canEdit) const SizedBox(width: 8),
+                    InkWell(
+                      onTap: _deletingCommentId == item.id ? null : () => _deleteComment(item),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfacePrimary.withOpacity(0.8),
+                          shape: BoxShape.circle,
+                        ),
+                        child: _deletingCommentId == item.id
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.delete_outline_rounded, size: 18),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 8),
