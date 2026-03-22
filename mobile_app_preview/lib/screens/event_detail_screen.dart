@@ -51,14 +51,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   int _tab = 0;
   bool _openingCheckout = false;
   bool _loadingAttendees = true;
+  bool _loadingComments = true;
   bool _changingAttendance = false;
+  bool _savingComment = false;
   bool _joined = false;
   List<EventAttendee> _attendees = const [];
+  List<EventCommentItem> _comments = const [];
+  bool _canComment = false;
+  String? _commentsError;
+  int? _deletingCommentId;
+  final TextEditingController _commentCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadAttendees();
+    _loadComments();
+  }
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
   }
 
   String _fmtDate(String raw) {
@@ -127,6 +141,47 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       // liste yüklenemezse ekran akışı bozulmasın
     } finally {
       if (mounted) setState(() => _loadingAttendees = false);
+    }
+  }
+
+  EventCommentItem? get _myComment {
+    for (final item in _comments) {
+      if (item.isMine) return item;
+    }
+    return null;
+  }
+
+  Future<void> _loadComments() async {
+    if (!mounted) return;
+    setState(() {
+      _loadingComments = true;
+      _commentsError = null;
+    });
+    try {
+      final result = await EventSocialApi.comments(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments = result.items;
+        _canComment = result.canComment;
+        _commentsError = null;
+        final myComment = result.myComment;
+        if (myComment != null) {
+          _commentCtrl.text = myComment.body;
+        } else if (!result.canComment) {
+          _commentCtrl.clear();
+        }
+      });
+    } on EventSocialApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _commentsError = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _commentsError = 'Yorumlar yüklenemedi.');
+    } finally {
+      if (mounted) setState(() => _loadingComments = false);
     }
   }
 
@@ -298,6 +353,79 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       await _loadAttendees();
     } on EventSocialApiException catch (e) {
       _showMsg(e.message);
+    }
+  }
+
+  Future<void> _saveComment() async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      _showMsg('Yorum yapmak için önce giriş yapmalısın.');
+      return;
+    }
+    final body = _commentCtrl.text.trim();
+    if (body.isEmpty) {
+      _showMsg('Yorum alanı boş olamaz.');
+      return;
+    }
+    final updating = _myComment != null;
+    setState(() => _savingComment = true);
+    try {
+      final saved = await EventSocialApi.upsertComment(
+        submissionId: widget.submissionId,
+        sessionToken: token,
+        body: body,
+      );
+      _commentCtrl.text = saved.body;
+      await _loadComments();
+      _showMsg(updating ? 'Yorumun güncellendi.' : 'Yorumun paylaşıldı.');
+    } on EventSocialApiException catch (e) {
+      _showMsg(e.message);
+    } finally {
+      if (mounted) setState(() => _savingComment = false);
+    }
+  }
+
+  Future<void> _deleteComment(EventCommentItem item) async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      _showMsg('Yorum silmek için önce giriş yapmalısın.');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceSecondary,
+        title: const Text('Yorumu Sil'),
+        content: const Text('Bu yorumu kaldırmak istediğine emin misin?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _deletingCommentId = item.id);
+    try {
+      await EventSocialApi.deleteComment(
+        submissionId: widget.submissionId,
+        commentId: item.id,
+        sessionToken: token,
+      );
+      if (_myComment?.id == item.id) {
+        _commentCtrl.clear();
+      }
+      await _loadComments();
+      _showMsg('Yorum silindi.');
+    } on EventSocialApiException catch (e) {
+      _showMsg(e.message);
+    } finally {
+      if (mounted) setState(() => _deletingCommentId = null);
     }
   }
 
@@ -515,6 +643,107 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     style: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
                   ),
           ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: AppTheme.panel(tone: AppTone.social, radius: 22, subtle: true),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Yorumlar',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    if (_comments.isNotEmpty)
+                      Text(
+                        '${_comments.length} yorum',
+                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (widget.sessionToken.trim().isEmpty)
+                  _commentNotice('Yorum yazmak için giriş yapmalısın.')
+                else if (_myComment != null || _canComment) ...[
+                  TextField(
+                    controller: _commentCtrl,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: InputDecoration(
+                      hintText: 'Etkinlikle ilgili deneyimini paylaş',
+                      filled: true,
+                      fillColor: AppTheme.surfacePrimary,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide(color: AppTheme.borderSoft),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide(color: AppTheme.borderSoft),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide(color: AppTheme.pink.withOpacity(0.75)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _myComment == null
+                              ? 'Bu etkinlik serisi için tek yorum bırakabilir, sonra düzenleyebilirsin.'
+                              : 'Yorumunu dilediğin zaman güncelleyebilirsin.',
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        onPressed: _savingComment ? null : _saveComment,
+                        child: _savingComment
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(_myComment == null ? 'Yorum Yap' : 'Yorumu Güncelle'),
+                      ),
+                    ],
+                  ),
+                ] else
+                  _commentNotice(
+                    'Yorum yazmak için bu etkinlik serisinin daha önce katıldığın bir buluşması olmalı.',
+                  ),
+                const SizedBox(height: 14),
+                if (_loadingComments)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if ((_commentsError ?? '').trim().isNotEmpty)
+                  _commentNotice(_commentsError!)
+                else if (_comments.isEmpty)
+                  const Text(
+                    'Henüz yorum yok. İlk deneyimi paylaşan sen olabilirsin.',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  )
+                else
+                  ..._comments.map(_commentCard),
+              ],
+            ),
+          ),
           ],
         ),
       ),
@@ -551,6 +780,82 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         overflow: TextOverflow.ellipsis,
         softWrap: false,
         textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _commentNotice(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 16),
+      child: Text(
+        text,
+        style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+      ),
+    );
+  }
+
+  Widget _commentCard(EventCommentItem item) {
+    final meta = <String>[
+      item.authorName.trim().isEmpty ? 'Kullanıcı' : item.authorName.trim(),
+      _fmtDate(item.updatedAt),
+      if (item.isEdited) 'Düzenlendi',
+      if (item.isMine) 'Sen',
+    ];
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  meta.join(' • '),
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              if (item.canDelete)
+                InkWell(
+                  onTap: _deletingCommentId == item.id ? null : () => _deleteComment(item),
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfacePrimary.withOpacity(0.8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _deletingCommentId == item.id
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_outline_rounded, size: 18),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.body,
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+        ],
       ),
     );
   }

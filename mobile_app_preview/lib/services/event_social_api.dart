@@ -41,6 +41,66 @@ class EventAttendee {
   }
 }
 
+class EventCommentItem {
+  final int id;
+  final int threadSubmissionId;
+  final int authorAccountId;
+  final String authorName;
+  final String body;
+  final String createdAt;
+  final String updatedAt;
+  final bool isMine;
+  final bool canEdit;
+  final bool canDelete;
+  final bool isEdited;
+
+  const EventCommentItem({
+    required this.id,
+    required this.threadSubmissionId,
+    required this.authorAccountId,
+    required this.authorName,
+    required this.body,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.isMine,
+    required this.canEdit,
+    required this.canDelete,
+    required this.isEdited,
+  });
+
+  factory EventCommentItem.fromJson(Map<String, dynamic> json) {
+    return EventCommentItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      threadSubmissionId: (json['thread_submission_id'] as num?)?.toInt() ?? 0,
+      authorAccountId: (json['author_account_id'] as num?)?.toInt() ?? 0,
+      authorName: (json['author_name'] ?? '').toString(),
+      body: (json['body'] ?? '').toString(),
+      createdAt: (json['created_at'] ?? '').toString(),
+      updatedAt: (json['updated_at'] ?? '').toString(),
+      isMine: json['is_mine'] == true,
+      canEdit: json['can_edit'] == true,
+      canDelete: json['can_delete'] == true,
+      isEdited: json['is_edited'] == true,
+    );
+  }
+}
+
+class EventCommentsResult {
+  final List<EventCommentItem> items;
+  final bool canComment;
+  final bool canModerate;
+  final String eligibility;
+  final EventCommentItem? myComment;
+
+  const EventCommentsResult({
+    required this.items,
+    required this.canComment,
+    required this.canModerate,
+    required this.eligibility,
+    required this.myComment,
+  });
+}
+
 class FriendRequestItem {
   final int requestId;
   final int peerAccountId;
@@ -163,6 +223,79 @@ class EventSocialApi {
     return (body['items'] as List<dynamic>? ?? [])
         .map((e) => EventAttendee.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  static Future<EventCommentsResult> comments({
+    required int submissionId,
+    String? sessionToken,
+  }) async {
+    final headers = <String, String>{};
+    final t = (sessionToken ?? '').trim();
+    if (t.isNotEmpty) headers['Authorization'] = 'Bearer $t';
+    final resp = await http.get(
+      Uri.parse('$_base/events/$submissionId/comments'),
+      headers: headers,
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Yorumlar alınamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final items = (body['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(EventCommentItem.fromJson)
+        .toList();
+    EventCommentItem? myComment;
+    for (final item in items) {
+      if (item.isMine) {
+        myComment = item;
+        break;
+      }
+    }
+    return EventCommentsResult(
+      items: items,
+      canComment: body['can_comment'] == true,
+      canModerate: body['can_moderate'] == true,
+      eligibility: (body['eligibility'] ?? '').toString(),
+      myComment: myComment,
+    );
+  }
+
+  static Future<EventCommentItem> upsertComment({
+    required int submissionId,
+    required String sessionToken,
+    required String body,
+  }) async {
+    final resp = await http.put(
+      Uri.parse('$_base/events/$submissionId/comments/me'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'body': body}),
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Yorum kaydedilemedi'));
+    }
+    final map = jsonDecode(resp.body) as Map<String, dynamic>;
+    final item = map['item'];
+    if (item is! Map<String, dynamic>) {
+      throw EventSocialApiException('Geçersiz yorum cevabı');
+    }
+    return EventCommentItem.fromJson(item);
+  }
+
+  static Future<void> deleteComment({
+    required int submissionId,
+    required int commentId,
+    required String sessionToken,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/events/$submissionId/comments/$commentId'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Yorum silinemedi'));
+    }
   }
 
   static Future<void> attend({
