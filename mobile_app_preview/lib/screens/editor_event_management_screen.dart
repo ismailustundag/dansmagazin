@@ -169,6 +169,29 @@ String _danceStylesPayload(Iterable<String> styles) {
   return normalized.join(',');
 }
 
+String _cityLookupKey(String raw) {
+  return raw
+      .trim()
+      .toLowerCase()
+      .replaceAll('i̇', 'i')
+      .replaceAll('ı', 'i')
+      .replaceAll('ş', 's')
+      .replaceAll('ç', 'c')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ö', 'o');
+}
+
+String _canonicalCityOrUnknown(String raw, List<String> availableCities) {
+  final value = raw.trim();
+  if (value.isEmpty) return 'Belirtilmedi';
+  final target = _cityLookupKey(value);
+  for (final city in availableCities) {
+    if (_cityLookupKey(city) == target) return city;
+  }
+  return 'Belirtilmedi';
+}
+
 String _normalizeMapUrl(String raw) {
   final v = raw.trim();
   if (v.isEmpty) return '';
@@ -1284,7 +1307,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     _venueMapCtrl = TextEditingController(text: parts.mapUrl);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
     _programCtrl = TextEditingController(text: widget.item.programText);
-    _city = widget.item.city.trim().isEmpty ? 'Belirtilmedi' : widget.item.city.trim();
+    _city = _canonicalCityOrUnknown(widget.item.city, _cities);
     _eventKind = _normalizeKind(widget.item.eventKind);
     _danceStyles.addAll(_normalizeDanceStyles(widget.item.danceStyles));
     _repeatWeekly = widget.item.repeatWeekly;
@@ -1719,6 +1742,7 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
   bool _drawing = false;
   bool _opening = false;
   bool _closing = false;
+  bool _deleting = false;
   String? _error;
   EventRaffleDetail? _raffle;
 
@@ -1855,6 +1879,50 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _closing = false);
+    }
+  }
+
+  Future<void> _deleteRaffle() async {
+    final raffle = _raffle;
+    if (raffle == null || _deleting) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceSecondary,
+        title: const Text('Çekilişi Sil'),
+        content: const Text(
+          'Bu işlem çekilişi, başvuruları ve varsa sonuçları tamamen siler. Devam etmek istiyor musun?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _deleting = true);
+    try {
+      await EventSocialApi.deleteRaffle(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() => _raffle = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Çekiliş silindi.')),
+      );
+    } on EventSocialApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -2032,6 +2100,20 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                         : const Icon(Icons.auto_awesome),
                     label: Text(_drawing ? 'Belirleniyor...' : 'Çekiliş Yap'),
                   ),
+                OutlinedButton.icon(
+                  onPressed: _deleting ? null : _deleteRaffle,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                  ),
+                  icon: _deleting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.delete_outline),
+                  label: Text(_deleting ? 'Siliniyor...' : 'Çekilişi Sil'),
+                ),
               ],
             ),
           ],

@@ -1132,14 +1132,19 @@ class _FeaturedEventBanner extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: item.cover.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: item.cover,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
-                      errorWidget: (_, __, ___) => Container(color: AppTheme.surfacePrimary),
-                    )
-                  : Container(color: AppTheme.surfacePrimary),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppTheme.surfacePrimary,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppTheme.surfaceElevated,
+                      AppTheme.surfacePrimary,
+                    ],
+                  ),
+                ),
+              ),
             ),
             DecoratedBox(
               decoration: BoxDecoration(
@@ -1155,6 +1160,19 @@ class _FeaturedEventBanner extends StatelessWidget {
                 ),
               ),
             ),
+            if (item.cover.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 56),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: CachedNetworkImage(
+                    imageUrl: item.cover,
+                    fit: BoxFit.contain,
+                    placeholder: (_, __) => Container(color: Colors.transparent),
+                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

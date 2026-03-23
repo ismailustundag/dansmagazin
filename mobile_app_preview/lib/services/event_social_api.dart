@@ -560,6 +560,19 @@ class EventSocialApi {
     return EventRaffleDetail.fromJson(raffleJson);
   }
 
+  static Future<void> deleteRaffle({
+    required int submissionId,
+    required String sessionToken,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/events/$submissionId/raffle'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Çekiliş silinemedi'));
+    }
+  }
+
   static Future<EventRaffleDetail> joinRaffle({
     required int submissionId,
     required String sessionToken,

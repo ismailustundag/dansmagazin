@@ -532,6 +532,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final venueLabel = _venueLabel();
     final canOpenMaps = _storedMapUri() != null;
     final canAddToCalendar = _parseEventDateForCalendar(widget.eventDate) != null;
+    final posterMaxHeight = MediaQuery.of(context).size.height * 0.62;
     return Scaffold(
       backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
@@ -545,16 +546,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           if (widget.cover.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: Container(
-                color: AppTheme.surfaceElevated,
-                child: Image.network(
-                  widget.cover,
-                  width: double.infinity,
-                  fit: BoxFit.fitWidth,
-                  alignment: Alignment.topCenter,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 220,
-                    color: AppTheme.surfaceElevated,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: posterMaxHeight),
+                child: Container(
+                  color: AppTheme.surfaceElevated,
+                  child: Image.network(
+                    widget.cover,
+                    width: double.infinity,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.topCenter,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 220,
+                      color: AppTheme.surfaceElevated,
+                    ),
                   ),
                 ),
               ),
