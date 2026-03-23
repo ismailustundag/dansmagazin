@@ -1203,7 +1203,7 @@ class _FeaturedEventBanner extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                   child: CachedNetworkImage(
                     imageUrl: item.cover,
-                    fit: BoxFit.contain,
+                    fit: BoxFit.cover,
                     alignment: _coverAlignment(item.coverCrop),
                     placeholder: (_, __) => Container(color: Colors.transparent),
                     errorWidget: (_, __, ___) => const SizedBox.shrink(),
