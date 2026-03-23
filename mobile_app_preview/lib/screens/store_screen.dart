@@ -53,7 +53,7 @@ class _StoreScreenState extends State<StoreScreen> {
             'Kostüm, ayakkabı ve aklına gelen daha fazlası. Onaylı kullanıcıların ürünlerine göz at, beğendiğin ürün için doğrudan iletişime geç.',
             style: TextStyle(
               color: AppTheme.textSecondary,
-              fontSize: 11.5,
+              fontSize: 10.5,
               height: 1.35,
             ),
           ),
@@ -443,14 +443,14 @@ class _SellerStoreCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         decoration: AppTheme.panel(tone: AppTone.profile, radius: 20, elevated: true),
         child: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(9),
           child: Row(
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: SizedBox(
-                  width: 86,
-                  height: 86,
+                  width: 82,
+                  height: 82,
                   child: seller.coverImageUrl.trim().isNotEmpty
                       ? Image.network(seller.coverImageUrl.trim(), fit: BoxFit.cover)
                       : Container(
@@ -470,53 +470,17 @@ class _SellerStoreCard extends StatelessWidget {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    VerifiedNameText(
+                    EmojiText(
                       seller.storeTitle,
-                      isVerified: false,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        VerifiedAvatar(
-                          imageUrl: seller.avatarUrl,
-                          label: seller.name,
-                          isVerified: seller.isVerified,
-                          radius: 14,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: VerifiedNameText(
-                            seller.name,
-                            isVerified: seller.isVerified,
-                            style: const TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${seller.productCount} ürün seni bekliyor',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 11,
-                        height: 1.3,
-                      ),
                     ),
                   ],
                 ),
@@ -703,37 +667,17 @@ class _FeaturedStoreBanner extends StatelessWidget {
                     const Spacer(),
                     Row(
                       children: [
-                        VerifiedAvatar(
-                          imageUrl: seller.avatarUrl,
-                          label: seller.name,
-                          isVerified: seller.isVerified,
-                          radius: 22,
-                        ),
-                        const SizedBox(width: 10),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                seller.storeTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${seller.productCount} ürün',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            seller.storeTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              height: 1.15,
+                            ),
                           ),
                         ),
                         const Icon(Icons.chevron_right_rounded, color: Colors.white70),

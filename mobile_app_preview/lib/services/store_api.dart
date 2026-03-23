@@ -69,6 +69,11 @@ class StoreProductItem {
   final String imageUrl;
   final String price;
   final String currencyCode;
+  final bool isActive;
+  final bool isSold;
+  final String status;
+  final String soldAt;
+  final bool isPubliclyVisible;
   final StoreSellerRef seller;
 
   const StoreProductItem({
@@ -78,6 +83,11 @@ class StoreProductItem {
     required this.imageUrl,
     required this.price,
     required this.currencyCode,
+    required this.isActive,
+    required this.isSold,
+    required this.status,
+    required this.soldAt,
+    required this.isPubliclyVisible,
     required this.seller,
   });
 
@@ -89,6 +99,11 @@ class StoreProductItem {
       imageUrl: (json['image_url'] ?? '').toString(),
       price: (json['price'] ?? '').toString(),
       currencyCode: (json['currency_code'] ?? 'TRY').toString(),
+      isActive: json['is_active'] != false,
+      isSold: json['is_sold'] == true,
+      status: (json['status'] ?? '').toString(),
+      soldAt: (json['sold_at'] ?? '').toString(),
+      isPubliclyVisible: json['is_publicly_visible'] == true,
       seller: StoreSellerRef.fromJson((json['seller'] as Map?)?.cast<String, dynamic>() ?? const {}),
     );
   }
@@ -97,6 +112,26 @@ class StoreProductItem {
     final code = currencyCode.trim().toUpperCase();
     final suffix = code == 'TRY' ? '₺' : code;
     return '${price.trim()} $suffix'.trim();
+  }
+}
+
+class StoreSettings {
+  final bool storeEnabled;
+  final String storeTitle;
+  final String effectiveStoreTitle;
+
+  const StoreSettings({
+    required this.storeEnabled,
+    required this.storeTitle,
+    required this.effectiveStoreTitle,
+  });
+
+  factory StoreSettings.fromJson(Map<String, dynamic> json) {
+    return StoreSettings(
+      storeEnabled: json['store_enabled'] == true,
+      storeTitle: (json['store_title'] ?? '').toString(),
+      effectiveStoreTitle: (json['effective_store_title'] ?? '').toString(),
+    );
   }
 }
 
@@ -158,6 +193,17 @@ class StoreApi {
     return StoreProductItem.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
+  static Future<StoreSettings> mySettings(String sessionToken) async {
+    final resp = await http.get(
+      Uri.parse('$_base/store/me/settings'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(parseApiErrorBody(resp.body, fallback: 'Mağaza ayarları yüklenemedi'));
+    }
+    return StoreSettings.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+  }
+
   static Future<List<StoreProductItem>> myProducts(String sessionToken) async {
     final resp = await http.get(
       Uri.parse('$_base/store/my/products'),
@@ -171,6 +217,24 @@ class StoreApi {
         .whereType<Map<String, dynamic>>()
         .map(StoreProductItem.fromJson)
         .toList(growable: false);
+  }
+
+  static Future<StoreSettings> updateMySettings({
+    required String sessionToken,
+    required String storeTitle,
+  }) async {
+    final resp = await http.put(
+      Uri.parse('$_base/store/me/settings'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'store_title': storeTitle.trim()}),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(parseApiErrorBody(resp.body, fallback: 'Mağaza ayarları güncellenemedi'));
+    }
+    return StoreSettings.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<void> createProduct({
