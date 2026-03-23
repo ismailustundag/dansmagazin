@@ -37,5 +37,14 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    target.build_configurations.each do |config|
+      # Xcode 26 defaults some pods into Swift 6 mode, which breaks several
+      # upstream plugins we use during archive. Keep pods on Swift 5 mode and
+      # align their deployment target with the app.
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['SWIFT_VERSION'] = '5.0'
+      config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+    end
   end
 end
