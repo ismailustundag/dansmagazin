@@ -8,6 +8,7 @@ import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
+import '../widgets/verified_avatar.dart';
 import 'app_webview_screen.dart';
 import 'friend_profile_screen.dart';
 
@@ -1149,29 +1150,26 @@ class _EventAttendeeAvatar extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 54,
+              height: 54,
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(color: _ringColor, width: 1.7),
               ),
-              child: CircleAvatar(
-                radius: 18,
+              child: VerifiedAvatar(
+                imageUrl: avatarUrl,
+                label: label,
+                isVerified: attendee.isVerified,
+                radius: 23,
                 backgroundColor: AppTheme.surfaceElevated,
-                backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                child: avatarUrl.isNotEmpty
-                    ? null
-                    : Text(
-                        label.isNotEmpty ? label.substring(0, 1).toUpperCase() : '?',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                      ),
+                fallbackStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             if (!attendee.isMe && attendee.friendStatus == 'none')
               Positioned(
-                right: -2,
-                bottom: -2,
+                right: -1,
+                top: -1,
                 child: Container(
                   width: 16,
                   height: 16,
@@ -1185,8 +1183,8 @@ class _EventAttendeeAvatar extends StatelessWidget {
               ),
             if (!attendee.isMe && attendee.friendStatus == 'friend')
               Positioned(
-                right: -2,
-                bottom: -2,
+                right: -1,
+                top: -1,
                 child: Container(
                   width: 16,
                   height: 16,

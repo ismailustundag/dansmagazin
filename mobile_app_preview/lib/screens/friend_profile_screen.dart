@@ -7,6 +7,7 @@ import '../services/event_social_api.dart';
 import '../services/i18n.dart';
 import '../services/profile_card_palette.dart';
 import '../widgets/emoji_text.dart';
+import '../widgets/verified_avatar.dart';
 import 'chat_thread_screen.dart';
 
 class FriendProfileScreen extends StatefulWidget {
@@ -498,23 +499,34 @@ class _FriendProfileHeroCard extends StatelessWidget {
   }
 
   Widget _profileVisual(ProfileCardPalette palette) {
-    if (profile.avatarUrl.trim().isNotEmpty) {
-      return InkWell(
-        onTap: onPhotoTap,
-        borderRadius: BorderRadius.circular(24),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Image.network(
-            profile.avatarUrl.trim(),
-            width: double.infinity,
-            height: 214,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _fallbackVisual(palette),
+    final child = profile.avatarUrl.trim().isNotEmpty
+        ? InkWell(
+            onTap: onPhotoTap,
+            borderRadius: BorderRadius.circular(24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Image.network(
+                profile.avatarUrl.trim(),
+                width: double.infinity,
+                height: 214,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _fallbackVisual(palette),
+              ),
+            ),
+          )
+        : _fallbackVisual(palette);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        if (profile.isVerified)
+          const Positioned(
+            right: 12,
+            bottom: 12,
+            child: VerifiedBadge(size: 28, emojiScale: 0.74),
           ),
-        ),
-      );
-    }
-    return _fallbackVisual(palette);
+      ],
+    );
   }
 
   Widget _fallbackVisual(ProfileCardPalette palette) {

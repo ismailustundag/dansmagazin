@@ -14,6 +14,7 @@ import '../services/photo_flow_api.dart';
 import '../services/photo_polls_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
+import '../widgets/verified_avatar.dart';
 import 'photo_poll_detail_screen.dart';
 import 'screen_shell.dart';
 
@@ -729,18 +730,13 @@ class _FeedPostCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              VerifiedAvatar(
+                imageUrl: post.authorAvatarUrl,
+                label: post.authorName,
+                isVerified: post.authorIsVerified,
                 radius: 22,
                 backgroundColor: AppTheme.surfacePrimary,
-                backgroundImage: post.authorAvatarUrl.trim().isNotEmpty
-                    ? CachedNetworkImageProvider(post.authorAvatarUrl)
-                    : null,
-                child: post.authorAvatarUrl.trim().isEmpty
-                    ? Text(
-                        post.authorName.isNotEmpty ? post.authorName.substring(0, 1).toUpperCase() : '?',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      )
-                    : null,
+                fallbackStyle: const TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(width: 12),
               Expanded(

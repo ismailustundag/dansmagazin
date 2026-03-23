@@ -6,6 +6,7 @@ import '../services/profile_card_palette.dart';
 import '../services/profile_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
+import '../widgets/verified_avatar.dart';
 import 'admin_notifications_screen.dart';
 import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
@@ -383,19 +384,30 @@ class _ProfileHeroCard extends StatelessWidget {
   }
 
   Widget _profileVisual(ProfileCardPalette palette) {
-    if (avatarUrl.trim().isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Image.network(
-          avatarUrl.trim(),
-          width: double.infinity,
-          height: 214,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackVisual(palette),
-        ),
-      );
-    }
-    return _fallbackVisual(palette);
+    final child = avatarUrl.trim().isNotEmpty
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.network(
+              avatarUrl.trim(),
+              width: double.infinity,
+              height: 214,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _fallbackVisual(palette),
+            ),
+          )
+        : _fallbackVisual(palette);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        if (isVerified)
+          const Positioned(
+            right: 12,
+            bottom: 12,
+            child: VerifiedBadge(size: 28, emojiScale: 0.74),
+          ),
+      ],
+    );
   }
 
   Widget _fallbackVisual(ProfileCardPalette palette) {

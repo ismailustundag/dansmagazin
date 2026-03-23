@@ -12,6 +12,7 @@ import '../services/i18n.dart';
 import '../services/notification_center.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
+import '../widgets/verified_avatar.dart';
 import 'chat_thread_screen.dart';
 import 'friend_profile_screen.dart';
 import 'screen_shell.dart';
@@ -694,16 +695,11 @@ class _SocialScreenState extends State<SocialScreen> {
                       decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 16),
                       child: Row(
                         children: [
-                          CircleAvatar(
+                          VerifiedAvatar(
+                            imageUrl: u.avatarUrl,
+                            label: u.name,
+                            isVerified: u.isVerified,
                             radius: 16,
-                            backgroundColor: AppTheme.surfaceElevated,
-                            backgroundImage: u.avatarUrl.trim().isNotEmpty ? NetworkImage(u.avatarUrl.trim()) : null,
-                            child: u.avatarUrl.trim().isNotEmpty
-                                ? null
-                                : Text(
-                                    (u.name.isNotEmpty ? u.name[0] : '?').toUpperCase(),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                                  ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -870,21 +866,21 @@ class _FriendAvatar extends StatelessWidget {
       return InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
-        child: CircleAvatar(
+        child: VerifiedAvatar(
+          imageUrl: url,
+          label: item.name,
+          isVerified: item.isVerified,
           radius: 20,
-          backgroundImage: NetworkImage(url),
-          backgroundColor: AppTheme.surfaceElevated,
         ),
       );
     }
-    final label = item.name.isNotEmpty ? item.name.substring(0, 1).toUpperCase() : '?';
-    return CircleAvatar(
+    return VerifiedAvatar(
+      imageUrl: '',
+      label: item.name,
+      isVerified: item.isVerified,
       radius: 20,
       backgroundColor: AppTheme.pink.withOpacity(0.84),
-      child: Text(
-        label,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-      ),
+      fallbackStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
     );
   }
 }

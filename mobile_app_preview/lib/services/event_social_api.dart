@@ -16,6 +16,7 @@ class EventAttendee {
   final int accountId;
   final String name;
   final String avatarUrl;
+  final bool isVerified;
   final bool isMe;
   final bool isFriend;
   final String friendStatus;
@@ -25,6 +26,7 @@ class EventAttendee {
     required this.accountId,
     required this.name,
     required this.avatarUrl,
+    required this.isVerified,
     required this.isMe,
     required this.isFriend,
     required this.friendStatus,
@@ -36,6 +38,7 @@ class EventAttendee {
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       avatarUrl: (json['avatar_url'] ?? '').toString(),
+      isVerified: json['is_verified'] == true,
       isMe: (json['is_me'] == true),
       isFriend: (json['is_friend'] == true),
       friendStatus: (json['friend_status'] ?? 'none').toString(),
@@ -47,6 +50,7 @@ class EventAttendee {
     int? accountId,
     String? name,
     String? avatarUrl,
+    bool? isVerified,
     bool? isMe,
     bool? isFriend,
     String? friendStatus,
@@ -56,6 +60,7 @@ class EventAttendee {
       accountId: accountId ?? this.accountId,
       name: name ?? this.name,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      isVerified: isVerified ?? this.isVerified,
       isMe: isMe ?? this.isMe,
       isFriend: isFriend ?? this.isFriend,
       friendStatus: friendStatus ?? this.friendStatus,

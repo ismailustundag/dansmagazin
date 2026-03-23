@@ -10,6 +10,7 @@ import '../services/error_message.dart';
 import '../services/notification_center.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
+import '../widgets/verified_avatar.dart';
 
 class ChatThreadScreen extends StatefulWidget {
   final String sessionToken;
@@ -254,16 +255,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             InkWell(
               onTap: _showAvatarPreview,
               borderRadius: BorderRadius.circular(20),
-              child: widget.peerAvatarUrl.trim().isNotEmpty
-                  ? CircleAvatar(
-                      radius: 16,
-                      backgroundImage: NetworkImage(widget.peerAvatarUrl.trim()),
-                    )
-                  : const CircleAvatar(
-                      radius: 16,
-                      backgroundColor: AppTheme.violet,
-                      child: Icon(Icons.person, color: AppTheme.textPrimary, size: 16),
-                    ),
+              child: VerifiedAvatar(
+                imageUrl: widget.peerAvatarUrl,
+                label: widget.peerName,
+                isVerified: widget.peerIsVerified,
+                radius: 16,
+                backgroundColor: AppTheme.violet,
+                fallbackStyle: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
