@@ -32,7 +32,9 @@ class ScreenShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final scroll = CustomScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      physics: onRefresh != null ? const AlwaysScrollableScrollPhysics() : null,
+      physics: onRefresh != null
+          ? const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics())
+          : const ClampingScrollPhysics(),
       slivers: [
         if (showHeader)
           SliverToBoxAdapter(

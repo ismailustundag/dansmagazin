@@ -1511,7 +1511,9 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           return RefreshIndicator(
             onRefresh: _refreshAlbum,
             child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: ClampingScrollPhysics(),
+              ),
               padding: const EdgeInsets.all(10),
               children: [
                 if (subalbums.isNotEmpty) ...[

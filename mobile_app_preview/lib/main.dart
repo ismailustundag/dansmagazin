@@ -39,8 +39,27 @@ class DansMagazinApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Dansmagazin',
       theme: AppTheme.buildTheme(),
+      scrollBehavior: const _AppScrollBehavior(),
       home: const RootScreen(),
     );
+  }
+}
+
+class _AppScrollBehavior extends MaterialScrollBehavior {
+  const _AppScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const ClampingScrollPhysics();
+  }
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
   }
 }
 
