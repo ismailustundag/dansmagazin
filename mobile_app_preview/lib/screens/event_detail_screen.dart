@@ -70,19 +70,62 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   int? _deletingCommentId;
   bool _editingComment = false;
   final TextEditingController _commentCtrl = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  bool _didAutoHintScroll = false;
+  bool _userInteractedWithScroll = false;
+  int _autoHintAttempts = 0;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScrollActivity);
     _loadAttendees();
     _loadComments();
     _loadRaffle();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _triggerAutoHintScroll());
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScrollActivity);
+    _scrollController.dispose();
     _commentCtrl.dispose();
     super.dispose();
+  }
+
+  void _handleScrollActivity() {
+    if (_scrollController.hasClients && _scrollController.offset > 2) {
+      _userInteractedWithScroll = true;
+    }
+  }
+
+  void _triggerAutoHintScroll() {
+    if (!mounted || _didAutoHintScroll || _userInteractedWithScroll) return;
+    if (!_scrollController.hasClients) {
+      _scheduleAutoHintRetry();
+      return;
+    }
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    if (maxExtent <= 24) {
+      _scheduleAutoHintRetry();
+      return;
+    }
+    final targetOffset = maxExtent.clamp(0, 84.0).toDouble();
+    _didAutoHintScroll = true;
+    _scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _scheduleAutoHintRetry() {
+    if (_didAutoHintScroll || _userInteractedWithScroll || _autoHintAttempts >= 3) return;
+    _autoHintAttempts += 1;
+    Future<void>.delayed(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      _triggerAutoHintScroll();
+    });
   }
 
   String _fmtDate(String raw) {
@@ -541,6 +584,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       ),
       body: SafeArea(
         child: ListView(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           children: [
           if (widget.cover.isNotEmpty)
