@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -1149,38 +1148,39 @@ class _FeaturedEventBanner extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfacePrimary,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppTheme.surfaceElevated,
-                          AppTheme.surfacePrimary,
-                        ],
+              child: item.cover.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: item.cover,
+                      fit: BoxFit.cover,
+                      alignment: _coverAlignment(item.coverCrop),
+                      placeholder: (_, __) => const SizedBox.shrink(),
+                      errorWidget: (_, __, ___) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfacePrimary,
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              AppTheme.surfaceElevated,
+                              AppTheme.surfacePrimary,
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  if (item.cover.isNotEmpty)
-                    ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Transform.scale(
-                        scale: 1.08,
-                        child: CachedNetworkImage(
-                          imageUrl: item.cover,
-                          fit: BoxFit.cover,
-                          alignment: _coverAlignment(item.coverCrop),
-                          placeholder: (_, __) => const SizedBox.shrink(),
-                          errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                    )
+                  : DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfacePrimary,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            AppTheme.surfaceElevated,
+                            AppTheme.surfacePrimary,
+                          ],
                         ),
                       ),
                     ),
-                ],
-              ),
             ),
             DecoratedBox(
               decoration: BoxDecoration(
@@ -1189,27 +1189,13 @@ class _FeaturedEventBanner extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.18),
-                    Colors.black.withOpacity(0.42),
-                    Colors.black.withOpacity(0.76),
+                    Colors.black.withOpacity(0.12),
+                    Colors.black.withOpacity(0.28),
+                    Colors.black.withOpacity(0.68),
                   ],
                 ),
               ),
             ),
-            if (item.cover.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 52),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: CachedNetworkImage(
-                    imageUrl: item.cover,
-                    fit: BoxFit.cover,
-                    alignment: _coverAlignment(item.coverCrop),
-                    placeholder: (_, __) => Container(color: Colors.transparent),
-                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
