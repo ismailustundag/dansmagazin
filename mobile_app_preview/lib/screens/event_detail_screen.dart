@@ -545,11 +545,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           if (widget.cover.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: Image.network(
-                widget.cover,
-                height: 220,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(height: 220, color: AppTheme.surfaceElevated),
+              child: Container(
+                color: AppTheme.surfaceElevated,
+                child: Image.network(
+                  widget.cover,
+                  width: double.infinity,
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.topCenter,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 220,
+                    color: AppTheme.surfaceElevated,
+                  ),
+                ),
               ),
             ),
           Container(
