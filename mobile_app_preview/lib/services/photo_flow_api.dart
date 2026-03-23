@@ -186,4 +186,17 @@ class PhotoFlowApi {
     final map = jsonDecode(resp.body) as Map<String, dynamic>;
     return PhotoFlowPost.fromJson((map['item'] as Map<String, dynamic>? ?? const {}));
   }
+
+  static Future<void> deletePost(
+    String sessionToken, {
+    required int postId,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/posts/$postId'),
+      headers: _headers(sessionToken),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Gönderi silinemedi'));
+    }
+  }
 }

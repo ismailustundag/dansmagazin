@@ -65,12 +65,14 @@ Future<bool> _saveToGallery(String url, Uint8List bytes) async {
 class PhotosScreen extends StatefulWidget {
   final int accountId;
   final String sessionToken;
+  final String appRole;
   final VoidCallback? onRequireLogin;
 
   const PhotosScreen({
     super.key,
     required this.accountId,
     required this.sessionToken,
+    this.appRole = 'customer',
     this.onRequireLogin,
   });
 
@@ -91,6 +93,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   XFile? _selectedPostImage;
   bool _sendingPost = false;
   bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
+  bool get _isSuperAdmin => widget.appRole.trim().toLowerCase() == 'super_admin';
 
   void _promptLogin([String message = 'Bu işlem için giriş yapmanız gerekiyor.']) {
     if (!mounted) return;
@@ -289,6 +292,46 @@ class _PhotosScreenState extends State<PhotosScreen> {
     }
   }
 
+  Future<void> _deleteFeedPost(PhotoFlowPost post) async {
+    if (!_isSuperAdmin) return;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Gönderi silinsin mi?'),
+            content: const Text('Bu işlem gönderiyi akıştan kalıcı olarak kaldırır.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    try {
+      await PhotoFlowApi.deletePost(
+        widget.sessionToken,
+        postId: post.id,
+      );
+      if (!mounted) return;
+      setState(() => _communityFeedFuture = _fetchCommunityFeed());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gönderi silindi')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _openRepliesSheet(PhotoFlowPost post) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -425,6 +468,8 @@ class _PhotosScreenState extends State<PhotosScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _FeedPostCard(
                           post: post,
+                          canDelete: _isSuperAdmin,
+                          onDeleteTap: () => _deleteFeedPost(post),
                           onLikeTap: () => _toggleFeedLike(post),
                           onReplyTap: () => _openRepliesSheet(post),
                           onImageTap: () => _openFeedImageViewer(post),
@@ -708,12 +753,16 @@ class _FlowComposerCard extends StatelessWidget {
 
 class _FeedPostCard extends StatelessWidget {
   final PhotoFlowPost post;
+  final bool canDelete;
+  final VoidCallback? onDeleteTap;
   final VoidCallback onLikeTap;
   final VoidCallback onReplyTap;
   final VoidCallback onImageTap;
 
   const _FeedPostCard({
     required this.post,
+    this.canDelete = false,
+    this.onDeleteTap,
     required this.onLikeTap,
     required this.onReplyTap,
     required this.onImageTap,
@@ -758,6 +807,16 @@ class _FeedPostCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (canDelete)
+                IconButton(
+                  onPressed: onDeleteTap,
+                  tooltip: 'Gönderiyi sil',
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppTheme.error,
+                    size: 20,
+                  ),
+                ),
             ],
           ),
           if (post.body.trim().isNotEmpty) ...[
@@ -1109,6 +1168,7 @@ class _RepliesSheetState extends State<_RepliesSheet> {
                 children: [
                   _FeedPostCard(
                     post: _post,
+                    canDelete: false,
                     onLikeTap: () {},
                     onReplyTap: () {},
                     onImageTap: () {
