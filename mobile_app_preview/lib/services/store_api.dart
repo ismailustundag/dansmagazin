@@ -176,4 +176,14 @@ class StoreApi {
       throw Exception(parseApiErrorBody(body, fallback: 'Ürün oluşturulamadı'));
     }
   }
+
+  static Future<void> openStore(String sessionToken) async {
+    final resp = await http.post(
+      Uri.parse('$_base/store/me/open'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(parseApiErrorBody(resp.body, fallback: 'Mağaza açılamadı'));
+    }
+  }
 }

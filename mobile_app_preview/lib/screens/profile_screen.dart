@@ -4,6 +4,7 @@ import '../services/i18n.dart';
 import '../services/notification_center.dart';
 import '../services/profile_card_palette.dart';
 import '../services/profile_api.dart';
+import '../services/store_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
 import '../widgets/verified_avatar.dart';
@@ -199,16 +200,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool get _showManagementTools =>
       widget.appRole == 'super_admin' ||
+      (_profile?.storeEnabled ?? false) ||
       (_profile?.isVerified ?? false) ||
       widget.canCreateMobileEvent ||
       widget.wpRoles.contains('administrator') ||
       widget.wpRoles.contains('editor');
 
   bool get _canManageStore =>
-      (_profile?.isVerified ?? false) ||
-      widget.appRole == 'super_admin' ||
-      widget.wpRoles.contains('administrator') ||
-      widget.wpRoles.contains('editor');
+      (_profile?.storeEnabled ?? false);
+
+  bool get _canOpenStore =>
+      (_profile?.isVerified ?? false) && !(_profile?.storeEnabled ?? false);
+
+  Future<void> _openStoreForProfile() async {
+    try {
+      await StoreApi.openStore(widget.sessionToken);
+      await _loadProfileData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mağazan açıldı. Artık ürün ekleyebilirsin.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -340,6 +358,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   builder: (_) => PhotoPollsAdminScreen(sessionToken: widget.sessionToken),
                 ),
               ),
+            ),
+          ],
+          if (_canOpenStore) ...[
+            const SizedBox(height: 10),
+            _ProfileListCard(
+              title: 'Mağaza Aç',
+              subtitle: 'Satış yapmak için mağazanı aktifleştir',
+              icon: Icons.store_mall_directory_outlined,
+              accent: _mint,
+              onTap: _openStoreForProfile,
             ),
           ],
           if (_canManageStore) ...[
