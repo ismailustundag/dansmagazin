@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/emoji_text.dart';
 
 class ScreenShell extends StatelessWidget {
   final String title;
@@ -63,7 +64,7 @@ class ScreenShell extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  EmojiText(
                                     title,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -131,6 +132,7 @@ class ScreenShell extends StatelessWidget {
 class PreviewCard extends StatelessWidget {
   final String title;
   final String subtitle;
+  final Widget? titleWidget;
   final IconData icon;
   final VoidCallback? onTap;
   final AppTone tone;
@@ -139,6 +141,7 @@ class PreviewCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    this.titleWidget,
     required this.icon,
     this.onTap,
     this.tone = AppTone.neutral,
@@ -171,10 +174,13 @@ class PreviewCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15),
-                  ),
+                  titleWidget ??
+                      EmojiText(
+                        title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,

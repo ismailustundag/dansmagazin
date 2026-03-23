@@ -13,6 +13,7 @@ import '../services/i18n.dart';
 import '../services/photo_flow_api.dart';
 import '../services/photo_polls_api.dart';
 import '../theme/app_theme.dart';
+import '../widgets/emoji_text.dart';
 import 'photo_poll_detail_screen.dart';
 import 'screen_shell.dart';
 
@@ -746,8 +747,9 @@ class _FeedPostCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    VerifiedNameText(
                       post.authorName,
+                      isVerified: post.authorIsVerified,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 2),
@@ -764,7 +766,7 @@ class _FeedPostCard extends StatelessWidget {
           ),
           if (post.body.trim().isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
+            EmojiText(
               post.body,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
             ),
@@ -835,14 +837,27 @@ class _FeedPostCard extends StatelessWidget {
                   text: TextSpan(
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
                     children: [
-                      TextSpan(
-                        text: '${reply.authorName}: ',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      ...buildVerifiedNameSpans(
+                        reply.authorName,
+                        Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ) ??
+                            const TextStyle(
                               color: AppTheme.textPrimary,
                               fontWeight: FontWeight.w700,
                             ),
+                        isVerified: reply.authorIsVerified,
                       ),
-                      TextSpan(text: reply.body),
+                      TextSpan(
+                        text: ': ',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textPrimary),
+                      ),
+                      ...buildEmojiTextSpans(
+                        reply.body,
+                        Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary) ??
+                            const TextStyle(color: AppTheme.textSecondary),
+                      ),
                     ],
                   ),
                 ),
@@ -961,7 +976,7 @@ class _PollListCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
+                  child: EmojiText(
                     poll.title,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
@@ -1126,8 +1141,9 @@ class _RepliesSheetState extends State<_RepliesSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            VerifiedNameText(
                               reply.authorName,
+                              isVerified: reply.authorIsVerified,
                               style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 2),
@@ -1138,7 +1154,7 @@ class _RepliesSheetState extends State<_RepliesSheet> {
                                   ),
                             ),
                             const SizedBox(height: 8),
-                            Text(reply.body),
+                            EmojiText(reply.body),
                           ],
                         ),
                       ),

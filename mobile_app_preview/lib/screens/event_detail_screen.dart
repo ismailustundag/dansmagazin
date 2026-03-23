@@ -7,6 +7,7 @@ import '../services/calendar_service.dart';
 import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import '../theme/app_theme.dart';
+import '../widgets/emoji_text.dart';
 import 'app_webview_screen.dart';
 import 'friend_profile_screen.dart';
 
@@ -694,7 +695,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      EmojiText(
                         _contentText(),
                         style: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
                       ),
@@ -717,7 +718,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ],
                     ],
                   )
-                : Text(
+                : EmojiText(
                     _contentText(),
                     style: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
                   ),
@@ -1005,7 +1006,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 16),
-      child: Text(
+      child: EmojiText(
         text,
         style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
       ),
@@ -1014,7 +1015,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Widget _commentCard(EventCommentItem item) {
     final meta = <String>[
-      item.authorName.trim().isEmpty ? 'Kullanıcı' : item.authorName.trim(),
       _fmtDate(item.updatedAt),
       if (item.isEdited) 'Düzenlendi',
       if (item.isMine) 'Sen',
@@ -1030,13 +1030,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  meta.join(' • '),
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    height: 1.35,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    VerifiedNameText(
+                      item.authorName.trim().isEmpty ? 'Kullanıcı' : item.authorName.trim(),
+                      isVerified: item.authorIsVerified,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      meta.join(' • '),
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Row(
@@ -1085,7 +1100,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          EmojiText(
             item.body,
             style: const TextStyle(
               color: AppTheme.textPrimary,

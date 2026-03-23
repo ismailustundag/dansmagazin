@@ -9,12 +9,14 @@ import '../services/date_time_format.dart';
 import '../services/error_message.dart';
 import '../services/notification_center.dart';
 import '../theme/app_theme.dart';
+import '../widgets/emoji_text.dart';
 
 class ChatThreadScreen extends StatefulWidget {
   final String sessionToken;
   final int peerAccountId;
   final String peerName;
   final String peerAvatarUrl;
+  final bool peerIsVerified;
 
   const ChatThreadScreen({
     super.key,
@@ -22,6 +24,7 @@ class ChatThreadScreen extends StatefulWidget {
     required this.peerAccountId,
     required this.peerName,
     this.peerAvatarUrl = '',
+    this.peerIsVerified = false,
   });
 
   @override
@@ -263,7 +266,15 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     ),
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(widget.peerName)),
+            Expanded(
+              child: VerifiedNameText(
+                widget.peerName,
+                isVerified: widget.peerIsVerified,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),
@@ -308,7 +319,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
+                                      EmojiText(
                                         m.body,
                                         style: TextStyle(
                                           fontSize: 15 * messageScale,
@@ -355,8 +366,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   if (_peerTyping)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        '${widget.peerName} yazıyor...',
+                      child: EmojiText(
+                        '${widget.peerName}${widget.peerIsVerified ? ' 💫' : ''} yazıyor...',
                         style: TextStyle(
                           fontSize: 12 * messageScale,
                           color: AppTheme.info,

@@ -14,6 +14,7 @@ class ProfileSettingsData {
   final String danceInterests;
   final String danceSchool;
   final String about;
+  final bool isVerified;
   final String registeredAt;
   final String updatedAt;
   final String language;
@@ -31,6 +32,7 @@ class ProfileSettingsData {
     required this.danceInterests,
     required this.danceSchool,
     required this.about,
+    required this.isVerified,
     required this.registeredAt,
     required this.updatedAt,
     required this.language,
@@ -70,6 +72,7 @@ class ProfileSettingsData {
       danceInterests: (json['dance_interests'] ?? '').toString(),
       danceSchool: (json['dance_school'] ?? '').toString(),
       about: (json['about'] ?? '').toString(),
+      isVerified: json['is_verified'] == true,
       registeredAt: (json['registered_at'] ?? '').toString(),
       updatedAt: (json['updated_at'] ?? '').toString(),
       language: (json['language'] ?? 'tr').toString(),

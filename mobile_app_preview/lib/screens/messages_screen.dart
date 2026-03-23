@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../services/date_time_format.dart';
+import '../widgets/emoji_text.dart';
 import 'chat_thread_screen.dart';
 import 'screen_shell.dart';
 
@@ -110,6 +111,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 ...items.map(
                   (m) => PreviewCard(
                     title: m.name,
+                    titleWidget: VerifiedNameText(
+                      m.name,
+                      isVerified: m.isVerified,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     subtitle: m.lastAt.isNotEmpty ? 'Son mesaj: ${m.lastAt}' : 'Henüz mesaj yok, yazmaya başla',
                     icon: Icons.person,
                     onTap: () {
@@ -120,6 +128,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             peerAccountId: m.accountId,
                             peerName: m.name,
                             peerAvatarUrl: m.avatarUrl,
+                            peerIsVerified: m.isVerified,
                           ),
                         ),
                       );
@@ -138,20 +147,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
 class _InboxItem {
   final int accountId;
   final String name;
+  final bool isVerified;
   final String lastAt;
   final String avatarUrl;
 
-  const _InboxItem({required this.accountId, required this.name, required this.lastAt, required this.avatarUrl});
+  const _InboxItem({
+    required this.accountId,
+    required this.name,
+    required this.isVerified,
+    required this.lastAt,
+    required this.avatarUrl,
+  });
 
   _InboxItem copyWith({
     int? accountId,
     String? name,
+    bool? isVerified,
     String? lastAt,
     String? avatarUrl,
   }) {
     return _InboxItem(
       accountId: accountId ?? this.accountId,
       name: name ?? this.name,
+      isVerified: isVerified ?? this.isVerified,
       lastAt: lastAt ?? this.lastAt,
       avatarUrl: avatarUrl ?? this.avatarUrl,
     );
@@ -161,6 +179,7 @@ class _InboxItem {
     return _InboxItem(
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
+      isVerified: json['is_verified'] == true,
       lastAt: (json['last_at'] ?? '').toString(),
       avatarUrl: (json['avatar_url'] ?? '').toString(),
     );

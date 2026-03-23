@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
 import '../services/profile_card_palette.dart';
+import '../widgets/emoji_text.dart';
 import 'chat_thread_screen.dart';
 
 class FriendProfileScreen extends StatefulWidget {
@@ -57,6 +58,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
           peerAccountId: profile.accountId,
           peerName: profile.name,
           peerAvatarUrl: profile.avatarUrl,
+          peerIsVerified: profile.isVerified,
         ),
       ),
     );
@@ -480,7 +482,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           child ??
-              Text(
+              EmojiText(
                 resolvedValue,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -568,8 +570,9 @@ class _FriendProfileHeroCard extends StatelessWidget {
         children: [
           _profileVisual(palette),
           const SizedBox(height: 12),
-          Text(
+          VerifiedNameText(
             nameText,
+            isVerified: profile.isVerified,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -622,7 +625,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(999),
                                         border: Border.all(color: Colors.white.withOpacity(0.08)),
                                       ),
-                                      child: Text(
+                                      child: EmojiText(
                                         item,
                                         style: const TextStyle(
                                           color: Color(0xFFFFF7F1),
@@ -817,6 +820,7 @@ class _FriendProfile {
   final String friendStatus;
   final int? friendRequestId;
   final bool isFriend;
+  final bool isVerified;
 
   const _FriendProfile({
     required this.accountId,
@@ -830,6 +834,7 @@ class _FriendProfile {
     required this.friendStatus,
     required this.friendRequestId,
     required this.isFriend,
+    required this.isVerified,
   });
 
   String get initials => name.trim().isNotEmpty ? name.trim().substring(0, 1).toUpperCase() : '?';
@@ -847,6 +852,7 @@ class _FriendProfile {
       friendStatus: (json['friend_status'] ?? 'none').toString(),
       friendRequestId: (json['friend_request_id'] as num?)?.toInt(),
       isFriend: json['is_friend'] == true,
+      isVerified: json['is_verified'] == true,
     );
   }
 }

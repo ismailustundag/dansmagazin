@@ -11,6 +11,7 @@ import '../services/event_social_api.dart';
 import '../services/i18n.dart';
 import '../services/notification_center.dart';
 import '../theme/app_theme.dart';
+import '../widgets/emoji_text.dart';
 import 'chat_thread_screen.dart';
 import 'friend_profile_screen.dart';
 import 'screen_shell.dart';
@@ -468,6 +469,7 @@ class _SocialScreenState extends State<SocialScreen> {
           peerAccountId: friend.accountId,
           peerName: friend.name.isNotEmpty ? friend.name : I18n.t('user'),
           peerAvatarUrl: friend.avatarUrl,
+          peerIsVerified: friend.isVerified,
         ),
       ),
     );
@@ -577,9 +579,12 @@ class _SocialScreenState extends State<SocialScreen> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(
+                              child: VerifiedNameText(
                                 r.peerName.isNotEmpty ? r.peerName : t('user'),
+                                isVerified: r.peerIsVerified,
                                 style: const TextStyle(fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             TextButton(
@@ -705,9 +710,12 @@ class _SocialScreenState extends State<SocialScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                VerifiedNameText(
                                   u.name.isNotEmpty ? u.name : t('user'),
+                                  isVerified: u.isVerified,
                                   style: const TextStyle(fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -807,8 +815,9 @@ class _SocialScreenState extends State<SocialScreen> {
                                   child: Row(
                                     children: [
                                       Expanded(
-                                        child: Text(
+                                        child: VerifiedNameText(
                                           f.name.isNotEmpty ? f.name : t('user'),
+                                          isVerified: f.isVerified,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
@@ -955,6 +964,7 @@ class _FriendItem {
   final String name;
   final String email;
   final String avatarUrl;
+  final bool isVerified;
   final int unreadCount;
   final String lastMessageAt;
 
@@ -963,6 +973,7 @@ class _FriendItem {
     required this.name,
     required this.email,
     required this.avatarUrl,
+    required this.isVerified,
     required this.unreadCount,
     required this.lastMessageAt,
   });
@@ -973,6 +984,7 @@ class _FriendItem {
       name: (json['name'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       avatarUrl: (json['avatar_url'] ?? json['avatar'] ?? '').toString(),
+      isVerified: json['is_verified'] == true,
       unreadCount: (json['unread_count'] as num?)?.toInt() ?? 0,
       lastMessageAt: (json['last_at'] ?? '').toString(),
     );
@@ -983,6 +995,7 @@ class _FriendItem {
     String? name,
     String? email,
     String? avatarUrl,
+    bool? isVerified,
     int? unreadCount,
     String? lastMessageAt,
   }) {
@@ -991,6 +1004,7 @@ class _FriendItem {
       name: name ?? this.name,
       email: email ?? this.email,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      isVerified: isVerified ?? this.isVerified,
       unreadCount: unreadCount ?? this.unreadCount,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
     );

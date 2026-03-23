@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/photo_polls_api.dart';
 import '../theme/app_theme.dart';
+import '../widgets/emoji_text.dart';
 
 class PhotoPollDetailScreen extends StatefulWidget {
   final String sessionToken;
@@ -146,7 +147,7 @@ class _PhotoPollDetailScreenState extends State<PhotoPollDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        EmojiText(
                           _poll.title,
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                         ),
@@ -251,7 +252,7 @@ class _PollQuestionCard extends StatelessWidget {
             style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppTheme.textSecondary),
           ),
           const SizedBox(height: 6),
-          Text(
+          EmojiText(
             question.text,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
@@ -293,7 +294,7 @@ class _PollQuestionCard extends StatelessWidget {
                           child: Row(
                             children: [
                               Expanded(
-                                child: Text(
+                                child: EmojiText(
                                   option.text,
                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
@@ -339,7 +340,7 @@ class _PollInfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: AppTheme.panel(tone: AppTone.photos, radius: 18, subtle: true),
-      child: Text(
+      child: EmojiText(
         text,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
       ),

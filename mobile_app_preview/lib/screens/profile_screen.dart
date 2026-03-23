@@ -5,6 +5,7 @@ import '../services/notification_center.dart';
 import '../services/profile_card_palette.dart';
 import '../services/profile_api.dart';
 import '../theme/app_theme.dart';
+import '../widgets/emoji_text.dart';
 import 'admin_notifications_screen.dart';
 import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
@@ -242,6 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           accountId: widget.accountId,
           avatarUrl: _avatarUrl,
           initials: initials,
+          isVerified: _profile?.isVerified ?? false,
           gender: _profile?.gender ?? '',
           registeredAt: _profile?.registeredAt ?? '',
           danceInterests: _profile?.danceInterests ?? '',
@@ -352,6 +354,7 @@ class _ProfileHeroCard extends StatelessWidget {
   final int accountId;
   final String avatarUrl;
   final String initials;
+  final bool isVerified;
   final String gender;
   final String registeredAt;
   final String danceInterests;
@@ -363,6 +366,7 @@ class _ProfileHeroCard extends StatelessWidget {
     required this.accountId,
     required this.avatarUrl,
     required this.initials,
+    required this.isVerified,
     required this.gender,
     required this.registeredAt,
     required this.danceInterests,
@@ -445,7 +449,7 @@ class _ProfileHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           child ??
-              Text(
+              EmojiText(
                 resolvedValue,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -494,8 +498,9 @@ class _ProfileHeroCard extends StatelessWidget {
         children: [
           _profileVisual(palette),
           const SizedBox(height: 12),
-          Text(
+          VerifiedNameText(
             nameText,
+            isVerified: isVerified,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -548,7 +553,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(999),
                                         border: Border.all(color: Colors.white.withOpacity(0.08)),
                                       ),
-                                      child: Text(
+                                      child: EmojiText(
                                         item,
                                         style: const TextStyle(
                                           color: Color(0xFFFFF7F1),

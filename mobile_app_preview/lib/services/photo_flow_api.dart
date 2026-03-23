@@ -9,6 +9,7 @@ class PhotoFlowReply {
   final String body;
   final String createdAt;
   final String authorName;
+  final bool authorIsVerified;
   final String authorAvatarUrl;
 
   const PhotoFlowReply({
@@ -18,6 +19,7 @@ class PhotoFlowReply {
     required this.body,
     required this.createdAt,
     required this.authorName,
+    required this.authorIsVerified,
     required this.authorAvatarUrl,
   });
 
@@ -29,6 +31,7 @@ class PhotoFlowReply {
       body: (json['body'] ?? '').toString(),
       createdAt: (json['created_at'] ?? '').toString(),
       authorName: (json['author_name'] ?? '').toString(),
+      authorIsVerified: json['author_is_verified'] == true,
       authorAvatarUrl: (json['author_avatar_url'] ?? '').toString(),
     );
   }
@@ -45,6 +48,7 @@ class PhotoFlowPost {
   final bool likedByMe;
   final String createdAt;
   final String authorName;
+  final bool authorIsVerified;
   final String authorAvatarUrl;
   final List<PhotoFlowReply> replies;
 
@@ -59,6 +63,7 @@ class PhotoFlowPost {
     required this.likedByMe,
     required this.createdAt,
     required this.authorName,
+    required this.authorIsVerified,
     required this.authorAvatarUrl,
     required this.replies,
   });
@@ -79,6 +84,7 @@ class PhotoFlowPost {
       likedByMe: json['liked_by_me'] == true,
       createdAt: (json['created_at'] ?? '').toString(),
       authorName: (json['author_name'] ?? '').toString(),
+      authorIsVerified: json['author_is_verified'] == true,
       authorAvatarUrl: (json['author_avatar_url'] ?? '').toString(),
       replies: replies,
     );

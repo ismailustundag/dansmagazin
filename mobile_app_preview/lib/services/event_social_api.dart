@@ -69,6 +69,7 @@ class EventCommentItem {
   final int threadSubmissionId;
   final int authorAccountId;
   final String authorName;
+  final bool authorIsVerified;
   final String body;
   final String createdAt;
   final String updatedAt;
@@ -82,6 +83,7 @@ class EventCommentItem {
     required this.threadSubmissionId,
     required this.authorAccountId,
     required this.authorName,
+    required this.authorIsVerified,
     required this.body,
     required this.createdAt,
     required this.updatedAt,
@@ -97,6 +99,7 @@ class EventCommentItem {
       threadSubmissionId: (json['thread_submission_id'] as num?)?.toInt() ?? 0,
       authorAccountId: (json['author_account_id'] as num?)?.toInt() ?? 0,
       authorName: (json['author_name'] ?? '').toString(),
+      authorIsVerified: json['author_is_verified'] == true,
       body: (json['body'] ?? '').toString(),
       createdAt: (json['created_at'] ?? '').toString(),
       updatedAt: (json['updated_at'] ?? '').toString(),
@@ -215,6 +218,7 @@ class FriendRequestItem {
   final int peerAccountId;
   final String peerName;
   final String peerEmail;
+  final bool peerIsVerified;
   final String createdAt;
 
   const FriendRequestItem({
@@ -222,6 +226,7 @@ class FriendRequestItem {
     required this.peerAccountId,
     required this.peerName,
     required this.peerEmail,
+    required this.peerIsVerified,
     required this.createdAt,
   });
 
@@ -231,6 +236,7 @@ class FriendRequestItem {
       peerAccountId: (json['peer_account_id'] as num?)?.toInt() ?? 0,
       peerName: (json['peer_name'] ?? '').toString(),
       peerEmail: (json['peer_email'] ?? '').toString(),
+      peerIsVerified: json['peer_is_verified'] == true,
       createdAt: (json['created_at'] ?? '').toString(),
     );
   }
@@ -241,6 +247,7 @@ class SocialUserItem {
   final String name;
   final String email;
   final String avatarUrl;
+  final bool isVerified;
   final bool isFriend;
   final String friendStatus;
   final int? friendRequestId;
@@ -250,6 +257,7 @@ class SocialUserItem {
     required this.name,
     required this.email,
     required this.avatarUrl,
+    required this.isVerified,
     required this.isFriend,
     required this.friendStatus,
     required this.friendRequestId,
@@ -261,6 +269,7 @@ class SocialUserItem {
       name: (json['name'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       avatarUrl: (json['avatar_url'] ?? '').toString(),
+      isVerified: json['is_verified'] == true,
       isFriend: json['is_friend'] == true,
       friendStatus: (json['friend_status'] ?? 'none').toString(),
       friendRequestId: (json['friend_request_id'] as num?)?.toInt(),
