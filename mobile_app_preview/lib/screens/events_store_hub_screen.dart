@@ -37,7 +37,7 @@ class EventsStoreHubScreen extends StatelessWidget {
               sessionToken: sessionToken,
               canCreateEvent: canCreateEvent,
             ),
-            const StoreScreen(),
+            StoreScreen(sessionToken: sessionToken),
           ],
         ),
       ),

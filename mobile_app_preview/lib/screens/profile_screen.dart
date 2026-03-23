@@ -17,6 +17,7 @@ import 'notifications_screen.dart';
 import 'photo_polls_admin_screen.dart';
 import 'screen_shell.dart';
 import 'settings_screen.dart';
+import 'store_management_screen.dart';
 import 'tickets_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -198,7 +199,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool get _showManagementTools =>
       widget.appRole == 'super_admin' ||
+      (_profile?.isVerified ?? false) ||
       widget.canCreateMobileEvent ||
+      widget.wpRoles.contains('administrator') ||
+      widget.wpRoles.contains('editor');
+
+  bool get _canManageStore =>
+      (_profile?.isVerified ?? false) ||
+      widget.appRole == 'super_admin' ||
       widget.wpRoles.contains('administrator') ||
       widget.wpRoles.contains('editor');
 
@@ -330,6 +338,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => PhotoPollsAdminScreen(sessionToken: widget.sessionToken),
+                ),
+              ),
+            ),
+          ],
+          if (_canManageStore) ...[
+            const SizedBox(height: 10),
+            _ProfileListCard(
+              title: 'Mağazamı Yönet',
+              subtitle: 'Ürün ekle, mağazandaki ürünleri kontrol et',
+              icon: Icons.storefront_outlined,
+              accent: _mint,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => StoreManagementScreen(sessionToken: widget.sessionToken),
                 ),
               ),
             ),
