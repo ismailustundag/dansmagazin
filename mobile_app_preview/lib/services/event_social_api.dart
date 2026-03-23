@@ -158,6 +158,7 @@ class EventRaffleDetail {
   final String startsAt;
   final String endsAt;
   final int winnerCount;
+  final int reserveCount;
   final int entryCount;
   final String state;
   final bool isDrawn;
@@ -165,8 +166,13 @@ class EventRaffleDetail {
   final bool canJoin;
   final bool canManage;
   final bool canDraw;
+  final bool canOpen;
+  final bool canClose;
+  final bool canEdit;
   final String drawnAt;
   final List<EventRaffleWinner> winners;
+  final List<EventRaffleWinner> primaryWinners;
+  final List<EventRaffleWinner> reserveWinners;
 
   const EventRaffleDetail({
     required this.id,
@@ -174,6 +180,7 @@ class EventRaffleDetail {
     required this.startsAt,
     required this.endsAt,
     required this.winnerCount,
+    required this.reserveCount,
     required this.entryCount,
     required this.state,
     required this.isDrawn,
@@ -181,17 +188,35 @@ class EventRaffleDetail {
     required this.canJoin,
     required this.canManage,
     required this.canDraw,
+    required this.canOpen,
+    required this.canClose,
+    required this.canEdit,
     required this.drawnAt,
     required this.winners,
+    required this.primaryWinners,
+    required this.reserveWinners,
   });
 
   factory EventRaffleDetail.fromJson(Map<String, dynamic> json) {
+    final primaryWinners = (json['primary_winners'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(EventRaffleWinner.fromJson)
+        .toList();
+    final reserveWinners = (json['reserve_winners'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(EventRaffleWinner.fromJson)
+        .toList();
+    final winners = (json['winners'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(EventRaffleWinner.fromJson)
+        .toList();
     return EventRaffleDetail(
       id: (json['id'] as num?)?.toInt() ?? 0,
       submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
       startsAt: (json['starts_at'] ?? '').toString(),
       endsAt: (json['ends_at'] ?? '').toString(),
       winnerCount: (json['winner_count'] as num?)?.toInt() ?? 0,
+      reserveCount: (json['reserve_count'] as num?)?.toInt() ?? 0,
       entryCount: (json['entry_count'] as num?)?.toInt() ?? 0,
       state: (json['state'] ?? '').toString(),
       isDrawn: json['is_drawn'] == true,
@@ -199,11 +224,13 @@ class EventRaffleDetail {
       canJoin: json['can_join'] == true,
       canManage: json['can_manage'] == true,
       canDraw: json['can_draw'] == true,
+      canOpen: json['can_open'] == true,
+      canClose: json['can_close'] == true,
+      canEdit: json['can_edit'] == true,
       drawnAt: (json['drawn_at'] ?? '').toString(),
-      winners: (json['winners'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .map(EventRaffleWinner.fromJson)
-          .toList(),
+      winners: winners.isNotEmpty ? winners : primaryWinners,
+      primaryWinners: primaryWinners.isNotEmpty ? primaryWinners : winners,
+      reserveWinners: reserveWinners,
     );
   }
 }
@@ -472,8 +499,6 @@ class EventSocialApi {
   static Future<EventRaffleDetail> upsertRaffle({
     required int submissionId,
     required String sessionToken,
-    required String startsAt,
-    required String endsAt,
     required int winnerCount,
   }) async {
     final resp = await http.put(
@@ -483,13 +508,49 @@ class EventSocialApi {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'starts_at': startsAt,
-        'ends_at': endsAt,
         'winner_count': winnerCount,
       }),
     );
     if (resp.statusCode != 200) {
       throw EventSocialApiException(_parseError(resp.body, fallback: 'Çekiliş kaydedilemedi'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final raffleJson = body['raffle'];
+    if (raffleJson is! Map<String, dynamic>) {
+      throw EventSocialApiException('Geçersiz çekiliş cevabı');
+    }
+    return EventRaffleDetail.fromJson(raffleJson);
+  }
+
+  static Future<EventRaffleDetail> openRaffle({
+    required int submissionId,
+    required String sessionToken,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/events/$submissionId/raffle/open'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Başvurular açılamadı'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    final raffleJson = body['raffle'];
+    if (raffleJson is! Map<String, dynamic>) {
+      throw EventSocialApiException('Geçersiz çekiliş cevabı');
+    }
+    return EventRaffleDetail.fromJson(raffleJson);
+  }
+
+  static Future<EventRaffleDetail> closeRaffle({
+    required int submissionId,
+    required String sessionToken,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/events/$submissionId/raffle/close'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'Başvurular durdurulamadı'));
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     final raffleJson = body['raffle'];

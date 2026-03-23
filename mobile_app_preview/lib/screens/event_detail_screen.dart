@@ -374,7 +374,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       );
       if (!mounted) return;
       setState(() => _raffle = raffle);
-      _showMsg('Çekilişe katıldın. Sonuçlar bitişten sonra açıklanacak.');
+      _showMsg('Çekilişe katıldın. Başvurular durunca sonuçlar burada açıklanacak.');
     } on EventSocialApiException catch (e) {
       _showMsg(e.message);
     } finally {
@@ -837,15 +837,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final raffle = _raffle;
     if (raffle == null) return const SizedBox.shrink();
 
-    final winnerSummary = raffle.winnerCount == 1 ? '1 kazanan' : '${raffle.winnerCount} kazanan';
     final stateLabel = switch (raffle.state) {
-      'scheduled' => 'Yakında Başlıyor',
+      'draft' => 'Başvuru Kapalı',
+      'scheduled' => 'Başvuru Kapalı',
       'active' => 'Katılıma Açık',
-      'closed' => 'Sonuç Bekleniyor',
+      'closed' => 'Başvuru Durdu',
       'drawn' => 'Sonuçlandı',
       _ => 'Çekiliş',
     };
     final stateColor = switch (raffle.state) {
+      'draft' => AppTheme.info,
       'scheduled' => AppTheme.info,
       'active' => AppTheme.orange,
       'closed' => AppTheme.warning,
@@ -885,22 +886,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            'Katılım: ${_fmtDate(raffle.startsAt)} - ${_fmtDate(raffle.endsAt)}',
-            style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
-          ),
+          if (raffle.startsAt.trim().isNotEmpty)
+            Text(
+              'Başvurular açıldı: ${_fmtDate(raffle.startsAt)}',
+              style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+            ),
+          if (raffle.endsAt.trim().isNotEmpty)
+            Text(
+              'Başvurular durdu: ${_fmtDate(raffle.endsAt)}',
+              style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+            ),
           const SizedBox(height: 4),
           Text(
-            '${raffle.entryCount} katılımcı • $winnerSummary',
+            '${raffle.entryCount} katılımcı • ${raffle.winnerCount} asıl • ${raffle.reserveCount} yedek',
             style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 10),
-          if (raffle.state == 'scheduled')
-            _commentNotice('Çekiliş henüz başlamadı. Başlangıç saatinde katılım butonu açılacak.')
+          if (raffle.state == 'draft' || raffle.state == 'scheduled')
+            _commentNotice('Yönetici başvuruları henüz açmadı.')
           else if (raffle.state == 'active' && widget.sessionToken.trim().isEmpty)
             _commentNotice('Çekilişe katılmak için önce giriş yapmalısın.')
           else if (raffle.state == 'active' && raffle.hasJoined)
-            _commentNotice('Çekilişe katıldın. Sonuçlar bitişten sonra açıklanacak.')
+            _commentNotice('Çekilişe katıldın. Başvurular durduğunda sonuçlar burada açıklanacak.')
           else if (raffle.state == 'active')
             SizedBox(
               width: double.infinity,
@@ -921,17 +928,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ),
             )
           else if (raffle.state == 'closed')
-            _commentNotice('Çekiliş süresi bitti. Yönetici kazananları açıkladığında burada görünecek.')
+            _commentNotice('Başvurular kapandı. Sonuçlar açıklandığında burada görünecek.')
           else
             const SizedBox.shrink(),
-          if (raffle.winners.isNotEmpty) ...[
+          if (raffle.primaryWinners.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Text(
-              'Kazananlar',
+              'Asıl Talihliler',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            ...raffle.winners.map(
+            ...raffle.primaryWinners.map(
               (winner) => Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -944,6 +951,45 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: AppTheme.orange.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        winner.position.toString(),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (raffle.reserveWinners.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Yedek Talihliler',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            ...raffle.reserveWinners.map(
+              (winner) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppTheme.info.withOpacity(0.18),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(

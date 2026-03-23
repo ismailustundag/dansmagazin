@@ -963,6 +963,7 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
     final items = (map['items'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(_ManagedEventItem.fromJson)
+        .where((item) => !item.isPast)
         .toList();
     items.sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return items;
@@ -1215,6 +1216,16 @@ class _ManagedEventItem {
       return DateTime.utc(9999, 1, 1).add(today.difference(itemDay));
     }
     return dt;
+  }
+
+  bool get isPast {
+    final candidate = endAt.isNotEmpty
+        ? endAt
+        : (startAt.isNotEmpty ? startAt : eventDate);
+    final parsed = DateTime.tryParse(candidate.trim().replaceAll(' ', 'T'));
+    if (parsed == null) return false;
+    final dt = parsed.isUtc ? parsed.toLocal() : parsed;
+    return dt.isBefore(DateTime.now());
   }
 }
 
@@ -1706,6 +1717,8 @@ class _EventRaffleSection extends StatefulWidget {
 class _EventRaffleSectionState extends State<_EventRaffleSection> {
   bool _loading = true;
   bool _drawing = false;
+  bool _opening = false;
+  bool _closing = false;
   String? _error;
   EventRaffleDetail? _raffle;
 
@@ -1768,7 +1781,7 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
         backgroundColor: AppTheme.surfaceSecondary,
         title: const Text('Kazananları Belirle'),
         content: Text(
-          '${raffle.entryCount} katılımcı arasından ${raffle.winnerCount} kazanan seçilecek. Bu işlemden sonra sonuçlar değiştirilemez.',
+          '${raffle.entryCount} katılımcı arasından ${raffle.winnerCount} asıl ve ${raffle.reserveCount} yedek talihli seçilecek. Bu işlemden sonra sonuçlar değiştirilemez.',
         ),
         actions: [
           TextButton(
@@ -1803,6 +1816,48 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
     }
   }
 
+  Future<void> _openEntries() async {
+    if (_opening) return;
+    setState(() => _opening = true);
+    try {
+      final updated = await EventSocialApi.openRaffle(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() => _raffle = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Başvurular açıldı.')),
+      );
+    } on EventSocialApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
+  Future<void> _closeEntries() async {
+    if (_closing) return;
+    setState(() => _closing = true);
+    try {
+      final updated = await EventSocialApi.closeRaffle(
+        submissionId: widget.submissionId,
+        sessionToken: widget.sessionToken,
+      );
+      if (!mounted) return;
+      setState(() => _raffle = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Başvurular durduruldu.')),
+      );
+    } on EventSocialApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _closing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final raffle = _raffle;
@@ -1829,7 +1884,7 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
             ),
           ] else if (raffle == null) ...[
             const Text(
-              'Bu etkinlik için henüz çekiliş oluşturulmamış.',
+              'Bu etkinlik için henüz çekiliş hazırlanmamış.',
               style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
             ),
             const SizedBox(height: 12),
@@ -1838,7 +1893,7 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
               child: ElevatedButton.icon(
                 onPressed: _openEditor,
                 icon: const Icon(Icons.celebration_outlined),
-                label: const Text('Etkinlik İçi Çekiliş Oluştur'),
+                label: const Text('Çekilişi Hazırla'),
               ),
             ),
           ] else ...[
@@ -1848,19 +1903,22 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
               children: [
                 _RaffleMetaChip(label: _raffleStateLabel(raffle.state)),
                 _RaffleMetaChip(label: '${raffle.entryCount} katılımcı'),
-                _RaffleMetaChip(label: '${raffle.winnerCount} kazanan'),
+                _RaffleMetaChip(label: '${raffle.winnerCount} asıl'),
+                _RaffleMetaChip(label: '${raffle.reserveCount} yedek'),
               ],
             ),
             const SizedBox(height: 12),
-            _RaffleInfoRow(label: 'Başlangıç', value: _toDisplayRaffleMoment(raffle.startsAt)),
-            _RaffleInfoRow(label: 'Bitiş', value: _toDisplayRaffleMoment(raffle.endsAt)),
+            if (raffle.startsAt.trim().isNotEmpty)
+              _RaffleInfoRow(label: 'Başvurular Açıldı', value: _toDisplayRaffleMoment(raffle.startsAt)),
+            if (raffle.endsAt.trim().isNotEmpty)
+              _RaffleInfoRow(label: 'Başvurular Durdu', value: _toDisplayRaffleMoment(raffle.endsAt)),
             if (raffle.drawnAt.trim().isNotEmpty)
               _RaffleInfoRow(label: 'Çekiliş Sonucu', value: _toDisplayRaffleMoment(raffle.drawnAt)),
-            if (raffle.winners.isNotEmpty) ...[
+            if (raffle.primaryWinners.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const Text('Kazananlar', style: TextStyle(fontWeight: FontWeight.w700)),
+              const Text('Asıl Talihliler', style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
-              ...raffle.winners.map(
+              ...raffle.primaryWinners.map(
                 (winner) => Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1892,16 +1950,76 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                 ),
               ),
             ],
+            if (raffle.reserveWinners.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Yedek Talihliler', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              ...raffle.reserveWinners.map(
+                (winner) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppTheme.info.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          winner.position.toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
-                  onPressed: raffle.isDrawn ? null : _openEditor,
+                  onPressed: raffle.canEdit ? _openEditor : null,
                   icon: const Icon(Icons.edit_calendar_outlined),
-                  label: Text(raffle.isDrawn ? 'Sonuçlandı' : 'Çekilişi Güncelle'),
+                  label: Text(raffle.canEdit ? 'Çekilişi Düzenle' : 'Sonuçlandı'),
                 ),
+                if (raffle.canOpen)
+                  ElevatedButton.icon(
+                    onPressed: _opening ? null : _openEntries,
+                    icon: _opening
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.play_circle_outline),
+                    label: Text(_opening ? 'Açılıyor...' : 'Başvuruları Aç'),
+                  ),
+                if (raffle.canClose)
+                  OutlinedButton.icon(
+                    onPressed: _closing ? null : _closeEntries,
+                    icon: _closing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.pause_circle_outline),
+                    label: Text(_closing ? 'Durduruluyor...' : 'Başvuruları Durdur'),
+                  ),
                 if (raffle.canDraw)
                   ElevatedButton.icon(
                     onPressed: _drawing ? null : _draw,
@@ -1912,7 +2030,7 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.auto_awesome),
-                    label: Text(_drawing ? 'Belirleniyor...' : 'Kazananları Belirle'),
+                    label: Text(_drawing ? 'Belirleniyor...' : 'Çekiliş Yap'),
                   ),
               ],
             ),
@@ -1941,10 +2059,6 @@ class _EventRaffleEditorScreen extends StatefulWidget {
 }
 
 class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
-  late final TextEditingController _startDateCtrl;
-  late final TextEditingController _startTimeCtrl;
-  late final TextEditingController _endDateCtrl;
-  late final TextEditingController _endTimeCtrl;
   late final TextEditingController _winnerCountCtrl;
   bool _saving = false;
   String? _error;
@@ -1953,60 +2067,19 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
   void initState() {
     super.initState();
     final raffle = widget.raffle;
-    _startDateCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayDate(raffle.startsAt));
-    _startTimeCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayTime(raffle.startsAt));
-    _endDateCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayDate(raffle.endsAt));
-    _endTimeCtrl = TextEditingController(text: raffle == null ? '' : _toDisplayTime(raffle.endsAt));
     _winnerCountCtrl = TextEditingController(text: raffle == null ? '1' : raffle.winnerCount.toString());
   }
 
   @override
   void dispose() {
-    _startDateCtrl.dispose();
-    _startTimeCtrl.dispose();
-    _endDateCtrl.dispose();
-    _endTimeCtrl.dispose();
     _winnerCountCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDate(TextEditingController ctrl) async {
-    final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 3650)),
-      initialDate: initial,
-    );
-    if (date == null || !mounted) return;
-    ctrl.text = _toDisplayDate(date.toIso8601String());
-  }
-
-  Future<void> _pickTime(TextEditingController ctrl) async {
-    final initial = _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 18, minute: 0);
-    final picked = await showTimePicker(context: context, initialTime: initial);
-    if (picked == null || !mounted) return;
-    final h = picked.hour.toString().padLeft(2, '0');
-    final m = picked.minute.toString().padLeft(2, '0');
-    ctrl.text = '$h.$m';
-  }
-
   Future<void> _save() async {
-    final startsAt = _toApiDateTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
-    final endsAt = _toApiDateTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
-    final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
-    final endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
     final winnerCount = int.tryParse(_winnerCountCtrl.text.trim());
-    if (startMoment == null || endMoment == null) {
-      setState(() => _error = 'Başlangıç ve bitiş tarihi zorunlu.');
-      return;
-    }
-    if (!endMoment.isAfter(startMoment)) {
-      setState(() => _error = 'Bitiş zamanı başlangıçtan sonra olmalı.');
-      return;
-    }
     if (winnerCount == null || winnerCount < 1 || winnerCount > 100) {
-      setState(() => _error = 'Kazanan sayısı 1 ile 100 arasında olmalı.');
+      setState(() => _error = 'Talihli sayısı 1 ile 100 arasında olmalı.');
       return;
     }
     setState(() {
@@ -2017,8 +2090,6 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
       await EventSocialApi.upsertRaffle(
         submissionId: widget.submissionId,
         sessionToken: widget.sessionToken,
-        startsAt: startsAt,
-        endsAt: endsAt,
         winnerCount: winnerCount,
       );
       if (!mounted) return;
@@ -2056,7 +2127,7 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Katılım aralığını ve kaç kişinin kazanacağını belirle. Süre bittiğinde kazananları mevcut etkinlik yönetim ekranından seçeceksin.',
+                    'Talihli sayısını belirle. Başvuruları istediğin anda açıp durdurabilir, ardından aynı sayı kadar asıl ve yedek talihli seçebilirsin.',
                     style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
                   ),
                 ],
@@ -2069,32 +2140,17 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Katılım Zamanı', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const Text('Çekiliş Ayarı', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 12),
-                  _RaffleDateTimeBlock(
-                    title: 'Başlangıç',
-                    dateCtrl: _startDateCtrl,
-                    timeCtrl: _startTimeCtrl,
-                    dateLabel: 'Başlangıç Tarihi',
-                    timeLabel: 'Başlangıç Saati',
-                    onPickDate: _pickDate,
-                    onPickTime: _pickTime,
-                  ),
-                  const SizedBox(height: 8),
-                  _RaffleDateTimeBlock(
-                    title: 'Bitiş',
-                    dateCtrl: _endDateCtrl,
-                    timeCtrl: _endTimeCtrl,
-                    dateLabel: 'Bitiş Tarihi',
-                    timeLabel: 'Bitiş Saati',
-                    onPickDate: _pickDate,
-                    onPickTime: _pickTime,
-                  ),
-                  const SizedBox(height: 4),
                   TextField(
                     controller: _winnerCountCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: _raffleFieldDecoration('Kaç Kazanan'),
+                    decoration: _raffleFieldDecoration('Kaç Kişi (Asıl + Yedek)'),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Örnek: 3 girersen çekiliş yapıldığında 3 asıl ve 3 yedek talihli belirlenir.',
+                    style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
                   ),
                 ],
               ),
@@ -2261,12 +2317,14 @@ InputDecoration _raffleFieldDecoration(String label, {IconData? suffixIcon}) {
 
 String _raffleStateLabel(String state) {
   switch (state.trim().toLowerCase()) {
+    case 'draft':
+      return 'Başvuru Kapalı';
     case 'scheduled':
-      return 'Yakında Başlıyor';
+      return 'Başvuru Kapalı';
     case 'active':
       return 'Katılıma Açık';
     case 'closed':
-      return 'Sonuç Bekleniyor';
+      return 'Başvuru Durdu';
     case 'drawn':
       return 'Sonuçlandı';
     default:
