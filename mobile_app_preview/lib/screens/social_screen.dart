@@ -415,9 +415,9 @@ class _SocialScreenState extends State<SocialScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            '#${_myAccountId ?? ''}',
-            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+          const Text(
+            'Tıkla',
+            style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
           ),
         ],
       ),
