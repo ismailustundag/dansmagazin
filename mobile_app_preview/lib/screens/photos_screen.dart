@@ -305,6 +305,20 @@ class _PhotosScreenState extends State<PhotosScreen> {
     setState(() => _communityFeedFuture = _fetchCommunityFeed());
   }
 
+  Future<void> _openFeedImageViewer(PhotoFlowPost post) async {
+    final url = post.imageUrl.trim().isNotEmpty ? post.imageUrl.trim() : post.imageThumbUrl.trim();
+    if (url.isEmpty) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => _FeedImageViewerScreen(
+          imageUrl: url,
+          heroTag: 'feed-image-${post.id}',
+          title: post.authorName,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openPollDetail(PhotoPoll poll) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -411,6 +425,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
                           post: post,
                           onLikeTap: () => _toggleFeedLike(post),
                           onReplyTap: () => _openRepliesSheet(post),
+                          onImageTap: () => _openFeedImageViewer(post),
                         ),
                       ),
                     )
@@ -693,11 +708,13 @@ class _FeedPostCard extends StatelessWidget {
   final PhotoFlowPost post;
   final VoidCallback onLikeTap;
   final VoidCallback onReplyTap;
+  final VoidCallback onImageTap;
 
   const _FeedPostCard({
     required this.post,
     required this.onLikeTap,
     required this.onReplyTap,
+    required this.onImageTap,
   });
 
   @override
@@ -754,13 +771,20 @@ class _FeedPostCard extends StatelessWidget {
           ],
           if (imageUrl.trim().isNotEmpty) ...[
             const SizedBox(height: 14),
-            ClipRRect(
+            InkWell(
+              onTap: onImageTap,
               borderRadius: BorderRadius.circular(20),
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                width: double.infinity,
-                height: 260,
-                fit: BoxFit.cover,
+              child: Hero(
+                tag: 'feed-image-${post.id}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    width: double.infinity,
+                    height: 260,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
             ),
           ],
@@ -834,6 +858,71 @@ class _FeedPostCard extends StatelessWidget {
               ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _FeedImageViewerScreen extends StatefulWidget {
+  final String imageUrl;
+  final String heroTag;
+  final String title;
+
+  const _FeedImageViewerScreen({
+    required this.imageUrl,
+    required this.heroTag,
+    required this.title,
+  });
+
+  @override
+  State<_FeedImageViewerScreen> createState() => _FeedImageViewerScreenState();
+}
+
+class _FeedImageViewerScreenState extends State<_FeedImageViewerScreen> {
+  late final TransformationController _transformController;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformController = TransformationController();
+  }
+
+  @override
+  void dispose() {
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: InteractiveViewer(
+            transformationController: _transformController,
+            minScale: 1,
+            maxScale: 4,
+            child: Hero(
+              tag: widget.heroTag,
+              child: CachedNetworkImage(
+                imageUrl: widget.imageUrl,
+                fit: BoxFit.contain,
+                placeholder: (_, __) => Container(color: const Color(0xFF111827)),
+                errorWidget: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1011,6 +1100,19 @@ class _RepliesSheetState extends State<_RepliesSheet> {
                     post: _post,
                     onLikeTap: () {},
                     onReplyTap: () {},
+                    onImageTap: () {
+                      final url = _post.imageUrl.trim().isNotEmpty ? _post.imageUrl.trim() : _post.imageThumbUrl.trim();
+                      if (url.isEmpty) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => _FeedImageViewerScreen(
+                            imageUrl: url,
+                            heroTag: 'feed-image-${_post.id}',
+                            title: _post.authorName,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 12),
                   if (_post.replies.isEmpty)

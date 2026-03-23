@@ -3,7 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
+import '../services/auth_api.dart';
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
 import '../services/notification_center.dart';
@@ -37,6 +40,9 @@ class _SocialScreenState extends State<SocialScreen> {
   int _searchOffset = 0;
   int _searchMinQueryLength = 2;
   static const int _searchPageSize = 20;
+  int? _myAccountId;
+  bool _loadingMyQr = false;
+  bool _processingQr = false;
 
   @override
   void initState() {
@@ -44,6 +50,7 @@ class _SocialScreenState extends State<SocialScreen> {
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
     NotificationCenter.refresh(widget.sessionToken);
+    _loadMyAccountId();
   }
 
   @override
@@ -228,6 +235,193 @@ class _SocialScreenState extends State<SocialScreen> {
     setState(() => _addFriendsOpen = next);
   }
 
+  Future<void> _loadMyAccountId() async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) return;
+    setState(() => _loadingMyQr = true);
+    try {
+      final session = await AuthApi.me(token);
+      if (!mounted) return;
+      setState(() => _myAccountId = session.accountId > 0 ? session.accountId : null);
+    } catch (_) {
+      if (mounted) setState(() => _myAccountId = null);
+    } finally {
+      if (mounted) setState(() => _loadingMyQr = false);
+    }
+  }
+
+  String get _friendQrPayload {
+    final id = _myAccountId;
+    if (id == null || id <= 0) return '';
+    return 'dmfriend:$id';
+  }
+
+  Future<void> _openQrScanner() async {
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('QR ile arkadaş eklemek için giriş yapmalısın.')),
+      );
+      return;
+    }
+    final payload = await Navigator.of(context).push<String?>(
+      MaterialPageRoute(builder: (_) => const _FriendQrScannerScreen()),
+    );
+    if (!mounted || payload == null || payload.trim().isEmpty) return;
+    setState(() => _processingQr = true);
+    try {
+      final result = await EventSocialApi.connectFriendByQr(
+        sessionToken: token,
+        payload: payload,
+      );
+      if (!mounted) return;
+      final status = (result['status'] ?? '').toString();
+      setState(() {
+        _future = _fetchFriends();
+        _incomingFuture = _fetchIncoming();
+      });
+      if (_addFriendsOpen && _searchCtrl.text.trim().length >= _searchMinQueryLength) {
+        await _runSearch();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == 'already_friends'
+                ? 'Bu kullanıcı zaten arkadaş listende.'
+                : 'Arkadaş başarıyla eklendi.',
+          ),
+        ),
+      );
+      await NotificationCenter.refresh(widget.sessionToken);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _processingQr = false);
+    }
+  }
+
+  void _showMyQrDialog() {
+    final payload = _friendQrPayload;
+    final accountId = _myAccountId;
+    if (payload.isEmpty || accountId == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: AppTheme.panel(tone: AppTone.social, radius: 24, elevated: true),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Arkadaşlık QR Kodu',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Profil ID: $accountId',
+                style: const TextStyle(color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: QrImageView(
+                  data: payload,
+                  size: 220,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Colors.black,
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Arkadaş ekle ekranındaki QR ile Ekle butonundan bu kod okutulabilir.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Kapat'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _headerQr() {
+    if (_loadingMyQr) {
+      return const SizedBox(
+        width: 52,
+        height: 52,
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    final payload = _friendQrPayload;
+    if (payload.isEmpty) return const SizedBox.shrink();
+    return InkWell(
+      onTap: _showMyQrDialog,
+      borderRadius: BorderRadius.circular(18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.borderSoft),
+            ),
+            child: QrImageView(
+              data: payload,
+              size: 42,
+              padding: EdgeInsets.zero,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Colors.black,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '#${_myAccountId ?? ''}',
+            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _sendFriendRequest(SocialUserItem user) async {
     try {
       await EventSocialApi.sendFriendRequestDirect(
@@ -346,6 +540,7 @@ class _SocialScreenState extends State<SocialScreen> {
       title: t('social'),
       icon: Icons.groups,
       subtitle: t('social_subtitle'),
+      headerTrailing: _headerQr(),
       tone: AppTone.social,
       onRefresh: _refresh,
       content: [
@@ -461,9 +656,13 @@ class _SocialScreenState extends State<SocialScreen> {
                 ],
                 if (_searchCtrl.text.trim().isEmpty) ...[
                   const SizedBox(height: 10),
-                  Text(
-                    'Tum kullanicilar otomatik listelenmez. Kullanici bulmak icin arama yapin.',
-                    style: const TextStyle(color: AppTheme.textSecondary),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: _processingQr ? null : _openQrScanner,
+                      icon: const Icon(Icons.qr_code_scanner_rounded),
+                      label: Text(_processingQr ? '...' : 'QR ile Ekle'),
+                    ),
                   ),
                 ] else if (_searchCtrl.text.trim().length < _searchMinQueryLength) ...[
                   const SizedBox(height: 10),
@@ -581,11 +780,11 @@ class _SocialScreenState extends State<SocialScreen> {
               children: items
                   .map(
                     (f) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      margin: const EdgeInsets.only(bottom: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                       decoration: AppTheme.panel(
                         tone: AppTone.social,
-                        radius: 18,
+                        radius: 16,
                         elevated: f.unreadCount > 0,
                         subtle: f.unreadCount <= 0,
                       ),
@@ -604,7 +803,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 onTap: () => _openFriendProfile(f),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                                   child: Row(
                                     children: [
                                       Expanded(
@@ -612,7 +811,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                           f.name.isNotEmpty ? f.name : t('user'),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                                         ),
                                       ),
                                       if (f.unreadCount > 0)
@@ -659,11 +858,11 @@ class _FriendAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = item.avatarUrl.trim();
     if (url.isNotEmpty) {
-        return InkWell(
+      return InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         child: CircleAvatar(
-          radius: 24,
+          radius: 20,
           backgroundImage: NetworkImage(url),
           backgroundColor: AppTheme.surfaceElevated,
         ),
@@ -671,7 +870,7 @@ class _FriendAvatar extends StatelessWidget {
     }
     final label = item.name.isNotEmpty ? item.name.substring(0, 1).toUpperCase() : '?';
     return CircleAvatar(
-      radius: 24,
+      radius: 20,
       backgroundColor: AppTheme.pink.withOpacity(0.84),
       child: Text(
         label,
@@ -690,17 +889,17 @@ class _MessageActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppTheme.violet.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: SizedBox(
-          width: 42,
-          height: 42,
+          width: 38,
+          height: 38,
           child: Icon(
             Icons.chat_bubble_outline_rounded,
             color: AppTheme.violet,
-            size: 20,
+            size: 18,
           ),
         ),
       ),
@@ -814,6 +1013,165 @@ class _InboxLite {
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       unreadCount: (json['unread_count'] as num?)?.toInt() ?? 0,
       lastAt: (json['last_at'] ?? '').toString(),
+    );
+  }
+}
+
+class _FriendQrScannerScreen extends StatefulWidget {
+  const _FriendQrScannerScreen();
+
+  @override
+  State<_FriendQrScannerScreen> createState() => _FriendQrScannerScreenState();
+}
+
+class _FriendQrScannerScreenState extends State<_FriendQrScannerScreen> {
+  final MobileScannerController _scannerController = MobileScannerController(
+    autoStart: false,
+    detectionSpeed: DetectionSpeed.normal,
+    facing: CameraFacing.back,
+    torchEnabled: false,
+  );
+
+  bool _scannerOpen = false;
+  bool _handling = false;
+  String _lastValue = '';
+  DateTime _lastScanAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _openScanner();
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openScanner() async {
+    setState(() => _scannerOpen = true);
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!mounted || !_scannerOpen) return;
+      await _scannerController.start();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _scannerOpen = false);
+    }
+  }
+
+  Future<void> _closeScanner() async {
+    setState(() => _scannerOpen = false);
+    try {
+      await _scannerController.stop();
+    } catch (_) {}
+  }
+
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (!_scannerOpen || _handling) return;
+    String payload = '';
+    for (final code in capture.barcodes) {
+      final raw = (code.rawValue ?? '').trim();
+      if (raw.isNotEmpty) {
+        payload = raw;
+        break;
+      }
+    }
+    if (payload.isEmpty) return;
+    final now = DateTime.now();
+    if (_lastValue == payload && now.difference(_lastScanAt).inMilliseconds < 1200) {
+      return;
+    }
+    _lastValue = payload;
+    _lastScanAt = now;
+    _handling = true;
+    await _closeScanner();
+    if (!mounted) return;
+    Navigator.of(context).pop(payload);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('QR ile Ekle')),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: AppTheme.panel(tone: AppTone.social, radius: 24, elevated: true),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Arkadaşının QR kodunu okut',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Sosyal ekranının sağ üstündeki küçük QR kod bu ekrandan okutulabilir.',
+                        style: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: Container(
+                            color: const Color(0xFF0A111B),
+                            child: _scannerOpen
+                                ? Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      MobileScanner(
+                                        controller: _scannerController,
+                                        onDetect: _onDetect,
+                                      ),
+                                      IgnorePointer(
+                                        child: Center(
+                                          child: Container(
+                                            width: 220,
+                                            height: 220,
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(24),
+                                              border: Border.all(color: Colors.white70, width: 2.2),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : const Center(
+                                    child: Icon(
+                                      Icons.qr_code_scanner_rounded,
+                                      size: 72,
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                  label: const Text('Kapat'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

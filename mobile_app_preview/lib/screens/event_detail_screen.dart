@@ -396,10 +396,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         setState(() {
           _attendees = _attendees.map((a) {
             if (a.accountId != targetAccountId) return a;
-            return EventAttendee(
-              accountId: a.accountId,
-              name: a.name,
-              isMe: a.isMe,
+            return a.copyWith(
               isFriend: status == 'already_friends' || status == 'friend',
               friendStatus: status == 'already_friends'
                   ? 'friend'
@@ -640,34 +637,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 else if (_attendees.isEmpty)
                   const Text('Henüz katılımcı yok.')
                 else
-                  ..._attendees.map((a) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 14),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              a.isMe ? '${a.name} (Sen)' : a.name,
-                              style: const TextStyle(fontSize: 14),
-                            ),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: _attendees
+                        .map(
+                          (a) => _EventAttendeeAvatar(
+                            attendee: a,
+                            onAddFriend: (!a.isMe && a.friendStatus == 'none')
+                                ? () => _addFriend(a.accountId)
+                                : null,
                           ),
-                          if (!a.isMe && a.friendStatus == 'none')
-                            TextButton(
-                              onPressed: () => _addFriend(a.accountId),
-                              child: const Text('Arkadaş Ekle'),
-                            )
-                          else if (!a.isMe && a.friendStatus == 'pending_outgoing')
-                            const Text('Onay Bekleniyor', style: TextStyle(color: AppTheme.warning))
-                          else if (!a.isMe && a.friendStatus == 'pending_incoming')
-                            const Text('Gelen İstek', style: TextStyle(color: AppTheme.info))
-                          else if (a.isFriend && !a.isMe)
-                            const Text('Arkadaş', style: TextStyle(color: AppTheme.success)),
-                        ],
-                      ),
-                    );
-                  }),
+                        )
+                        .toList(),
+                  ),
               ],
             ),
           ),
@@ -1093,6 +1076,83 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EventAttendeeAvatar extends StatelessWidget {
+  final EventAttendee attendee;
+  final VoidCallback? onAddFriend;
+
+  const _EventAttendeeAvatar({
+    required this.attendee,
+    this.onAddFriend,
+  });
+
+  Color get _ringColor {
+    if (attendee.isMe) return AppTheme.cyan;
+    switch (attendee.friendStatus) {
+      case 'friend':
+        return AppTheme.success;
+      case 'pending_outgoing':
+        return AppTheme.warning;
+      case 'pending_incoming':
+        return AppTheme.info;
+      default:
+        return AppTheme.borderSoft;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canAdd = onAddFriend != null;
+    final label = attendee.isMe ? '${attendee.name} (Sen)' : attendee.name;
+    final avatarUrl = attendee.avatarUrl.trim();
+    return Tooltip(
+      message: label,
+      child: GestureDetector(
+        onTap: onAddFriend,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: _ringColor, width: 1.7),
+              ),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: AppTheme.surfaceElevated,
+                backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                child: avatarUrl.isNotEmpty
+                    ? null
+                    : Text(
+                        label.isNotEmpty ? label.substring(0, 1).toUpperCase() : '?',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ),
+            if (canAdd)
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: AppTheme.violet,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.bgPrimary, width: 1.5),
+                  ),
+                  child: const Icon(Icons.add, size: 10, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

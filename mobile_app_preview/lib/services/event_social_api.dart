@@ -15,6 +15,7 @@ class EventSocialApiException implements Exception {
 class EventAttendee {
   final int accountId;
   final String name;
+  final String avatarUrl;
   final bool isMe;
   final bool isFriend;
   final String friendStatus;
@@ -23,6 +24,7 @@ class EventAttendee {
   const EventAttendee({
     required this.accountId,
     required this.name,
+    required this.avatarUrl,
     required this.isMe,
     required this.isFriend,
     required this.friendStatus,
@@ -33,10 +35,31 @@ class EventAttendee {
     return EventAttendee(
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
+      avatarUrl: (json['avatar_url'] ?? '').toString(),
       isMe: (json['is_me'] == true),
       isFriend: (json['is_friend'] == true),
       friendStatus: (json['friend_status'] ?? 'none').toString(),
       friendRequestId: (json['friend_request_id'] as num?)?.toInt(),
+    );
+  }
+
+  EventAttendee copyWith({
+    int? accountId,
+    String? name,
+    String? avatarUrl,
+    bool? isMe,
+    bool? isFriend,
+    String? friendStatus,
+    int? friendRequestId,
+  }) {
+    return EventAttendee(
+      accountId: accountId ?? this.accountId,
+      name: name ?? this.name,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      isMe: isMe ?? this.isMe,
+      isFriend: isFriend ?? this.isFriend,
+      friendStatus: friendStatus ?? this.friendStatus,
+      friendRequestId: friendRequestId ?? this.friendRequestId,
     );
   }
 }
@@ -614,6 +637,28 @@ class EventSocialApi {
     );
     if (resp.statusCode != 200) {
       throw EventSocialApiException(_parseError(resp.body, fallback: 'Arkadaşlık isteği gönderilemedi'));
+    }
+    try {
+      final body = jsonDecode(resp.body);
+      if (body is Map<String, dynamic>) return body;
+    } catch (_) {}
+    return const {};
+  }
+
+  static Future<Map<String, dynamic>> connectFriendByQr({
+    required String sessionToken,
+    required String payload,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/friends/qr-add'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'payload': payload.trim()}),
+    );
+    if (resp.statusCode != 200) {
+      throw EventSocialApiException(_parseError(resp.body, fallback: 'QR ile arkadaş eklenemedi'));
     }
     try {
       final body = jsonDecode(resp.body);
