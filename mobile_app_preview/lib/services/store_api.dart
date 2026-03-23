@@ -6,6 +6,7 @@ import 'error_message.dart';
 
 class StoreSellerItem {
   final int accountId;
+  final int slot;
   final String name;
   final String storeTitle;
   final String avatarUrl;
@@ -15,6 +16,7 @@ class StoreSellerItem {
 
   const StoreSellerItem({
     required this.accountId,
+    required this.slot,
     required this.name,
     required this.storeTitle,
     required this.avatarUrl,
@@ -26,6 +28,7 @@ class StoreSellerItem {
   factory StoreSellerItem.fromJson(Map<String, dynamic> json) {
     return StoreSellerItem(
       accountId: (json['account_id'] as num?)?.toInt() ?? 0,
+      slot: (json['slot'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       storeTitle: (json['store_title'] ?? '').toString(),
       avatarUrl: (json['avatar_url'] ?? '').toString(),
@@ -107,10 +110,23 @@ class SellerStoreDetail {
 class StoreApi {
   static const _base = 'https://api2.dansmagazin.net';
 
-  static Future<List<StoreSellerItem>> sellers() async {
-    final resp = await http.get(Uri.parse('$_base/store/sellers'));
+  static Future<List<StoreSellerItem>> sellers({int limit = 100}) async {
+    final normalized = limit < 1 ? 1 : (limit > 300 ? 300 : limit);
+    final resp = await http.get(Uri.parse('$_base/store/sellers?limit=$normalized'));
     if (resp.statusCode != 200) {
       throw Exception(parseApiErrorBody(resp.body, fallback: 'Mağazalar yüklenemedi'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(StoreSellerItem.fromJson)
+        .toList(growable: false);
+  }
+
+  static Future<List<StoreSellerItem>> featuredSellers() async {
+    final resp = await http.get(Uri.parse('$_base/store/featured'));
+    if (resp.statusCode != 200) {
+      throw Exception(parseApiErrorBody(resp.body, fallback: 'Öne çıkan mağazalar yüklenemedi'));
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? const [])
@@ -185,5 +201,27 @@ class StoreApi {
     if (resp.statusCode != 200) {
       throw Exception(parseApiErrorBody(resp.body, fallback: 'Mağaza açılamadı'));
     }
+  }
+
+  static Future<List<StoreSellerItem>> saveFeaturedSellers(
+    String sessionToken, {
+    required List<int> accountIds,
+  }) async {
+    final resp = await http.put(
+      Uri.parse('$_base/store/featured/admin'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'account_ids': accountIds}),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(parseApiErrorBody(resp.body, fallback: 'Öne çıkan mağazalar kaydedilemedi'));
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(StoreSellerItem.fromJson)
+        .toList(growable: false);
   }
 }

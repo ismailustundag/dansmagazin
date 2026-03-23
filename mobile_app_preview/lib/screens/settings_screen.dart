@@ -583,12 +583,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: const [
                                   Text(
-                                    'Öne Çıkan Etkinlikler',
+                                    'Öne Çıkanları Düzenle',
                                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                                   ),
                                   SizedBox(height: 2),
                                   Text(
-                                    'Discover alanında dönecek 3 etkinliği seçin.',
+                                    'Öne çıkan etkinlikleri ve mağazaları tek yerden yönet.',
                                     style: TextStyle(color: Colors.white70, fontSize: 12),
                                   ),
                                 ],

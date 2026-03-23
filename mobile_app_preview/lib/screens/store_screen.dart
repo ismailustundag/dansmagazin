@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/store_api.dart';
@@ -17,17 +19,22 @@ class StoreScreen extends StatefulWidget {
 }
 
 class _StoreScreenState extends State<StoreScreen> {
-  late Future<List<StoreSellerItem>> _future;
+  late Future<List<StoreSellerItem>> _featuredFuture;
+  late Future<List<StoreSellerItem>> _sellersFuture;
 
   @override
   void initState() {
     super.initState();
-    _future = StoreApi.sellers();
+    _featuredFuture = StoreApi.featuredSellers();
+    _sellersFuture = StoreApi.sellers();
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = StoreApi.sellers());
-    await _future;
+    setState(() {
+      _featuredFuture = StoreApi.featuredSellers();
+      _sellersFuture = StoreApi.sellers();
+    });
+    await Future.wait([_featuredFuture, _sellersFuture]);
   }
 
   @override
@@ -35,16 +42,64 @@ class _StoreScreenState extends State<StoreScreen> {
     return ScreenShell(
       title: 'Mağaza',
       icon: Icons.storefront_rounded,
-      subtitle: 'Kostüm, ayakkabı ve aklına gelen daha fazlası. Onaylı kullanıcıların ürünlerine göz at, beğendiğin ürün için doğrudan iletişime geç.',
+      subtitle: '',
+      showHeader: false,
       tone: AppTone.profile,
       onRefresh: _refresh,
       content: [
+        const Padding(
+          padding: EdgeInsets.only(top: 4, bottom: 10),
+          child: Text(
+            'Kostüm, ayakkabı ve aklına gelen daha fazlası. Onaylı kullanıcıların ürünlerine göz at, beğendiğin ürün için doğrudan iletişime geç.',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 11.5,
+              height: 1.35,
+            ),
+          ),
+        ),
         FutureBuilder<List<StoreSellerItem>>(
-          future: _future,
+          future: _featuredFuture,
+          builder: (context, snapshot) {
+            final items = snapshot.data ?? const <StoreSellerItem>[];
+            if (items.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Öne Çıkan Mağazalar',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15),
+                  ),
+                  const SizedBox(height: 10),
+                  _FeaturedStoresCarousel(
+                    items: items,
+                    onTap: (seller) => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SellerStoreScreen(
+                          sessionToken: widget.sessionToken,
+                          sellerAccountId: seller.accountId,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        Text(
+          'Tüm Mağazalar',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15),
+        ),
+        const SizedBox(height: 10),
+        FutureBuilder<List<StoreSellerItem>>(
+          future: _sellersFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
-                padding: EdgeInsets.only(top: 60),
+                padding: EdgeInsets.only(top: 48),
                 child: Center(child: CircularProgressIndicator()),
               );
             }
@@ -383,71 +438,312 @@ class _SellerStoreCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        decoration: AppTheme.panel(tone: AppTone.profile, radius: 24, elevated: true),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              child: AspectRatio(
-                aspectRatio: 2.2,
-                child: seller.coverImageUrl.trim().isNotEmpty
-                    ? Image.network(seller.coverImageUrl.trim(), fit: BoxFit.cover)
-                    : Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF14203A), Color(0xFF0C1426)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+        decoration: AppTheme.panel(tone: AppTone.profile, radius: 20, elevated: true),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  width: 86,
+                  height: 86,
+                  child: seller.coverImageUrl.trim().isNotEmpty
+                      ? Image.network(seller.coverImageUrl.trim(), fit: BoxFit.cover)
+                      : Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFF14203A), Color(0xFF0C1426)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                           ),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.storefront_rounded, size: 34, color: Colors.white54),
                         ),
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.storefront_rounded, size: 42, color: Colors.white54),
-                      ),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  VerifiedAvatar(
-                    imageUrl: seller.avatarUrl,
-                    label: seller.name,
-                    isVerified: seller.isVerified,
-                    radius: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    VerifiedNameText(
+                      seller.storeTitle,
+                      isVerified: false,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
                       children: [
-                        VerifiedNameText(
-                          seller.storeTitle,
-                          isVerified: false,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        VerifiedAvatar(
+                          imageUrl: seller.avatarUrl,
+                          label: seller.name,
+                          isVerified: seller.isVerified,
+                          radius: 14,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${seller.productCount} ürün',
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: VerifiedNameText(
+                            seller.name,
+                            isVerified: seller.isVerified,
+                            style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded, color: AppTheme.textTertiary),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      '${seller.productCount} ürün seni bekliyor',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 11,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded, color: AppTheme.textTertiary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeaturedStoresCarousel extends StatefulWidget {
+  final List<StoreSellerItem> items;
+  final ValueChanged<StoreSellerItem> onTap;
+
+  const _FeaturedStoresCarousel({
+    required this.items,
+    required this.onTap,
+  });
+
+  @override
+  State<_FeaturedStoresCarousel> createState() => _FeaturedStoresCarouselState();
+}
+
+class _FeaturedStoresCarouselState extends State<_FeaturedStoresCarousel> {
+  late final PageController _controller;
+  Timer? _timer;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(viewportFraction: 1);
+    _restartTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FeaturedStoresCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.items.length != widget.items.length) {
+      _index = 0;
+      _restartTimer();
+    }
+  }
+
+  void _restartTimer() {
+    _timer?.cancel();
+    if (widget.items.length < 2) return;
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_controller.hasClients) return;
+      final next = (_index + 1) % widget.items.length;
+      _controller.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 178,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: widget.items.length,
+            onPageChanged: (value) => setState(() => _index = value),
+            itemBuilder: (context, index) {
+              final seller = widget.items[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: _FeaturedStoreBanner(
+                  seller: seller,
+                  onTap: () => widget.onTap(seller),
+                ),
+              );
+            },
+          ),
+        ),
+        if (widget.items.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < widget.items.length; i++)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: i == _index ? 20 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: i == _index ? AppTheme.cyan : Colors.white24,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FeaturedStoreBanner extends StatelessWidget {
+  final StoreSellerItem seller;
+  final VoidCallback onTap;
+
+  const _FeaturedStoreBanner({
+    required this.seller,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = seller.coverImageUrl.trim();
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Ink(
+          height: 176,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF16253F), Color(0xFF0A1222)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.network(imageUrl, fit: BoxFit.cover),
+                ),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.12),
+                      Colors.black.withOpacity(0.72),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.34),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Öne Çıkan',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        VerifiedAvatar(
+                          imageUrl: seller.avatarUrl,
+                          label: seller.name,
+                          isVerified: seller.isVerified,
+                          radius: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                seller.storeTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${seller.productCount} ürün',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
