@@ -34,6 +34,7 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
   String _productError = '';
   String _selectedImagePath = '';
   String _effectiveStoreTitle = '';
+  final Set<int> _busyProductIds = <int>{};
 
   @override
   void initState() {
@@ -159,6 +160,271 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
     }
   }
 
+  Future<void> _runBusyProductAction(int productId, Future<void> Function() action) async {
+    if (_busyProductIds.contains(productId)) return;
+    setState(() {
+      _busyProductIds.add(productId);
+      _productError = '';
+    });
+    try {
+      await action();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _productError = e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _busyProductIds.remove(productId));
+      }
+    }
+  }
+
+  Future<void> _toggleSold(StoreProductItem item) async {
+    await _runBusyProductAction(item.id, () async {
+      await StoreApi.updateProductSoldStatus(
+        sessionToken: widget.sessionToken,
+        productId: item.id,
+        isSold: !item.isSold,
+      );
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(item.isSold ? 'Ürün tekrar yayına alındı.' : 'Ürün satıldı olarak işaretlendi.'),
+        ),
+      );
+    });
+  }
+
+  Future<void> _deleteProduct(StoreProductItem item) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF111826),
+            title: const Text('Ürünü Sil'),
+            content: Text(
+              '"${item.title}" ürününü silmek istediğine emin misin?',
+              style: const TextStyle(color: AppTheme.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    await _runBusyProductAction(item.id, () async {
+      await StoreApi.deleteProduct(
+        sessionToken: widget.sessionToken,
+        productId: item.id,
+      );
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ürün silindi.')),
+      );
+    });
+  }
+
+  Future<void> _editProduct(StoreProductItem item) async {
+    final titleCtrl = TextEditingController(text: item.title);
+    final descriptionCtrl = TextEditingController(text: item.description);
+    final priceCtrl = TextEditingController(text: item.price);
+    var selectedImagePath = '';
+    var saving = false;
+    var error = '';
+
+    try {
+      final updated = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: const Color(0xFF0B1220),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              Future<void> pickImage() async {
+                final file = await _picker.pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 82,
+                  maxWidth: 1600,
+                  maxHeight: 1600,
+                );
+                if (file == null) return;
+                setModalState(() => selectedImagePath = file.path);
+              }
+
+              Future<void> submit() async {
+                final title = titleCtrl.text.trim();
+                final description = descriptionCtrl.text.trim();
+                final price = priceCtrl.text.trim();
+                if (title.length < 2 || description.length < 3 || price.isEmpty) {
+                  setModalState(() => error = 'Ürün adı, açıklama ve fiyat zorunlu.');
+                  return;
+                }
+                setModalState(() {
+                  saving = true;
+                  error = '';
+                });
+                try {
+                  await StoreApi.updateProduct(
+                    sessionToken: widget.sessionToken,
+                    productId: item.id,
+                    title: title,
+                    description: description,
+                    price: price,
+                    imagePath: selectedImagePath.isEmpty ? null : selectedImagePath,
+                  );
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop(true);
+                } catch (e) {
+                  setModalState(() => error = e.toString());
+                } finally {
+                  if (context.mounted) {
+                    setModalState(() => saving = false);
+                  }
+                }
+              }
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Ürünü Düzenle',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 12),
+                      _Field(
+                        controller: titleCtrl,
+                        label: 'Ürün adı',
+                        hint: 'Örn. Dans ayakkabısı',
+                      ),
+                      const SizedBox(height: 10),
+                      _Field(
+                        controller: descriptionCtrl,
+                        label: 'Ürün açıklaması',
+                        hint: 'Ürünü kısa ve net anlat.',
+                        minLines: 4,
+                        maxLines: 6,
+                      ),
+                      const SizedBox(height: 10),
+                      _Field(
+                        controller: priceCtrl,
+                        label: 'Fiyat',
+                        hint: 'Örn. 1500',
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: saving ? null : pickImage,
+                        icon: const Icon(Icons.add_a_photo_outlined),
+                        label: Text(selectedImagePath.isEmpty ? 'Yeni Fotoğraf Seç' : 'Fotoğrafı Değiştir'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withOpacity(0.18)),
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: selectedImagePath.isNotEmpty
+                            ? Image.file(
+                                File(selectedImagePath),
+                                height: 180,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              )
+                            : item.imageUrl.trim().isNotEmpty
+                                ? Image.network(
+                                    item.imageUrl.trim(),
+                                    height: 180,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Container(
+                                    height: 180,
+                                    color: const Color(0xFF112038),
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.shopping_bag_outlined, color: Colors.white38, size: 30),
+                                  ),
+                      ),
+                      if (error.trim().isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          error,
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      ElevatedButton.icon(
+                        onPressed: saving ? null : submit,
+                        icon: const Icon(Icons.save_outlined),
+                        label: Text(saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          backgroundColor: AppTheme.cyan,
+                          foregroundColor: const Color(0xFF06111F),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+
+      if (updated == true) {
+        await _load();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ürün güncellendi.')),
+        );
+      }
+    } finally {
+      titleCtrl.dispose();
+      descriptionCtrl.dispose();
+      priceCtrl.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -212,7 +478,14 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
                 ),
               )
             else
-              for (final item in _items) _MyProductCard(item: item),
+              for (final item in _items)
+                _MyProductCard(
+                  item: item,
+                  busy: _busyProductIds.contains(item.id),
+                  onEdit: () => _editProduct(item),
+                  onToggleSold: () => _toggleSold(item),
+                  onDelete: () => _deleteProduct(item),
+                ),
           ],
         ),
       ),
@@ -396,8 +669,18 @@ class _NewProductCard extends StatelessWidget {
 
 class _MyProductCard extends StatelessWidget {
   final StoreProductItem item;
+  final bool busy;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleSold;
+  final VoidCallback onDelete;
 
-  const _MyProductCard({required this.item});
+  const _MyProductCard({
+    required this.item,
+    required this.busy,
+    required this.onEdit,
+    required this.onToggleSold,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -453,6 +736,34 @@ class _MyProductCard extends StatelessWidget {
                         color: Color(0xFF2A3347),
                         textColor: Colors.white70,
                       ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Düzenle'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : onToggleSold,
+                      icon: Icon(item.isSold ? Icons.undo_rounded : Icons.check_circle_outline_rounded, size: 16),
+                      label: Text(item.isSold ? 'Geri Al' : 'Satıldı'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: item.isSold ? Colors.white : const Color(0xFFFFC857),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : onDelete,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: const Text('Sil'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                      ),
+                    ),
                   ],
                 ),
               ],

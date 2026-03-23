@@ -257,6 +257,65 @@ class StoreApi {
     }
   }
 
+  static Future<StoreProductItem> updateProduct({
+    required String sessionToken,
+    required int productId,
+    required String title,
+    required String description,
+    required String price,
+    String? imagePath,
+  }) async {
+    final req = http.MultipartRequest('PUT', Uri.parse('$_base/store/products/$productId'))
+      ..headers['Authorization'] = 'Bearer ${sessionToken.trim()}'
+      ..fields['title'] = title.trim()
+      ..fields['description'] = description.trim()
+      ..fields['price'] = price.trim();
+    final normalizedImagePath = imagePath?.trim() ?? '';
+    if (normalizedImagePath.isNotEmpty) {
+      req.files.add(await http.MultipartFile.fromPath('image', normalizedImagePath));
+    }
+    final streamed = await req.send();
+    final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode != 200) {
+      throw Exception(parseApiErrorBody(body, fallback: 'Ürün güncellenemedi'));
+    }
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    return StoreProductItem.fromJson((json['item'] as Map?)?.cast<String, dynamic>() ?? const {});
+  }
+
+  static Future<StoreProductItem> updateProductSoldStatus({
+    required String sessionToken,
+    required int productId,
+    required bool isSold,
+  }) async {
+    final resp = await http.put(
+      Uri.parse('$_base/store/products/$productId/sold'),
+      headers: {
+        'Authorization': 'Bearer ${sessionToken.trim()}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'is_sold': isSold}),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(parseApiErrorBody(resp.body, fallback: 'Ürün durumu güncellenemedi'));
+    }
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    return StoreProductItem.fromJson((json['item'] as Map?)?.cast<String, dynamic>() ?? const {});
+  }
+
+  static Future<void> deleteProduct({
+    required String sessionToken,
+    required int productId,
+  }) async {
+    final resp = await http.delete(
+      Uri.parse('$_base/store/products/$productId'),
+      headers: {'Authorization': 'Bearer ${sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(parseApiErrorBody(resp.body, fallback: 'Ürün silinemedi'));
+    }
+  }
+
   static Future<void> openStore(String sessionToken) async {
     final resp = await http.post(
       Uri.parse('$_base/store/me/open'),
