@@ -200,6 +200,17 @@ String _normalizeMapUrl(String raw) {
   return '';
 }
 
+Alignment _coverAlignment(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'top':
+      return Alignment.topCenter;
+    case 'bottom':
+      return Alignment.bottomCenter;
+    default:
+      return Alignment.center;
+  }
+}
+
 _VenueParts _splitVenue(String venue, {String mapUrl = ''}) {
   final explicit = _normalizeMapUrl(mapUrl);
   if (explicit.isNotEmpty) {
@@ -1087,6 +1098,7 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                                 width: 72,
                                 height: 54,
                                 fit: BoxFit.cover,
+                                alignment: _coverAlignment(e.coverCrop),
                                 errorBuilder: (_, __, ___) => Container(
                                   width: 72,
                                   height: 54,
@@ -1168,6 +1180,7 @@ class _ManagedEventItem {
   final String venueMapUrl;
   final String city;
   final String eventKind;
+  final String coverCrop;
   final List<String> danceStyles;
   final bool ticketSalesEnabled;
   final bool repeatWeekly;
@@ -1189,6 +1202,7 @@ class _ManagedEventItem {
     required this.venueMapUrl,
     required this.city,
     required this.eventKind,
+    required this.coverCrop,
     required this.danceStyles,
     required this.ticketSalesEnabled,
     required this.repeatWeekly,
@@ -1215,6 +1229,7 @@ class _ManagedEventItem {
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
+      coverCrop: (json['cover_crop'] ?? 'center').toString(),
       danceStyles: _normalizeDanceStyles(json['dance_styles']),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
       repeatWeekly: (json['repeat_weekly'] == true) || (json['repeat_weekly'] == 1),
@@ -1279,6 +1294,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   final List<String> _cities = kTurkiyeCitiesWithUnknown;
   String _city = 'İstanbul';
   String _eventKind = 'dance_night';
+  String _coverCrop = 'center';
   final Set<String> _danceStyles = <String>{};
   bool _repeatWeekly = false;
   int _repeatWeekday = 0;
@@ -1309,6 +1325,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     _programCtrl = TextEditingController(text: widget.item.programText);
     _city = _canonicalCityOrUnknown(widget.item.city, _cities);
     _eventKind = _normalizeKind(widget.item.eventKind);
+    _coverCrop = _normalizeCoverCrop(widget.item.coverCrop);
     _danceStyles.addAll(_normalizeDanceStyles(widget.item.danceStyles));
     _repeatWeekly = widget.item.repeatWeekly;
     final fallbackWeekday = (parsedDate ?? DateTime.now()).weekday - 1;
@@ -1369,6 +1386,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
         ..fields['event_kind'] = _eventKind
+        ..fields['cover_crop'] = _coverCrop
         ..fields['dance_styles'] = _danceStylesPayload(_danceStyles)
         ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
         ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
@@ -1460,6 +1478,17 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                           }
                         }),
                 decoration: _fieldDecoration('Etkinlik Türü'),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _coverCrop,
+                items: const [
+                  DropdownMenuItem(value: 'top', child: Text('Afiş Kırpımı: Üst')),
+                  DropdownMenuItem(value: 'center', child: Text('Afiş Kırpımı: Orta')),
+                  DropdownMenuItem(value: 'bottom', child: Text('Afiş Kırpımı: Alt')),
+                ],
+                onChanged: _saving ? null : (v) => setState(() => _coverCrop = _normalizeCoverCrop(v)),
+                decoration: _fieldDecoration('Kartlarda Görünecek Bölge'),
               ),
               const SizedBox(height: 4),
               _DanceStylesField(
@@ -1611,6 +1640,12 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     final v = raw.trim().toLowerCase();
     if (v == 'festival' || v == 'competition' || v == 'dance_night' || v == 'promo_lesson') return v;
     return 'dance_night';
+  }
+
+  String _normalizeCoverCrop(String? raw) {
+    final value = (raw ?? '').trim().toLowerCase();
+    if (value == 'top' || value == 'bottom' || value == 'center') return value;
+    return 'center';
   }
 
   Future<void> _pickDate(TextEditingController ctrl, {bool updateRepeatWeekday = false}) async {

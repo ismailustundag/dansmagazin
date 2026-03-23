@@ -6,6 +6,17 @@ import 'package:http/http.dart' as http;
 import '../services/i18n.dart';
 import 'event_detail_screen.dart';
 
+Alignment _coverAlignment(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'top':
+      return Alignment.topCenter;
+    case 'bottom':
+      return Alignment.bottomCenter;
+    default:
+      return Alignment.center;
+  }
+}
+
 class EventsScreen extends StatefulWidget {
   final String sessionToken;
   final bool canCreateEvent;
@@ -154,6 +165,7 @@ class _EventItem {
   final String wooProductId;
   final String city;
   final String eventKind;
+  final String coverCrop;
   final bool ticketSalesEnabled;
 
   _EventItem({
@@ -172,6 +184,7 @@ class _EventItem {
     required this.wooProductId,
     required this.city,
     required this.eventKind,
+    required this.coverCrop,
     required this.ticketSalesEnabled,
   });
 
@@ -213,6 +226,7 @@ class _EventItem {
       wooProductId: (json['woo_product_id'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
+      coverCrop: (json['cover_crop'] ?? 'center').toString(),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
     );
   }
@@ -247,6 +261,7 @@ class _EventCard extends StatelessWidget {
                 child: Image.network(
                   item.cover,
                   fit: BoxFit.cover,
+                  alignment: _coverAlignment(item.coverCrop),
                   errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
                 ),
               ),

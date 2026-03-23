@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +25,17 @@ String _formatEventDate(String raw) {
   final m = dt.month.toString().padLeft(2, '0');
   final y = dt.year.toString();
   return '$d.$m.$y';
+}
+
+Alignment _coverAlignment(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'top':
+      return Alignment.topCenter;
+    case 'bottom':
+      return Alignment.bottomCenter;
+    default:
+      return Alignment.center;
+  }
 }
 
 class DiscoverScreen extends StatefulWidget {
@@ -730,6 +742,7 @@ class _EventItem {
   final String wooProductId;
   final String city;
   final String eventKind;
+  final String coverCrop;
   final bool ticketSalesEnabled;
 
   const _EventItem({
@@ -748,6 +761,7 @@ class _EventItem {
     required this.wooProductId,
     required this.city,
     required this.eventKind,
+    required this.coverCrop,
     required this.ticketSalesEnabled,
   });
 
@@ -789,6 +803,7 @@ class _EventItem {
       wooProductId: (json['woo_product_id'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
+      coverCrop: (json['cover_crop'] ?? 'center').toString(),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
     );
   }
@@ -810,6 +825,7 @@ class _EventItem {
       wooProductId: item.wooProductId,
       city: item.city,
       eventKind: item.eventKind,
+      coverCrop: item.coverCrop,
       ticketSalesEnabled: item.ticketSalesEnabled,
     );
   }
@@ -872,6 +888,7 @@ class _EventCard extends StatelessWidget {
                     ? CachedNetworkImage(
                         imageUrl: item.cover,
                         fit: BoxFit.cover,
+                        alignment: _coverAlignment(item.coverCrop),
                         fadeInDuration: Duration.zero,
                         placeholderFadeInDuration: Duration.zero,
                         errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
@@ -1132,18 +1149,37 @@ class _FeaturedEventBanner extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppTheme.surfacePrimary,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppTheme.surfaceElevated,
-                      AppTheme.surfacePrimary,
-                    ],
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfacePrimary,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppTheme.surfaceElevated,
+                          AppTheme.surfacePrimary,
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  if (item.cover.isNotEmpty)
+                    ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Transform.scale(
+                        scale: 1.08,
+                        child: CachedNetworkImage(
+                          imageUrl: item.cover,
+                          fit: BoxFit.cover,
+                          alignment: _coverAlignment(item.coverCrop),
+                          placeholder: (_, __) => const SizedBox.shrink(),
+                          errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             DecoratedBox(
@@ -1153,21 +1189,22 @@ class _FeaturedEventBanner extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.08),
-                    Colors.black.withOpacity(0.32),
-                    Colors.black.withOpacity(0.74),
+                    Colors.black.withOpacity(0.18),
+                    Colors.black.withOpacity(0.42),
+                    Colors.black.withOpacity(0.76),
                   ],
                 ),
               ),
             ),
             if (item.cover.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 56),
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 52),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(18),
                   child: CachedNetworkImage(
                     imageUrl: item.cover,
                     fit: BoxFit.contain,
+                    alignment: _coverAlignment(item.coverCrop),
                     placeholder: (_, __) => Container(color: Colors.transparent),
                     errorWidget: (_, __, ___) => const SizedBox.shrink(),
                   ),

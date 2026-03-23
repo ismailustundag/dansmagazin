@@ -21,6 +21,7 @@ class FeaturedEventItem {
   final String wooProductId;
   final String city;
   final String eventKind;
+  final String coverCrop;
   final bool ticketSalesEnabled;
 
   const FeaturedEventItem({
@@ -40,6 +41,7 @@ class FeaturedEventItem {
     required this.wooProductId,
     required this.city,
     required this.eventKind,
+    required this.coverCrop,
     required this.ticketSalesEnabled,
   });
 
@@ -69,6 +71,7 @@ class FeaturedEventItem {
       wooProductId: (json['woo_product_id'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
+      coverCrop: (json['cover_crop'] ?? 'center').toString(),
       ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
     );
   }
