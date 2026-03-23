@@ -8,6 +8,7 @@ import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import '../theme/app_theme.dart';
 import 'app_webview_screen.dart';
+import 'friend_profile_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final int submissionId;
@@ -413,6 +414,25 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  Future<void> _openAttendeeProfile(EventAttendee attendee) async {
+    if (attendee.isMe) return;
+    final token = widget.sessionToken.trim();
+    if (token.isEmpty) {
+      _showMsg('Profil görüntülemek için önce giriş yapmalısın.');
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FriendProfileScreen(
+          sessionToken: token,
+          friendAccountId: attendee.accountId,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _loadAttendees();
+  }
+
   Future<void> _saveComment() async {
     final token = widget.sessionToken.trim();
     if (token.isEmpty) {
@@ -644,9 +664,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         .map(
                           (a) => _EventAttendeeAvatar(
                             attendee: a,
-                            onAddFriend: (!a.isMe && a.friendStatus == 'none')
-                                ? () => _addFriend(a.accountId)
-                                : null,
+                            onTap: () => _openAttendeeProfile(a),
                           ),
                         )
                         .toList(),
@@ -1083,11 +1101,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
 class _EventAttendeeAvatar extends StatelessWidget {
   final EventAttendee attendee;
-  final VoidCallback? onAddFriend;
+  final VoidCallback? onTap;
 
   const _EventAttendeeAvatar({
     required this.attendee,
-    this.onAddFriend,
+    this.onTap,
   });
 
   Color get _ringColor {
@@ -1106,13 +1124,12 @@ class _EventAttendeeAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canAdd = onAddFriend != null;
     final label = attendee.isMe ? '${attendee.name} (Sen)' : attendee.name;
     final avatarUrl = attendee.avatarUrl.trim();
     return Tooltip(
       message: label,
       child: GestureDetector(
-        onTap: onAddFriend,
+        onTap: onTap,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -1136,7 +1153,7 @@ class _EventAttendeeAvatar extends StatelessWidget {
                       ),
               ),
             ),
-            if (canAdd)
+            if (!attendee.isMe && attendee.friendStatus == 'none')
               Positioned(
                 right: -2,
                 bottom: -2,
@@ -1149,6 +1166,21 @@ class _EventAttendeeAvatar extends StatelessWidget {
                     border: Border.all(color: AppTheme.bgPrimary, width: 1.5),
                   ),
                   child: const Icon(Icons.add, size: 10, color: Colors.white),
+                ),
+              ),
+            if (!attendee.isMe && attendee.friendStatus == 'friend')
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: AppTheme.success,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.bgPrimary, width: 1.5),
+                  ),
+                  child: const Icon(Icons.check, size: 9, color: Colors.white),
                 ),
               ),
           ],

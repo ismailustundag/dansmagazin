@@ -28,6 +28,9 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   bool _removing = false;
   bool _blocking = false;
   bool _reporting = false;
+  bool _sendingRequest = false;
+  bool _cancellingRequest = false;
+  bool _acceptingRequest = false;
 
   @override
   void initState() {
@@ -57,6 +60,84 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _sendFriendRequest(_FriendProfile profile) async {
+    if (_sendingRequest) return;
+    setState(() => _sendingRequest = true);
+    try {
+      final result = await EventSocialApi.sendFriendRequestDirect(
+        sessionToken: widget.sessionToken,
+        targetAccountId: profile.accountId,
+      );
+      if (!mounted) return;
+      final status = (result['status'] ?? '').toString();
+      if (status == 'already_friends') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Zaten arkadaşsınız.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Arkadaşlık isteği gönderildi.')),
+        );
+      }
+      setState(() => _future = _fetch());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _sendingRequest = false);
+    }
+  }
+
+  Future<void> _cancelFriendRequest(_FriendProfile profile) async {
+    final requestId = profile.friendRequestId;
+    if (_cancellingRequest || requestId == null || requestId <= 0) return;
+    setState(() => _cancellingRequest = true);
+    try {
+      await EventSocialApi.cancelFriendRequest(
+        sessionToken: widget.sessionToken,
+        requestId: requestId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İstek geri çekildi.')),
+      );
+      setState(() => _future = _fetch());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _cancellingRequest = false);
+    }
+  }
+
+  Future<void> _acceptFriendRequest(_FriendProfile profile) async {
+    final requestId = profile.friendRequestId;
+    if (_acceptingRequest || requestId == null || requestId <= 0) return;
+    setState(() => _acceptingRequest = true);
+    try {
+      await EventSocialApi.acceptFriendRequest(
+        sessionToken: widget.sessionToken,
+        requestId: requestId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Arkadaşlık isteği kabul edildi.')),
+      );
+      setState(() => _future = _fetch());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _acceptingRequest = false);
+    }
   }
 
   Future<void> _removeFriend(_FriendProfile profile) async {
@@ -268,30 +349,58 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   onPhotoTap: () => _showAvatarPreview(profile.avatarUrl, profile.name),
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ProfileActionButton(
-                        label: t('send_message_short'),
-                        icon: Icons.chat_bubble_outline_rounded,
-                        onTap: () => _openChat(profile),
-                        fillColor: const Color(0xFFF3DFC8),
-                        foregroundColor: const Color(0xFF6A3107),
+                if (profile.friendStatus == 'friend')
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ProfileActionButton(
+                          label: t('send_message_short'),
+                          icon: Icons.chat_bubble_outline_rounded,
+                          onTap: () => _openChat(profile),
+                          fillColor: const Color(0xFFF3DFC8),
+                          foregroundColor: const Color(0xFF6A3107),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ProfileActionButton(
-                        label: t('remove_short'),
-                        icon: Icons.person_remove_outlined,
-                        onTap: _removing ? null : () => _removeFriend(profile),
-                        fillColor: const Color(0x26E58B8B),
-                        foregroundColor: const Color(0xFFFFC2C2),
-                        isLoading: _removing,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ProfileActionButton(
+                          label: t('remove_short'),
+                          icon: Icons.person_remove_outlined,
+                          onTap: _removing ? null : () => _removeFriend(profile),
+                          fillColor: const Color(0x26E58B8B),
+                          foregroundColor: const Color(0xFFFFC2C2),
+                          isLoading: _removing,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else if (profile.friendStatus == 'pending_outgoing')
+                  _ProfileActionButton(
+                    label: 'İsteği Geri Çek',
+                    icon: Icons.undo_rounded,
+                    onTap: _cancellingRequest ? null : () => _cancelFriendRequest(profile),
+                    fillColor: const Color(0x14F59E0B),
+                    foregroundColor: const Color(0xFFFFD98A),
+                    isLoading: _cancellingRequest,
+                  )
+                else if (profile.friendStatus == 'pending_incoming')
+                  _ProfileActionButton(
+                    label: 'İsteği Kabul Et',
+                    icon: Icons.person_add_alt_1_rounded,
+                    onTap: _acceptingRequest ? null : () => _acceptFriendRequest(profile),
+                    fillColor: const Color(0x1A22C55E),
+                    foregroundColor: const Color(0xFFC6FFD7),
+                    isLoading: _acceptingRequest,
+                  )
+                else
+                  _ProfileActionButton(
+                    label: 'Arkadaş Ekle',
+                    icon: Icons.person_add_alt_1_rounded,
+                    onTap: _sendingRequest ? null : () => _sendFriendRequest(profile),
+                    fillColor: const Color(0x1A8B5CF6),
+                    foregroundColor: const Color(0xFFE4DBFF),
+                    isLoading: _sendingRequest,
+                  ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -705,6 +814,9 @@ class _FriendProfile {
   final String danceInterests;
   final String danceSchool;
   final String about;
+  final String friendStatus;
+  final int? friendRequestId;
+  final bool isFriend;
 
   const _FriendProfile({
     required this.accountId,
@@ -715,6 +827,9 @@ class _FriendProfile {
     required this.danceInterests,
     required this.danceSchool,
     required this.about,
+    required this.friendStatus,
+    required this.friendRequestId,
+    required this.isFriend,
   });
 
   String get initials => name.trim().isNotEmpty ? name.trim().substring(0, 1).toUpperCase() : '?';
@@ -729,6 +844,9 @@ class _FriendProfile {
       danceInterests: (json['dance_interests'] ?? '').toString(),
       danceSchool: (json['dance_school'] ?? '').toString(),
       about: (json['about'] ?? '').toString(),
+      friendStatus: (json['friend_status'] ?? 'none').toString(),
+      friendRequestId: (json['friend_request_id'] as num?)?.toInt(),
+      isFriend: json['is_friend'] == true,
     );
   }
 }
