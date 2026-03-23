@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'notifications_api.dart';
 
@@ -20,6 +23,9 @@ class PushNotificationsService {
   static bool _listenersBound = false;
   static bool _localReady = false;
   static String _sessionToken = '';
+  static String _currentDeviceToken = '';
+  static String _appVersionLabel = '';
+  static const _kCachedDeviceToken = 'push.device_token.v1';
   static StreamSubscription<String>? _tokenRefreshSub;
   static StreamSubscription<RemoteMessage>? _onMessageSub;
   static StreamSubscription<RemoteMessage>? _onMessageOpenedSub;
@@ -37,6 +43,87 @@ class PushNotificationsService {
 
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
+
+  static Future<String> _loadCachedDeviceToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return (prefs.getString(_kCachedDeviceToken) ?? '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static Future<void> _storeCachedDeviceToken(String token) async {
+    final cleaned = token.trim();
+    _currentDeviceToken = cleaned;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (cleaned.isEmpty) {
+        await prefs.remove(_kCachedDeviceToken);
+      } else {
+        await prefs.setString(_kCachedDeviceToken, cleaned);
+      }
+    } catch (_) {}
+  }
+
+  static Future<String> _resolveAppVersionLabel() async {
+    if (_appVersionLabel.isNotEmpty) return _appVersionLabel;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final version = info.version.trim();
+      final build = info.buildNumber.trim();
+      _appVersionLabel = build.isEmpty ? version : '$version+$build';
+    } catch (_) {
+      _appVersionLabel = '';
+    }
+    return _appVersionLabel;
+  }
+
+  static String _resolveDeviceDescriptor() {
+    if (kIsWeb) return 'web';
+    try {
+      final version = Platform.operatingSystemVersion.trim();
+      if (version.isEmpty) return _platformName();
+      return '${_platformName()} | $version';
+    } catch (_) {
+      return _platformName();
+    }
+  }
+
+  static Future<void> _registerCurrentToken(
+    String sessionToken,
+    String deviceToken,
+  ) async {
+    final token = sessionToken.trim();
+    final cleanedDeviceToken = deviceToken.trim();
+    if (token.isEmpty || cleanedDeviceToken.isEmpty) return;
+    try {
+      await NotificationsApi.registerPushToken(
+        token,
+        deviceToken: cleanedDeviceToken,
+        platform: _platformName(),
+        notificationsEnabled: true,
+        appVersion: await _resolveAppVersionLabel(),
+        deviceModel: _resolveDeviceDescriptor(),
+      );
+      await _storeCachedDeviceToken(cleanedDeviceToken);
+    } catch (_) {}
+  }
+
+  static Future<void> _unregisterCurrentToken(String sessionToken) async {
+    final token = sessionToken.trim();
+    if (token.isEmpty) return;
+    final deviceToken = _currentDeviceToken.isNotEmpty
+        ? _currentDeviceToken
+        : await _loadCachedDeviceToken();
+    if (deviceToken.isEmpty) return;
+    try {
+      await NotificationsApi.unregisterPushToken(
+        token,
+        deviceToken: deviceToken,
+      );
+    } catch (_) {}
+  }
 
   static Future<String?> _resolveFcmTokenWithRetry(
     FirebaseMessaging messaging,
@@ -140,14 +227,15 @@ class PushNotificationsService {
     if (token.isEmpty) return;
     _sessionToken = token;
     _onRouteTap = onRouteTap;
+    if (_currentDeviceToken.isEmpty) {
+      _currentDeviceToken = await _loadCachedDeviceToken();
+    }
 
     await _ensureLocalReady();
 
     final grantedByPlatform = await _requestPlatformNotificationPermission();
     if (!grantedByPlatform || !notificationsEnabled) {
-      try {
-        await NotificationsApi.unregisterPushToken(token);
-      } catch (_) {}
+      await _unregisterCurrentToken(token);
       return;
     }
 
@@ -172,9 +260,7 @@ class PushNotificationsService {
     }
 
     if (!isGranted || !notificationsEnabled) {
-      try {
-        await NotificationsApi.unregisterPushToken(token);
-      } catch (_) {}
+      await _unregisterCurrentToken(token);
       return;
     }
 
@@ -196,28 +282,14 @@ class PushNotificationsService {
     }
 
     if (currentToken != null && currentToken.trim().isNotEmpty) {
-      try {
-        await NotificationsApi.registerPushToken(
-          token,
-          deviceToken: currentToken,
-          platform: _platformName(),
-          notificationsEnabled: true,
-        );
-      } catch (_) {}
+      await _registerCurrentToken(token, currentToken);
     }
 
     if (!_listenersBound) {
       _tokenRefreshSub = messaging.onTokenRefresh.listen((newToken) async {
         final t = _sessionToken.trim();
         if (t.isEmpty || newToken.trim().isEmpty) return;
-        try {
-          await NotificationsApi.registerPushToken(
-            t,
-            deviceToken: newToken,
-            platform: _platformName(),
-            notificationsEnabled: true,
-          );
-        } catch (_) {}
+        await _registerCurrentToken(t, newToken);
       });
 
       _onMessageSub = FirebaseMessaging.onMessage.listen((message) async {
@@ -287,9 +359,7 @@ class PushNotificationsService {
     final token = sessionToken.trim();
     if (token.isEmpty) return;
     if (!enabled) {
-      try {
-        await NotificationsApi.unregisterPushToken(token);
-      } catch (_) {}
+      await _unregisterCurrentToken(token);
       return;
     }
     try {
@@ -301,9 +371,7 @@ class PushNotificationsService {
   static Future<void> unregisterForSession(String sessionToken) async {
     final token = sessionToken.trim();
     if (token.isEmpty) return;
-    try {
-      await NotificationsApi.unregisterPushToken(token);
-    } catch (_) {}
+    await _unregisterCurrentToken(token);
   }
 
   static Future<void> dispose() async {
