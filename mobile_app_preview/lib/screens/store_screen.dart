@@ -36,7 +36,7 @@ class _StoreScreenState extends State<StoreScreen> {
       title: 'Mağaza',
       icon: Icons.storefront_rounded,
       subtitle: 'Onaylı kullanıcıların mağazalarını keşfet.',
-      tone: AppTone.info,
+      tone: AppTone.profile,
       onRefresh: _refresh,
       content: [
         FutureBuilder<List<StoreSellerItem>>(
@@ -305,7 +305,7 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(14),
-                decoration: AppTheme.panel(tone: AppTone.info, radius: 20, elevated: true),
+                decoration: AppTheme.panel(tone: AppTone.profile, radius: 20, elevated: true),
                 child: Row(
                   children: [
                     VerifiedAvatar(
@@ -386,7 +386,7 @@ class _SellerStoreCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(24),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        decoration: AppTheme.panel(tone: AppTone.info, radius: 24, elevated: true),
+        decoration: AppTheme.panel(tone: AppTone.profile, radius: 24, elevated: true),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -463,7 +463,7 @@ class _SellerHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.panel(tone: AppTone.info, radius: 24, elevated: true),
+      decoration: AppTheme.panel(tone: AppTone.profile, radius: 24, elevated: true),
       child: Row(
         children: [
           VerifiedAvatar(

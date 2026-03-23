@@ -132,7 +132,7 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: AppTheme.panel(tone: AppTone.info, radius: 24, elevated: true),
+              decoration: AppTheme.panel(tone: AppTone.profile, radius: 24, elevated: true),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
