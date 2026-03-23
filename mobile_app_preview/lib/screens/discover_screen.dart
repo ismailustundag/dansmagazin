@@ -553,14 +553,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           FutureBuilder<List<_EventItem>>(
             future: _featuredEventsFuture,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Container(
-                  height: 172,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: AppTheme.panel(tone: AppTone.events, radius: 24, subtle: true),
-                );
-              }
               final items = snapshot.data ?? const <_EventItem>[];
+              if (snapshot.connectionState == ConnectionState.waiting && items.isEmpty) {
+                return const SizedBox.shrink();
+              }
               if (items.isEmpty) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
