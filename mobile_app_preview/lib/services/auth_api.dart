@@ -94,7 +94,7 @@ class AuthApi {
   }
 
   static Future<AuthSession> login({
-    required String usernameOrEmail,
+    required String email,
     required String password,
     required bool rememberMe,
   }) async {
@@ -102,7 +102,7 @@ class AuthApi {
       Uri.parse('$_base/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'username_or_email': usernameOrEmail.trim(),
+        'email': email.trim(),
         'password': password,
         'remember_me': rememberMe,
       }),

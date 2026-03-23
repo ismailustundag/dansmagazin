@@ -143,7 +143,7 @@ class _AuthScreenState extends State<AuthScreen> {
               rememberMe: _rememberMe,
             )
           : await AuthApi.login(
-              usernameOrEmail: _emailCtrl.text.trim(),
+              email: _emailCtrl.text.trim(),
               password: _passwordCtrl.text,
               rememberMe: _rememberMe,
             );
