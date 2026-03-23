@@ -35,7 +35,7 @@ class _StoreScreenState extends State<StoreScreen> {
     return ScreenShell(
       title: 'Mağaza',
       icon: Icons.storefront_rounded,
-      subtitle: 'Onaylı kullanıcıların mağazalarını keşfet.',
+      subtitle: 'Kostüm, ayakkabı ve aklına gelen daha fazlası. Onaylı kullanıcıların ürünlerine göz at, beğendiğin ürün için doğrudan iletişime geç.',
       tone: AppTone.profile,
       onRefresh: _refresh,
       content: [
