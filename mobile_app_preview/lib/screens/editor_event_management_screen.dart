@@ -192,6 +192,187 @@ String _canonicalCityOrUnknown(String raw, List<String> availableCities) {
   return 'Belirtilmedi';
 }
 
+const List<String> _preferredEventCities = <String>[
+  'İstanbul',
+  'Ankara',
+  'İzmir',
+  'Bursa',
+  'Antalya',
+  'Eskişehir',
+  'Adana',
+];
+
+List<String> _prioritizedEventCities(List<String> cities) {
+  final unique = <String>[];
+  final seen = <String>{};
+  for (final city in cities) {
+    final trimmed = city.trim();
+    if (trimmed.isEmpty) continue;
+    final key = _cityLookupKey(trimmed);
+    if (seen.add(key)) unique.add(trimmed);
+  }
+  final preferred = <String>[];
+  final rest = <String>[];
+  for (final city in unique) {
+    if (city == 'Belirtilmedi') continue;
+    if (_preferredEventCities.contains(city)) {
+      preferred.add(city);
+    } else {
+      rest.add(city);
+    }
+  }
+  final out = <String>[];
+  if (unique.contains('Belirtilmedi')) out.add('Belirtilmedi');
+  out.addAll(preferred);
+  out.addAll(rest);
+  return out;
+}
+
+Future<String?> _showEventCityPickerSheet(
+  BuildContext context, {
+  required String currentCity,
+  required List<String> availableCities,
+}) {
+  final cities = _prioritizedEventCities(availableCities);
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: false,
+    backgroundColor: const Color(0xFF111827),
+    barrierColor: Colors.black.withOpacity(0.45),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) {
+      return SafeArea(
+        top: false,
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.62,
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: Row(
+                  children: [
+                    Text(
+                      'Etkinlik Şehri',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                  itemCount: cities.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 4),
+                  itemBuilder: (ctx, index) {
+                    final city = cities[index];
+                    final selected = city == currentCity;
+                    final preferred = _preferredEventCities.contains(city);
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => Navigator.of(ctx).pop(city),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                          decoration: BoxDecoration(
+                            color: selected ? AppTheme.cyan.withOpacity(0.16) : const Color(0xFF151B28),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: selected ? AppTheme.cyan.withOpacity(0.82) : Colors.white.withOpacity(0.06),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  city,
+                                  style: TextStyle(
+                                    color: selected ? Colors.white : Colors.white.withOpacity(0.88),
+                                    fontSize: 15,
+                                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              if (preferred && !selected)
+                                Text(
+                                  'Popüler',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white.withOpacity(0.46),
+                                  ),
+                                ),
+                              if (selected) ...[
+                                const SizedBox(width: 8),
+                                const Icon(Icons.check_rounded, size: 18, color: AppTheme.cyan),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _eventCityField({
+  required String value,
+  required bool enabled,
+  required VoidCallback onTap,
+  required InputDecoration decoration,
+}) {
+  final effectiveValue = value.trim().isEmpty ? 'Şehir seçin' : value.trim();
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: IgnorePointer(
+      ignoring: !enabled,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.68,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(12),
+          child: InputDecorator(
+            isEmpty: value.trim().isEmpty,
+            decoration: decoration.copyWith(
+              suffixIcon: const Icon(Icons.keyboard_arrow_down_rounded),
+            ),
+            child: Text(
+              effectiveValue,
+              style: TextStyle(
+                color: value.trim().isEmpty ? AppTheme.textSecondary : Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 String _normalizeMapUrl(String raw) {
   final v = raw.trim();
   if (v.isEmpty) return '';
@@ -1452,12 +1633,10 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
             [
               _txt(_venueNameCtrl, 'Mekan Adı'),
               _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
-              DropdownButtonFormField<String>(
+              _eventCityField(
                 value: _cities.contains(_city) ? _city : 'Belirtilmedi',
-                items: _cities
-                    .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: _saving ? null : (v) => setState(() => _city = v ?? _city),
+                enabled: !_saving,
+                onTap: _pickCity,
                 decoration: _fieldDecoration('Şehir'),
               ),
               const SizedBox(height: 8),
@@ -1634,6 +1813,16 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         borderSide: BorderSide(color: AppTheme.cyan.withOpacity(0.8)),
       ),
     );
+  }
+
+  Future<void> _pickCity() async {
+    final picked = await _showEventCityPickerSheet(
+      context,
+      currentCity: _city,
+      availableCities: _cities,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _city = picked);
   }
 
   String _normalizeKind(String raw) {
@@ -2532,6 +2721,16 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     ctrl.text = '$h.$m';
   }
 
+  Future<void> _pickCity() async {
+    final picked = await _showEventCityPickerSheet(
+      context,
+      currentCity: _city,
+      availableCities: _cities,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _city = picked);
+  }
+
   Future<void> _submit() async {
     if (_eventCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Etkinlik adı zorunlu.');
@@ -2620,12 +2819,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               _txt(_programCtrl, 'Program', maxLines: 3),
               _txt(_venueNameCtrl, 'Mekan Adı'),
               _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
-              DropdownButtonFormField<String>(
+              _eventCityField(
                 value: _city,
-                items: _cities
-                    .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: _sending ? null : (v) => setState(() => _city = v ?? _city),
+                enabled: !_sending,
+                onTap: _pickCity,
                 decoration: InputDecoration(
                   labelText: 'Şehir',
                   filled: true,

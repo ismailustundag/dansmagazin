@@ -419,13 +419,41 @@ class _PhotosScreenState extends State<PhotosScreen> {
       content: [
         Row(
           children: [
-            Expanded(child: _tabChip(0, 'Akış')),
+            Expanded(
+              child: _tabChip(
+                0,
+                'Akış',
+                icon: Icons.dynamic_feed_rounded,
+                accent: AppTheme.orange,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _tabChip(1, 'Anket')),
+            Expanded(
+              child: _tabChip(
+                2,
+                'Fotoğraflar',
+                icon: Icons.photo_library_rounded,
+                accent: AppTheme.cyan,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _tabChip(2, 'Fotoğraf')),
+            Expanded(
+              child: _tabChip(
+                1,
+                'Anket',
+                icon: Icons.poll_rounded,
+                accent: AppTheme.violet,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _tabChip(3, 'Video')),
+            Expanded(
+              child: _tabChip(
+                3,
+                'Video',
+                icon: Icons.play_circle_fill_rounded,
+                accent: const Color(0xFFFF5D73),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -603,30 +631,75 @@ class _PhotosScreenState extends State<PhotosScreen> {
     );
   }
 
-  Widget _tabChip(int value, String label) {
+  Widget _tabChip(
+    int value,
+    String label, {
+    required IconData icon,
+    required Color accent,
+  }) {
     final selected = _tab == value;
     return InkWell(
       onTap: () => setState(() => _tab = value),
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 42,
+        height: 52,
         decoration: BoxDecoration(
-          color: selected ? AppTheme.cyan.withOpacity(0.28) : AppTheme.surfaceSecondary,
+          gradient: selected
+              ? LinearGradient(
+                  colors: [
+                    accent.withOpacity(0.96),
+                    Color.alphaBlend(Colors.white.withOpacity(0.1), accent),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : LinearGradient(
+                  colors: [
+                    accent.withOpacity(0.16),
+                    Color.alphaBlend(accent.withOpacity(0.08), AppTheme.surfaceSecondary),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: selected ? Colors.transparent : AppTheme.borderSoft),
+          border: Border.all(
+            color: selected ? accent.withOpacity(0.98) : accent.withOpacity(0.34),
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: accent.withOpacity(0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : const [],
         ),
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            label,
-            maxLines: 1,
-            style: TextStyle(
-              color: selected ? AppTheme.textPrimary : AppTheme.textSecondary,
-              fontWeight: FontWeight.w600,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? Colors.white : accent.withOpacity(0.96),
             ),
-          ),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  color: selected ? Colors.white : Colors.white.withOpacity(0.92),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
