@@ -17,6 +17,31 @@ import 'chat_thread_screen.dart';
 import 'friend_profile_screen.dart';
 import 'screen_shell.dart';
 
+BoxDecoration _friendCardDecoration({required bool hasUnread}) {
+  if (!hasUnread) {
+    return AppTheme.panel(tone: AppTone.social, radius: 16, subtle: true);
+  }
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(16),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(AppTheme.pink.withOpacity(0.14), AppTheme.surfaceSecondary),
+        Color.alphaBlend(AppTheme.violet.withOpacity(0.12), AppTheme.surfaceElevated),
+      ],
+    ),
+    border: Border.all(color: AppTheme.pink.withOpacity(0.42), width: 1.15),
+    boxShadow: [
+      BoxShadow(
+        color: AppTheme.pink.withOpacity(0.08),
+        blurRadius: 14,
+        offset: const Offset(0, 6),
+      ),
+    ],
+  );
+}
+
 class SocialScreen extends StatefulWidget {
   final String sessionToken;
 
@@ -611,9 +636,9 @@ class _SocialScreenState extends State<SocialScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: _toggleAddFriendsPanel,
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: _toggleAddFriendsPanel,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Row(
@@ -689,6 +714,7 @@ class _SocialScreenState extends State<SocialScreen> {
                   const SizedBox(height: 10),
                   ..._searchItems.map(
                     (u) => Container(
+                      key: ValueKey('search_user_${u.accountId}'),
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 16),
@@ -782,17 +808,23 @@ class _SocialScreenState extends State<SocialScreen> {
               children: items
                   .map(
                     (f) => Container(
+                      key: ValueKey('friend_${f.accountId}'),
                       margin: const EdgeInsets.only(bottom: 7),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                      decoration: AppTheme.panel(
-                        tone: AppTone.social,
-                        radius: 16,
-                        elevated: f.unreadCount > 0,
-                        subtle: f.unreadCount <= 0,
-                      ),
+                      decoration: _friendCardDecoration(hasUnread: f.unreadCount > 0),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          if (f.unreadCount > 0)
+                            Container(
+                              width: 4,
+                              height: 42,
+                              margin: const EdgeInsets.only(right: 10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.pink,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
                           _FriendAvatar(
                             item: f,
                             onTap: () => _showAvatarPreview(f.avatarUrl, f.name),
@@ -813,7 +845,11 @@ class _SocialScreenState extends State<SocialScreen> {
                                           f.name.isNotEmpty ? f.name : t('user'),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: f.unreadCount > 0 ? Colors.white : null,
+                                          ),
                                         ),
                                       ),
                                       if (f.unreadCount > 0)
