@@ -34,6 +34,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   String _error = '';
   String _popupError = '';
   final Set<int> _selected = <int>{};
+  final Map<int, NotificationUserCandidate> _selectedUsers = <int, NotificationUserCandidate>{};
   List<NotificationUserCandidate> _users = const [];
   List<NotificationFeedItem> _sent = const [];
   AppPopupConfig? _currentPopup;
@@ -68,7 +69,14 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
         limit: 100,
       );
       if (!mounted) return;
-      setState(() => _users = items);
+      setState(() {
+        _users = items;
+        for (final user in items) {
+          if (_selected.contains(user.accountId)) {
+            _selectedUsers[user.accountId] = user;
+          }
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -144,6 +152,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       _titleCtrl.clear();
       _bodyCtrl.clear();
       _selected.clear();
+      _selectedUsers.clear();
       await _loadSent();
     } catch (e) {
       if (!mounted) return;
@@ -221,6 +230,23 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     return formatDateTimeDdMmYyyyHmDot(raw);
   }
 
+  String _selectedUsersButtonLabel() {
+    if (_sendToAll) {
+      return _sending ? 'Gönderiliyor...' : 'Bildirimi Gönder';
+    }
+    final names = _selectedUsers.values
+        .map((user) => user.name.trim().isEmpty ? 'user' : user.name.trim())
+        .toList()
+      ..sort();
+    if (names.isEmpty) {
+      return _sending ? 'Gönderiliyor...' : 'Bildirimi Gönder';
+    }
+    final preview = names.take(2).join(', ');
+    final extraCount = names.length - 2;
+    final suffix = extraCount > 0 ? ' +$extraCount' : '';
+    return _sending ? 'Gönderiliyor...' : 'Bildirimi Gönder • $preview$suffix';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -291,6 +317,38 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    if (_selectedUsers.isNotEmpty) ...[
+                      Builder(
+                        builder: (context) {
+                          final selectedUsers = _selectedUsers.values.toList()
+                            ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: selectedUsers
+                                .map(
+                                  (user) => Chip(
+                                    label: Text(
+                                      user.name.trim().isEmpty ? 'user' : user.name.trim(),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    deleteIcon: const Icon(Icons.close_rounded, size: 18),
+                                    onDeleted: _sending
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _selected.remove(user.accountId);
+                                              _selectedUsers.remove(user.accountId);
+                                            });
+                                          },
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     if (_loadingUsers)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
@@ -304,8 +362,10 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                             setState(() {
                               if (v == true) {
                                 _selected.add(u.accountId);
+                                _selectedUsers[u.accountId] = u;
                               } else {
                                 _selected.remove(u.accountId);
+                                _selectedUsers.remove(u.accountId);
                               }
                             });
                           },
@@ -324,7 +384,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                   ElevatedButton.icon(
                     onPressed: _sending ? null : _send,
                     icon: const Icon(Icons.send),
-                    label: Text(_sending ? 'Gönderiliyor...' : 'Bildirimi Gönder'),
+                    label: Text(_selectedUsersButtonLabel()),
                   ),
                 ],
               ),
