@@ -224,7 +224,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fotoğraf seçilemedi')),
+        SnackBar(content: Text(I18n.t('photo_pick_failed'))),
       );
     }
   }
@@ -235,7 +235,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
 
   Future<void> _sharePost() async {
     if (!_isLoggedIn) {
-      _promptLogin('Akışta paylaşım yapmak için giriş yapın.');
+      _promptLogin(I18n.t('feed_login_required'));
       return;
     }
     final text = _postCtrl.text.trim();
@@ -243,7 +243,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
     if (text.isEmpty && imagePath.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Metin veya fotoğraf ekleyin')),
+        SnackBar(content: Text(I18n.t('share_requires_text_or_photo'))),
       );
       return;
     }
@@ -422,7 +422,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             Expanded(
               child: _tabChip(
                 0,
-                'Akış',
+                I18n.t('feed'),
                 icon: Icons.dynamic_feed_rounded,
                 accent: AppTheme.orange,
               ),
@@ -431,7 +431,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             Expanded(
               child: _tabChip(
                 2,
-                'Fotoğraflar',
+                I18n.t('photos'),
                 icon: Icons.photo_library_rounded,
                 accent: AppTheme.cyan,
               ),
@@ -440,7 +440,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             Expanded(
               child: _tabChip(
                 1,
-                'Anket',
+                I18n.t('poll'),
                 icon: Icons.poll_rounded,
                 accent: AppTheme.violet,
               ),
@@ -449,7 +449,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             Expanded(
               child: _tabChip(
                 3,
-                'Video',
+                I18n.t('video_tab'),
                 icon: Icons.play_circle_fill_rounded,
                 accent: const Color(0xFFFF5D73),
               ),
@@ -479,7 +479,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
               }
               if (snapshot.hasError) {
                 return _ErrorCard(
-                  text: 'Akış yüklenemedi.',
+                  text: I18n.t('feed_load_error'),
                   onRetry: () async {
                     setState(() => _communityFeedFuture = _fetchCommunityFeed());
                   },
@@ -487,7 +487,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
               }
               final posts = snapshot.data ?? const <PhotoFlowPost>[];
               if (posts.isEmpty) {
-                return const _InfoCard(text: 'Henüz paylaşım yok. İlk anıyı sen paylaş.');
+                return _InfoCard(text: I18n.t('no_feed_posts_yet'));
               }
               return Column(
                 children: posts
@@ -520,7 +520,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
               }
               if (snapshot.hasError) {
                 return _ErrorCard(
-                  text: 'Anketler yüklenemedi.',
+                  text: I18n.t('polls_load_error'),
                   onRetry: () async {
                     setState(() => _pollsFuture = _fetchPolls());
                   },
@@ -531,12 +531,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Anketler',
+                    I18n.t('polls_title'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 10),
                   if (polls.isEmpty)
-                    const _InfoCard(text: 'Şu an aktif anket yok.')
+                    _InfoCard(text: I18n.t('no_active_polls'))
                   else
                     ...polls.map(
                       (poll) => Padding(
@@ -802,7 +802,7 @@ class _FlowComposerCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: sending ? null : onPickImage,
                 icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: const Text('Fotoğraf Ekle'),
+                label: Text(I18n.t('add_photo')),
               ),
               const Spacer(),
               FilledButton.icon(
@@ -814,7 +814,7 @@ class _FlowComposerCard extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.send_rounded),
-                label: Text(sending ? 'Gönderiliyor' : I18n.t('share')),
+                label: Text(sending ? I18n.t('sending_ellipsis') : I18n.t('share')),
               ),
             ],
           ),

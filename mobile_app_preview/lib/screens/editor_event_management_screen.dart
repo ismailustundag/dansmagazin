@@ -9,6 +9,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/error_message.dart';
 import '../services/event_social_api.dart';
+import '../services/i18n.dart';
 import '../services/profile_api.dart';
 import '../services/turkiye_cities.dart';
 import '../theme/app_theme.dart';
@@ -263,7 +264,7 @@ Future<String?> _showEventCityPickerSheet(
                 child: Row(
                   children: [
                     Text(
-                      'Etkinlik Şehri',
+                      I18n.t('event_city_picker_title'),
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -310,7 +311,7 @@ Future<String?> _showEventCityPickerSheet(
                               ),
                               if (preferred && !selected)
                                 Text(
-                                  'Popüler',
+                                  I18n.t('popular_city'),
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
@@ -343,7 +344,7 @@ Widget _eventCityField({
   required VoidCallback onTap,
   required InputDecoration decoration,
 }) {
-  final effectiveValue = value.trim().isEmpty ? 'Şehir seçin' : value.trim();
+  final effectiveValue = value.trim().isEmpty ? I18n.t('select_city_prompt') : value.trim();
   return Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: IgnorePointer(
@@ -449,7 +450,7 @@ class EditorEventManagementScreen extends StatelessWidget {
       backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
         backgroundColor: AppTheme.bgPrimary,
-        title: const Text('Etkinlik Yönetimi'),
+        title: Text(I18n.t('event_management_screen_title')),
       ),
       body: SafeArea(
         top: false,
@@ -457,15 +458,15 @@ class EditorEventManagementScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
           _ActionCard(
-            title: 'Etkinlik Oluştur',
-            subtitle: 'Yeni etkinliği onaya gönder.',
+            title: I18n.t('create_event_title'),
+            subtitle: I18n.t('create_event_subtitle'),
             icon: Icons.add_circle_outline,
             onTap: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute(
                   fullscreenDialog: true,
                   builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Etkinlik Oluştur')),
+                    appBar: AppBar(title: Text(I18n.t('create_event_title'))),
                     body: SafeArea(
                       child: _CreateEventSheet(sessionToken: sessionToken),
                     ),
@@ -476,8 +477,8 @@ class EditorEventManagementScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ActionCard(
-            title: 'Haber Oluştur',
-            subtitle: 'Yeni haberi onaya gönder.',
+            title: I18n.t('create_news_title'),
+            subtitle: I18n.t('create_news_subtitle'),
             icon: Icons.newspaper_outlined,
             onTap: () async {
               await Navigator.of(context).push(
@@ -489,8 +490,8 @@ class EditorEventManagementScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ActionCard(
-            title: 'Haberleri Yönet',
-            subtitle: 'Haber taleplerini görüntüle ve düzenle.',
+            title: I18n.t('manage_news_title'),
+            subtitle: I18n.t('manage_news_subtitle'),
             icon: Icons.fact_check_outlined,
             onTap: () {
               Navigator.of(context).push(
@@ -502,8 +503,8 @@ class EditorEventManagementScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ActionCard(
-            title: 'Etkinliği Yönet',
-            subtitle: 'Kendi etkinliklerini görüntüle ve düzenle.',
+            title: I18n.t('manage_event_title'),
+            subtitle: I18n.t('manage_event_subtitle'),
             icon: Icons.edit_calendar_outlined,
             onTap: () {
               Navigator.of(context).push(
@@ -515,8 +516,8 @@ class EditorEventManagementScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ActionCard(
-            title: 'Bilet Kontrol Et',
-            subtitle: 'QR okut, kullanılmış biletleri listele.',
+            title: I18n.t('scan_ticket_title'),
+            subtitle: I18n.t('scan_ticket_subtitle'),
             icon: Icons.qr_code_scanner,
             onTap: () {
               Navigator.of(context).push(
@@ -716,7 +717,7 @@ class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bilet Kontrol Et')),
+      appBar: AppBar(title: Text(I18n.t('scan_ticket_title'))),
       body: SafeArea(
         top: false,
         child: RefreshIndicator(
@@ -1198,7 +1199,7 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
           backgroundColor: AppTheme.bgPrimary,
           appBar: AppBar(
             backgroundColor: AppTheme.bgPrimary,
-            title: const Text('Etkinliği Yönet'),
+            title: Text(I18n.t('manage_event_title')),
           ),
           body: SafeArea(
             top: false,
@@ -1221,7 +1222,7 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
       backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
         backgroundColor: AppTheme.bgPrimary,
-        title: const Text('Etkinliği Yönet'),
+        title: Text(I18n.t('manage_event_title')),
       ),
       body: SafeArea(
         top: false,
@@ -1637,16 +1638,16 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                 value: _cities.contains(_city) ? _city : 'Belirtilmedi',
                 enabled: !_saving,
                 onTap: _pickCity,
-                decoration: _fieldDecoration('Şehir'),
+                decoration: _fieldDecoration(I18n.t('event_city_label')),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _eventKind,
-                items: const [
-                  DropdownMenuItem(value: 'dance_night', child: Text('Dans Gecesi')),
-                  DropdownMenuItem(value: 'festival', child: Text('Festival')),
-                  DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
-                  DropdownMenuItem(value: 'promo_lesson', child: Text('Tanıtım Dersi')),
+                items: [
+                  DropdownMenuItem(value: 'dance_night', child: Text(I18n.t('event_type_dance_night'))),
+                  DropdownMenuItem(value: 'festival', child: Text(I18n.t('event_type_festival'))),
+                  DropdownMenuItem(value: 'competition', child: Text(I18n.t('event_type_competition'))),
+                  DropdownMenuItem(value: 'promo_lesson', child: Text(I18n.t('event_type_promo_lesson'))),
                 ],
                 onChanged: _saving
                     ? null
@@ -1656,18 +1657,18 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                             _repeatWeekly = false;
                           }
                         }),
-                decoration: _fieldDecoration('Etkinlik Türü'),
+                decoration: _fieldDecoration(I18n.t('event_type_label')),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _coverCrop,
-                items: const [
-                  DropdownMenuItem(value: 'top', child: Text('Afiş Kırpımı: Üst')),
-                  DropdownMenuItem(value: 'center', child: Text('Afiş Kırpımı: Orta')),
-                  DropdownMenuItem(value: 'bottom', child: Text('Afiş Kırpımı: Alt')),
+                items: [
+                  DropdownMenuItem(value: 'top', child: Text(I18n.t('cover_crop_top'))),
+                  DropdownMenuItem(value: 'center', child: Text(I18n.t('cover_crop_center'))),
+                  DropdownMenuItem(value: 'bottom', child: Text(I18n.t('cover_crop_bottom'))),
                 ],
                 onChanged: _saving ? null : (v) => setState(() => _coverCrop = _normalizeCoverCrop(v)),
-                decoration: _fieldDecoration('Kartlarda Görünecek Bölge'),
+                decoration: _fieldDecoration(I18n.t('cover_crop_label')),
               ),
               const SizedBox(height: 4),
               _DanceStylesField(
@@ -2934,20 +2935,20 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                               }
                             } on TimeoutException {
                               if (!mounted) return;
-                              setState(() => _error = 'Galeri yanıt vermedi, tekrar deneyin.');
+                              setState(() => _error = I18n.t('gallery_timeout'));
                             } catch (e) {
                               if (!mounted) return;
-                              setState(() => _error = 'Fotoğraf seçilemedi: $e');
+                              setState(() => _error = '${I18n.t('photo_pick_failed')}: $e');
                             }
                           },
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(120, 42),
                     ),
                     icon: const Icon(Icons.image),
-                    label: const Text('Kapak Seç'),
+                    label: Text(I18n.t('select_cover')),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_image == null ? 'Seçilmedi' : _image!.name, overflow: TextOverflow.ellipsis)),
+                  Expanded(child: Text(_image == null ? I18n.t('not_selected') : _image!.name, overflow: TextOverflow.ellipsis)),
                 ],
               ),
               if (_image != null) ...[
@@ -2966,7 +2967,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _sending ? null : _submit,
-                  child: Text(_sending ? 'Gönderiliyor...' : 'Onaya Gönder'),
+                  child: Text(_sending ? I18n.t('sending_ellipsis') : I18n.t('send_for_approval')),
                 ),
               ),
               const SizedBox(height: 12),

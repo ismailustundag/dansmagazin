@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/notifications_api.dart';
 import '../services/date_time_format.dart';
+import '../services/i18n.dart';
 
 class AdminNotificationsScreen extends StatefulWidget {
   final String sessionToken;
@@ -38,6 +39,15 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   List<NotificationUserCandidate> _users = const [];
   List<NotificationFeedItem> _sent = const [];
   AppPopupConfig? _currentPopup;
+
+  String _t(String key) => I18n.t(key);
+  String _fmt(String key, Map<String, String> values) {
+    var template = _t(key);
+    values.forEach((k, v) {
+      template = template.replaceAll('{$k}', v);
+    });
+    return template;
+  }
 
   @override
   void initState() {
@@ -126,11 +136,11 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     final title = _titleCtrl.text.trim();
     final body = _bodyCtrl.text.trim();
     if (title.isEmpty || body.isEmpty) {
-      setState(() => _error = 'Başlık ve içerik zorunludur.');
+      setState(() => _error = _t('required_title_body'));
       return;
     }
     if (!_sendToAll && _selected.isEmpty) {
-      setState(() => _error = 'En az bir kullanıcı seçin veya Tümüne gönder açın.');
+      setState(() => _error = _t('select_recipients_or_enable_all'));
       return;
     }
     setState(() {
@@ -147,7 +157,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bildirim gönderildi. Alıcı: $sentCount')),
+        SnackBar(content: Text(_fmt('notification_sent_count', {'count': '$sentCount'}))),
       );
       _titleCtrl.clear();
       _bodyCtrl.clear();
@@ -166,7 +176,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     final title = _popupTitleCtrl.text.trim();
     final body = _popupBodyCtrl.text.trim();
     if (title.isEmpty || body.isEmpty) {
-      setState(() => _popupError = 'Popup başlığı ve içeriği zorunludur.');
+      setState(() => _popupError = _t('popup_required_title_body'));
       return;
     }
     setState(() {
@@ -188,7 +198,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       if (!mounted) return;
       setState(() => _currentPopup = popup);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Açılış popupı kaydedildi.')),
+        SnackBar(content: Text(_t('popup_saved'))),
       );
     } catch (e) {
       if (!mounted) return;
@@ -216,7 +226,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       _popupShowToGuests = false;
       _popupForceUpdate = false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Açılış popupı kapatıldı.')),
+        SnackBar(content: Text(_t('popup_closed'))),
       );
     } catch (e) {
       if (!mounted) return;
@@ -232,19 +242,19 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
 
   String _selectedUsersButtonLabel() {
     if (_sendToAll) {
-      return _sending ? 'Gönderiliyor...' : 'Bildirimi Gönder';
+      return _sending ? _t('sending_ellipsis') : _t('send_notification_button');
     }
     final names = _selectedUsers.values
-        .map((user) => user.name.trim().isEmpty ? 'user' : user.name.trim())
+        .map((user) => user.name.trim().isEmpty ? _t('user') : user.name.trim())
         .toList()
       ..sort();
     if (names.isEmpty) {
-      return _sending ? 'Gönderiliyor...' : 'Bildirimi Gönder';
+      return _sending ? _t('sending_ellipsis') : _t('send_notification_button');
     }
     final preview = names.take(2).join(', ');
     final extraCount = names.length - 2;
     final suffix = extraCount > 0 ? ' +$extraCount' : '';
-    return _sending ? 'Gönderiliyor...' : 'Bildirimi Gönder • $preview$suffix';
+    return _sending ? _t('sending_ellipsis') : '${_t('send_notification_button')} • $preview$suffix';
   }
 
   @override
@@ -253,7 +263,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       backgroundColor: const Color(0xFF080B14),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F172A),
-        title: const Text('Bildirim Gönder (Super Admin)'),
+        title: Text(_t('admin_notifications_title')),
       ),
       body: SafeArea(
         child: ListView(
@@ -269,12 +279,12 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Yeni Bildirim', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(_t('new_notification_title'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 10),
                   TextField(
                     controller: _titleCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Başlık',
+                    decoration: InputDecoration(
+                      labelText: _t('title_label'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -283,8 +293,8 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                     controller: _bodyCtrl,
                     minLines: 3,
                     maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'İçerik',
+                    decoration: InputDecoration(
+                      labelText: _t('content_label'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -292,7 +302,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _sendToAll,
-                    title: const Text('Tüm kullanıcılara gönder'),
+                    title: Text(_t('send_to_all_users_label')),
                     onChanged: (v) => setState(() => _sendToAll = v),
                   ),
                   if (!_sendToAll) ...[
@@ -302,8 +312,8 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                           child: TextField(
                             controller: _searchCtrl,
                             onChanged: (_) => _loadUsers(),
-                            decoration: const InputDecoration(
-                              hintText: 'Kullanıcı ara',
+                            decoration: InputDecoration(
+                              hintText: _t('search_user_hint'),
                               border: OutlineInputBorder(),
                               isDense: true,
                             ),
@@ -312,7 +322,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                         const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: _loadingUsers ? null : _loadUsers,
-                          child: const Text('Ara'),
+                          child: Text(_t('search_button')),
                         ),
                       ],
                     ),
@@ -329,7 +339,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                                 .map(
                                   (user) => Chip(
                                     label: Text(
-                                      user.name.trim().isEmpty ? 'user' : user.name.trim(),
+                                      user.name.trim().isEmpty ? _t('user') : user.name.trim(),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     deleteIcon: const Icon(Icons.close_rounded, size: 18),
@@ -369,7 +379,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                               }
                             });
                           },
-                          title: Text(u.name.trim().isEmpty ? 'user' : u.name),
+                          title: Text(u.name.trim().isEmpty ? _t('user') : u.name),
                           subtitle: u.email.trim().isEmpty ? null : Text(u.email),
                           controlAffinity: ListTileControlAffinity.leading,
                           dense: true,
@@ -400,10 +410,10 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Açılış Popupı', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(_t('app_popup_title'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   Text(
-                    'Güncelleme veya genel duyuru popupı. Minimum sürüm boş bırakılırsa herkese görünür.',
+                    _t('app_popup_description'),
                     style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12),
                   ),
                   const SizedBox(height: 10),
@@ -414,8 +424,8 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                     ),
                   TextField(
                     controller: _popupTitleCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Popup Başlığı',
+                    decoration: InputDecoration(
+                      labelText: _t('popup_title_label'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -424,34 +434,34 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                     controller: _popupBodyCtrl,
                     minLines: 3,
                     maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'Popup İçeriği',
+                    decoration: InputDecoration(
+                      labelText: _t('popup_body_label'),
                       border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _popupCtaLabelCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Buton Metni',
+                    decoration: InputDecoration(
+                      labelText: _t('button_text_label'),
                       border: OutlineInputBorder(),
-                      hintText: 'Güncelle / Detayları Gör',
+                      hintText: _t('button_text_hint'),
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _popupCtaTargetCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Buton Hedefi',
+                    decoration: InputDecoration(
+                      labelText: _t('button_target_label'),
                       border: OutlineInputBorder(),
-                      hintText: 'https://... veya /profile/notifications',
+                      hintText: _t('button_target_hint'),
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _popupMinimumVersionCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Minimum Sürüm',
+                    decoration: InputDecoration(
+                      labelText: _t('minimum_version_label'),
                       border: OutlineInputBorder(),
                       hintText: '1.0.9+10',
                     ),
@@ -460,25 +470,25 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _popupDismissible,
-                    title: const Text('Kapatılabilir'),
+                    title: Text(_t('dismissible_label')),
                     onChanged: (v) => setState(() => _popupDismissible = v),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _popupShowToGuests,
-                    title: const Text('Misafirlere de göster'),
+                    title: Text(_t('show_to_guests_label')),
                     onChanged: (v) => setState(() => _popupShowToGuests = v),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _popupForceUpdate,
-                    title: const Text('Zorunlu güncelleme popupı'),
+                    title: Text(_t('force_update_popup_label')),
                     onChanged: (v) => setState(() => _popupForceUpdate = v),
                   ),
                   if (_currentPopup != null) ...[
                     const SizedBox(height: 6),
                     Text(
-                      'Aktif popup güncellendi: ${_fmtDate(_currentPopup!.updatedAt)}',
+                      _fmt('active_popup_updated', {'date': _fmtDate(_currentPopup!.updatedAt)}),
                       style: TextStyle(color: Colors.white.withOpacity(0.62), fontSize: 11),
                     ),
                   ],
@@ -492,7 +502,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: (_popupSaving || _currentPopup == null) ? null : _deactivatePopup,
-                          child: const Text('Popupı Kapat'),
+                          child: Text(_t('close_popup')),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -500,7 +510,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                         child: ElevatedButton.icon(
                           onPressed: _popupSaving ? null : _savePopup,
                           icon: const Icon(Icons.announcement_outlined),
-                          label: Text(_popupSaving ? 'Kaydediliyor...' : 'Popupı Kaydet'),
+                          label: Text(_popupSaving ? _t('saving_ellipsis') : _t('save_popup')),
                         ),
                       ),
                     ],
@@ -519,7 +529,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Gönderilen Bildirimler', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(_t('sent_notifications_title'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   if (_loadingSent)
                     const Padding(
@@ -527,7 +537,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else if (_sent.isEmpty)
-                    Text('Henüz gönderim yok.', style: TextStyle(color: Colors.white.withOpacity(0.75)))
+                    Text(_t('no_sends_yet'), style: TextStyle(color: Colors.white.withOpacity(0.75)))
                   else
                     ..._sent.map(
                       (n) => Container(
@@ -545,7 +555,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    n.title.trim().isEmpty ? 'Bildirim' : n.title,
+                                    n.title.trim().isEmpty ? _t('default_notification_title') : n.title,
                                     style: const TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                 ),
