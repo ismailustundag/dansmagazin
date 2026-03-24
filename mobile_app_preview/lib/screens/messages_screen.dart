@@ -111,9 +111,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 ...items.map(
                   (m) => PreviewCard(
                     title: m.name,
-                    titleWidget: VerifiedNameText(
+                    titleWidget: EmojiText(
                       m.name,
-                      isVerified: m.isVerified,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

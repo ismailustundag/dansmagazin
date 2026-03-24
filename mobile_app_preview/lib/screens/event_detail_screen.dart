@@ -1135,9 +1135,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    VerifiedNameText(
+                    EmojiText(
                       item.authorName.trim().isEmpty ? 'Kullanıcı' : item.authorName.trim(),
-                      isVerified: item.authorIsVerified,
                       style: const TextStyle(
                         color: AppTheme.textPrimary,
                         fontSize: 14,

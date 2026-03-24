@@ -266,9 +266,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: VerifiedNameText(
+              child: EmojiText(
                 widget.peerName,
-                isVerified: widget.peerIsVerified,
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -366,7 +365,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: EmojiText(
-                        '${widget.peerName}${widget.peerIsVerified ? ' 💫' : ''} yazıyor...',
+                        '${widget.peerName} yazıyor...',
                         style: TextStyle(
                           fontSize: 12 * messageScale,
                           color: AppTheme.info,

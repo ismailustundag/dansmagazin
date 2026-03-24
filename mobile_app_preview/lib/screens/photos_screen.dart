@@ -792,9 +792,8 @@ class _FeedPostCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    VerifiedNameText(
+                    EmojiText(
                       post.authorName,
-                      isVerified: post.authorIsVerified,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 2),
@@ -892,7 +891,7 @@ class _FeedPostCard extends StatelessWidget {
                   text: TextSpan(
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
                     children: [
-                      ...buildVerifiedNameSpans(
+                      ...buildEmojiTextSpans(
                         reply.authorName,
                         Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: AppTheme.textPrimary,
@@ -902,7 +901,6 @@ class _FeedPostCard extends StatelessWidget {
                               color: AppTheme.textPrimary,
                               fontWeight: FontWeight.w700,
                             ),
-                        isVerified: reply.authorIsVerified,
                       ),
                       TextSpan(
                         text: ': ',
@@ -1197,9 +1195,8 @@ class _RepliesSheetState extends State<_RepliesSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            VerifiedNameText(
+                            EmojiText(
                               reply.authorName,
-                              isVerified: reply.authorIsVerified,
                               style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 2),

@@ -374,9 +374,8 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          VerifiedNameText(
+                          EmojiText(
                             product.seller.name,
-                            isVerified: product.seller.isVerified,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 15,

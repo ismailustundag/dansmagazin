@@ -32,7 +32,7 @@ class VerifiedBadge extends StatelessWidget {
         ],
       ),
       child: Text(
-        '💫',
+        '⭐️',
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: size * emojiScale,

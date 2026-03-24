@@ -72,7 +72,7 @@ List<InlineSpan> buildVerifiedNameSpans(
     }
     spans.add(
       TextSpan(
-        text: '💫',
+        text: '⭐️',
         style: baseStyle.copyWith(
           fontSize: (baseStyle.fontSize ?? 14) * badgeScale,
         ),

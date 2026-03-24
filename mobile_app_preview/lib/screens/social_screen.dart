@@ -580,9 +580,8 @@ class _SocialScreenState extends State<SocialScreen> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: VerifiedNameText(
+                              child: EmojiText(
                                 r.peerName.isNotEmpty ? r.peerName : t('user'),
-                                isVerified: r.peerIsVerified,
                                 style: const TextStyle(fontWeight: FontWeight.w600),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -706,9 +705,8 @@ class _SocialScreenState extends State<SocialScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                VerifiedNameText(
+                                EmojiText(
                                   u.name.isNotEmpty ? u.name : t('user'),
-                                  isVerified: u.isVerified,
                                   style: const TextStyle(fontWeight: FontWeight.w600),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -811,9 +809,8 @@ class _SocialScreenState extends State<SocialScreen> {
                                   child: Row(
                                     children: [
                                       Expanded(
-                                        child: VerifiedNameText(
+                                        child: EmojiText(
                                           f.name.isNotEmpty ? f.name : t('user'),
-                                          isVerified: f.isVerified,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
