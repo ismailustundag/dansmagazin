@@ -276,174 +276,179 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _loading && _items.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null && _items.isEmpty
-                    ? Center(
-                        child: TextButton(
-                          onPressed: () => _refreshThread(),
-                          child: const Text('Mesajlar yüklenemedi, tekrar dene'),
-                        ),
-                      )
-                    : _items.isEmpty
-                        ? const Center(child: Text('Henüz mesaj yok.'))
-                        : ListView.builder(
-                            controller: _scrollCtrl,
-                            padding: const EdgeInsets.all(12),
-                            itemCount: _items.length,
-                            itemBuilder: (_, i) {
-                              final m = _items[i];
-                              final mine = m.senderAccountId == _meAccountId;
-                              final deliveredToServer = mine && m.id > 0;
-                              final seenByPeer = mine && m.id > 0 && _peerLastReadMessageId >= m.id;
-                              return Align(
-                                alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  constraints: const BoxConstraints(maxWidth: 280),
-                                  decoration: BoxDecoration(
-                                    color: mine ? AppTheme.violet : AppTheme.surfaceSecondary,
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: mine
-                                          ? AppTheme.violet.withOpacity(0.28)
-                                          : AppTheme.borderSoft,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
+          children: [
+            Expanded(
+              child: _loading && _items.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null && _items.isEmpty
+                      ? Center(
+                          child: TextButton(
+                            onPressed: () => _refreshThread(),
+                            child: const Text('Mesajlar yüklenemedi, tekrar dene'),
+                          ),
+                        )
+                      : _items.isEmpty
+                          ? const Center(child: Text('Henüz mesaj yok.'))
+                          : ListView.builder(
+                              controller: _scrollCtrl,
+                              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                              padding: const EdgeInsets.all(12),
+                              itemCount: _items.length,
+                              itemBuilder: (_, i) {
+                                final m = _items[i];
+                                final mine = m.senderAccountId == _meAccountId;
+                                final deliveredToServer = mine && m.id > 0;
+                                final seenByPeer = mine && m.id > 0 && _peerLastReadMessageId >= m.id;
+                                return Align(
+                                  alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    constraints: const BoxConstraints(maxWidth: 280),
+                                    decoration: BoxDecoration(
+                                      color: mine ? AppTheme.violet : AppTheme.surfaceSecondary,
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: mine
+                                            ? AppTheme.violet.withOpacity(0.28)
+                                            : AppTheme.borderSoft,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        EmojiText(
+                                          m.body,
+                                          style: TextStyle(
+                                            fontSize: 15 * messageScale,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              formatDateTimeDdMmYyyyHmDot(m.createdAt),
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.7),
+                                                fontSize: 11 * messageScale,
+                                              ),
+                                            ),
+                                            if (deliveredToServer) ...[
+                                              const SizedBox(width: 4),
+                                              Icon(
+                                                seenByPeer ? Icons.done_all : Icons.done,
+                                                size: 17 * messageScale,
+                                                color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      EmojiText(
-                                        m.body,
-                                        style: TextStyle(
-                                          fontSize: 15 * messageScale,
-                                          height: 1.35,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            formatDateTimeDdMmYyyyHmDot(m.createdAt),
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(0.7),
-                                              fontSize: 11 * messageScale,
-                                            ),
-                                          ),
-                                          if (deliveredToServer) ...[
-                                            const SizedBox(width: 4),
-                                            Icon(
-                                              seenByPeer ? Icons.done_all : Icons.done,
-                                              size: 17 * messageScale,
-                                              color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
+            ),
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                color: AppTheme.surfacePrimary,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_peerTyping)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: EmojiText(
+                          '${widget.peerName} yazıyor...',
+                          style: TextStyle(
+                            fontSize: 12 * messageScale,
+                            color: AppTheme.info,
+                            fontWeight: FontWeight.w600,
                           ),
-          ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-              color: AppTheme.surfacePrimary,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_peerTyping)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: EmojiText(
-                        '${widget.peerName} yazıyor...',
-                        style: TextStyle(
-                          fontSize: 12 * messageScale,
-                          color: AppTheme.info,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          constraints: const BoxConstraints(minHeight: 52),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceElevated,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppTheme.borderStrong.withOpacity(0.9)),
-                          ),
-                          child: TextField(
-                            controller: _msgCtrl,
-                            minLines: 1,
-                            maxLines: 4,
-                            onChanged: _onDraftChanged,
-                            onSubmitted: (_) => _send(),
-                            textInputAction: TextInputAction.send,
-                            textAlignVertical: TextAlignVertical.center,
-                            style: TextStyle(
-                              fontSize: 15 * messageScale,
-                              color: AppTheme.textPrimary,
-                              fontWeight: FontWeight.w500,
-                              height: 1.3,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 52),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceElevated,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.borderStrong.withOpacity(0.9)),
                             ),
-                            cursorColor: AppTheme.violet,
-                            decoration: InputDecoration(
-                              hintText: 'Mesaj yaz...',
-                              hintStyle: TextStyle(
-                                fontSize: 14 * messageScale,
-                                color: AppTheme.textTertiary,
-                                fontWeight: FontWeight.w400,
+                            child: TextField(
+                              controller: _msgCtrl,
+                              minLines: 1,
+                              maxLines: 4,
+                              onChanged: _onDraftChanged,
+                              onSubmitted: (_) => _send(),
+                              textInputAction: TextInputAction.send,
+                              textAlignVertical: TextAlignVertical.center,
+                              style: TextStyle(
+                                fontSize: 15 * messageScale,
+                                color: AppTheme.textPrimary,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
                               ),
-                              filled: false,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              disabledBorder: InputBorder.none,
-                              errorBorder: InputBorder.none,
-                              focusedErrorBorder: InputBorder.none,
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                              cursorColor: AppTheme.violet,
+                              decoration: InputDecoration(
+                                hintText: 'Mesaj yaz...',
+                                hintStyle: TextStyle(
+                                  fontSize: 14 * messageScale,
+                                  color: AppTheme.textTertiary,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                filled: false,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                errorBorder: InputBorder.none,
+                                focusedErrorBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 92, minHeight: 52),
-                        child: ElevatedButton(
-                          onPressed: _sending ? null : _send,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.violet,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            minimumSize: const Size(92, 52),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        const SizedBox(width: 8),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 92, minHeight: 52),
+                          child: ElevatedButton(
+                            onPressed: _sending ? null : _send,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.violet,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              minimumSize: const Size(92, 52),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: _sending
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                           ),
-                          child: _sending
-                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
