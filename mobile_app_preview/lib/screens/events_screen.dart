@@ -47,12 +47,10 @@ class _EventsScreenState extends State<EventsScreen> {
     final resp = await http.get(Uri.parse('$_base/events?limit=300'));
     if (resp.statusCode != 200) throw Exception('Etkinlikler alınamadı');
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    final items = (body['items'] as List<dynamic>? ?? [])
+    return (body['items'] as List<dynamic>? ?? [])
         .map((e) => _EventItem.fromJson(e as Map<String, dynamic>))
         .where((e) => e.ticketSalesEnabled)
         .toList();
-    items.sort((a, b) => a.sortKey.compareTo(b.sortKey));
-    return items;
   }
 
   List<_EventItem> _filteredItems(List<_EventItem> items) {
