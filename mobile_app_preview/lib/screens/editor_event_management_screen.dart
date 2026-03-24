@@ -259,7 +259,7 @@ Future<String?> _showEventCityPickerSheet(
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
                 child: Row(
                   children: [
