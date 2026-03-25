@@ -55,12 +55,15 @@ class _SocialScreenState extends State<SocialScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   late Future<List<_FriendItem>> _future;
   late Future<List<FriendRequestItem>> _incomingFuture;
-  int _unreadTotal = 0;
+  late Future<List<FriendRequestItem>> _outgoingFuture;
   int _lastUnreadSummaryCount = 0;
   int _lastIncomingRequestCount = 0;
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
   Timer? _liveRefreshDebounce;
+  List<_FriendItem> _cachedFriends = const [];
+  List<FriendRequestItem> _cachedIncomingRequests = const [];
+  List<FriendRequestItem> _cachedOutgoingRequests = const [];
   List<SocialUserItem> _searchItems = const [];
   bool _searchLoading = false;
   String _searchError = '';
@@ -79,6 +82,7 @@ class _SocialScreenState extends State<SocialScreen> {
     super.initState();
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
+    _outgoingFuture = _fetchOutgoing();
     final summary = NotificationCenter.summary.value;
     _lastUnreadSummaryCount = summary.unreadMessagesCount;
     _lastIncomingRequestCount = summary.incomingFriendRequestsCount;
@@ -113,8 +117,12 @@ class _SocialScreenState extends State<SocialScreen> {
       if (!mounted) return;
       setState(() {
         _future = _fetchFriends();
+        if (unreadChanged && !requestsChanged) {
+          // Arkadaş listesi zaten _future ile tazeleniyor.
+        }
         if (requestsChanged) {
           _incomingFuture = _fetchIncoming();
+          _outgoingFuture = _fetchOutgoing();
         }
       });
     });
@@ -155,13 +163,6 @@ class _SocialScreenState extends State<SocialScreen> {
       }
     }
 
-    if (mounted && _unreadTotal != unreadTotal) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(() => _unreadTotal = unreadTotal);
-      });
-    }
-
     final merged = friends
         .map((f) {
           final ib = inboxMap[f.accountId];
@@ -182,6 +183,7 @@ class _SocialScreenState extends State<SocialScreen> {
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
+    _cachedFriends = merged;
     return merged;
   }
 
@@ -189,6 +191,7 @@ class _SocialScreenState extends State<SocialScreen> {
     setState(() {
       _future = _fetchFriends();
       _incomingFuture = _fetchIncoming();
+      _outgoingFuture = _fetchOutgoing();
     });
     await _future;
     if (_addFriendsOpen && _searchCtrl.text.trim().length >= _searchMinQueryLength) {
@@ -201,7 +204,20 @@ class _SocialScreenState extends State<SocialScreen> {
     return EventSocialApi.friendRequests(
       sessionToken: widget.sessionToken,
       direction: 'incoming',
-    );
+    ).then((items) {
+      _cachedIncomingRequests = items;
+      return items;
+    });
+  }
+
+  Future<List<FriendRequestItem>> _fetchOutgoing() {
+    return EventSocialApi.friendRequests(
+      sessionToken: widget.sessionToken,
+      direction: 'outgoing',
+    ).then((items) {
+      _cachedOutgoingRequests = items;
+      return items;
+    });
   }
 
   Future<void> _accept(int requestId) async {
@@ -339,6 +355,7 @@ class _SocialScreenState extends State<SocialScreen> {
       setState(() {
         _future = _fetchFriends();
         _incomingFuture = _fetchIncoming();
+        _outgoingFuture = _fetchOutgoing();
       });
       if (_addFriendsOpen && _searchCtrl.text.trim().length >= _searchMinQueryLength) {
         await _runSearch();
@@ -490,7 +507,10 @@ class _SocialScreenState extends State<SocialScreen> {
       );
       await _runSearchPage(reset: true);
       if (!mounted) return;
-      setState(() => _incomingFuture = _fetchIncoming());
+      setState(() {
+        _incomingFuture = _fetchIncoming();
+        _outgoingFuture = _fetchOutgoing();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Arkadaşlık isteği gönderildi.')),
       );
@@ -509,7 +529,10 @@ class _SocialScreenState extends State<SocialScreen> {
       );
       await _runSearchPage(reset: true);
       if (!mounted) return;
-      setState(() => _incomingFuture = _fetchIncoming());
+      setState(() {
+        _incomingFuture = _fetchIncoming();
+        _outgoingFuture = _fetchOutgoing();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('İstek geri çekildi.')),
       );
@@ -601,67 +624,9 @@ class _SocialScreenState extends State<SocialScreen> {
       title: t('social'),
       icon: Icons.groups,
       subtitle: t('social_subtitle'),
-      headerTrailing: _headerQr(),
       tone: AppTone.social,
       onRefresh: _refresh,
       content: [
-        FutureBuilder<List<FriendRequestItem>>(
-          future: _incomingFuture,
-          builder: (context, snapshot) {
-            final reqs = snapshot.data ?? const <FriendRequestItem>[];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(14),
-              decoration: AppTheme.panel(tone: AppTone.social, radius: 18, subtle: true),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    reqs.isEmpty ? t('incoming_requests') : '${t('incoming_requests')} (${reqs.length})',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  if (snapshot.connectionState == ConnectionState.waiting)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (reqs.isEmpty)
-                    Text(
-                      t('no_pending_friend_request'),
-                      style: const TextStyle(color: AppTheme.textSecondary),
-                    )
-                  else
-                    ...reqs.map(
-                      (r) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: EmojiText(
-                                r.peerName.isNotEmpty ? r.peerName : t('user'),
-                                style: const TextStyle(fontWeight: FontWeight.w600),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () => _reject(r.requestId),
-                              child: Text(t('reject')),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => _accept(r.requestId),
-                              child: Text(t('accept')),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(14),
@@ -669,28 +634,116 @@ class _SocialScreenState extends State<SocialScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: _toggleAddFriendsPanel,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Arkadaş Ekle',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _toggleAddFriendsPanel,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Arkadaş Ekle',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            Icon(
+                              _addFriendsOpen ? Icons.expand_less : Icons.expand_more,
+                              color: Colors.white70,
+                            ),
+                          ],
                         ),
                       ),
-                      Icon(
-                        _addFriendsOpen ? Icons.expand_less : Icons.expand_more,
-                        color: Colors.white70,
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  OutlinedButton.icon(
+                    onPressed: _processingQr ? null : _openQrScanner,
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: Text(_processingQr ? '...' : 'QR ile Ekle'),
+                  ),
+                  const SizedBox(width: 6),
+                  _loadingMyQr
+                      ? const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Padding(
+                            padding: EdgeInsets.all(10),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          tooltip: 'QR Kodum',
+                          onPressed: _friendQrPayload.isEmpty ? null : _showMyQrDialog,
+                          icon: const Icon(Icons.qr_code_2_rounded),
+                        ),
+                ],
               ),
               if (_addFriendsOpen) ...[
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: FutureBuilder<List<FriendRequestItem>>(
+                        future: _incomingFuture,
+                        builder: (context, snapshot) {
+                          final reqs = snapshot.data ?? _cachedIncomingRequests;
+                          final loading =
+                              snapshot.connectionState == ConnectionState.waiting &&
+                              reqs.isEmpty;
+                          return _RequestColumn(
+                            title: t('incoming_requests'),
+                            count: reqs.length,
+                            loading: loading,
+                            emptyText: t('no_pending_friend_request'),
+                            children: reqs
+                                .map(
+                                  (r) => _RequestRow(
+                                    name: r.peerName.isNotEmpty ? r.peerName : t('user'),
+                                    primaryLabel: t('accept'),
+                                    primaryAction: () => _accept(r.requestId),
+                                    secondaryLabel: t('reject'),
+                                    secondaryAction: () => _reject(r.requestId),
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FutureBuilder<List<FriendRequestItem>>(
+                        future: _outgoingFuture,
+                        builder: (context, snapshot) {
+                          final reqs = snapshot.data ?? _cachedOutgoingRequests;
+                          final loading =
+                              snapshot.connectionState == ConnectionState.waiting &&
+                              reqs.isEmpty;
+                          return _RequestColumn(
+                            title: 'Bekleyen İstekler',
+                            count: reqs.length,
+                            loading: loading,
+                            emptyText: 'Bekleyen istek yok.',
+                            children: reqs
+                                .map(
+                                  (r) => _RequestRow(
+                                    name: r.peerName.isNotEmpty ? r.peerName : t('user'),
+                                    primaryLabel: 'Geri Çek',
+                                    primaryAction: () => _cancelFriendRequest(r.requestId),
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -718,15 +771,7 @@ class _SocialScreenState extends State<SocialScreen> {
                   Text(_searchError, style: const TextStyle(color: Colors.redAccent)),
                 ],
                 if (_searchCtrl.text.trim().isEmpty) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: _processingQr ? null : _openQrScanner,
-                      icon: const Icon(Icons.qr_code_scanner_rounded),
-                      label: Text(_processingQr ? '...' : 'QR ile Ekle'),
-                    ),
-                  ),
+                  const SizedBox(height: 4),
                 ] else if (_searchCtrl.text.trim().length < _searchMinQueryLength) ...[
                   const SizedBox(height: 10),
                   Text(
@@ -808,23 +853,11 @@ class _SocialScreenState extends State<SocialScreen> {
             ],
           ),
         ),
-        if (_unreadTotal > 0)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: AppTheme.panel(tone: AppTone.social, radius: 16, subtle: true),
-            child: Row(
-              children: [
-                const Icon(Icons.mark_chat_unread, color: AppTheme.pink, size: 18),
-                const SizedBox(width: 8),
-                Text('${t('unread_message')}: $_unreadTotal', style: const TextStyle(fontWeight: FontWeight.w700)),
-              ],
-            ),
-          ),
         FutureBuilder<List<_FriendItem>>(
           future: _future,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            final items = snapshot.data ?? _cachedFriends;
+            if (snapshot.connectionState == ConnectionState.waiting && items.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 30),
                 child: Center(child: CircularProgressIndicator()),
@@ -833,14 +866,15 @@ class _SocialScreenState extends State<SocialScreen> {
             if (snapshot.hasError) {
               return _SocialErrorCard(onRetry: _refresh);
             }
-            final items = snapshot.data ?? const <_FriendItem>[];
             if (items.isEmpty) {
               return _SocialInfoCard(text: t('no_friends_yet'));
             }
             return Column(
               children: items
                   .map(
-                    (f) => Container(
+                    (f) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
                       key: ValueKey('friend_${f.accountId}'),
                       margin: const EdgeInsets.only(bottom: 7),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -947,6 +981,108 @@ class _SocialScreenState extends State<SocialScreen> {
           },
         ),
       ],
+    );
+  }
+}
+
+class _RequestColumn extends StatelessWidget {
+  final String title;
+  final int count;
+  final bool loading;
+  final String emptyText;
+  final List<Widget> children;
+
+  const _RequestColumn({
+    required this.title,
+    required this.count,
+    required this.loading,
+    required this.emptyText,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            count > 0 ? '$title ($count)' : title,
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          if (loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (children.isEmpty)
+            Text(
+              emptyText,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            )
+          else
+            ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestRow extends StatelessWidget {
+  final String name;
+  final String primaryLabel;
+  final VoidCallback primaryAction;
+  final String? secondaryLabel;
+  final VoidCallback? secondaryAction;
+
+  const _RequestRow({
+    required this.name,
+    required this.primaryLabel,
+    required this.primaryAction,
+    this.secondaryLabel,
+    this.secondaryAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          EmojiText(
+            name,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (secondaryLabel != null && secondaryAction != null)
+                TextButton(
+                  onPressed: secondaryAction,
+                  child: Text(secondaryLabel!),
+                ),
+              ElevatedButton(
+                onPressed: primaryAction,
+                child: Text(primaryLabel),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
