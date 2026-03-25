@@ -447,12 +447,12 @@ class _SocialScreenState extends State<SocialScreen> {
   Widget _headerQr() {
     if (_loadingMyQr) {
       return const SizedBox(
-        width: 52,
-        height: 52,
+        width: 68,
+        height: 68,
         child: Center(
           child: SizedBox(
-            width: 18,
-            height: 18,
+            width: 20,
+            height: 20,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
@@ -462,22 +462,37 @@ class _SocialScreenState extends State<SocialScreen> {
     if (payload.isEmpty) return const SizedBox.shrink();
     return InkWell(
       onTap: _showMyQrDialog,
-      borderRadius: BorderRadius.circular(18),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.borderSoft),
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: 68,
+        height: 68,
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withOpacity(0.96),
+              const Color(0xFFF5F7FF),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.borderSoft),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: ColoredBox(
+            color: Colors.white,
             child: QrImageView(
               data: payload,
-              size: 42,
+              size: 58,
               padding: EdgeInsets.zero,
               eyeStyle: const QrEyeStyle(
                 eyeShape: QrEyeShape.square,
@@ -489,12 +504,7 @@ class _SocialScreenState extends State<SocialScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Tıkla',
-            style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -623,7 +633,8 @@ class _SocialScreenState extends State<SocialScreen> {
     return ScreenShell(
       title: t('social'),
       icon: Icons.groups,
-      subtitle: t('social_subtitle'),
+      subtitle: '',
+      headerTrailing: _headerQr(),
       tone: AppTone.social,
       onRefresh: _refresh,
       content: [
@@ -665,82 +676,63 @@ class _SocialScreenState extends State<SocialScreen> {
                     icon: const Icon(Icons.qr_code_scanner_rounded),
                     label: Text(_processingQr ? '...' : 'QR ile Ekle'),
                   ),
-                  const SizedBox(width: 6),
-                  _loadingMyQr
-                      ? const SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: Padding(
-                            padding: EdgeInsets.all(10),
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : IconButton(
-                          tooltip: 'QR Kodum',
-                          onPressed: _friendQrPayload.isEmpty ? null : _showMyQrDialog,
-                          icon: const Icon(Icons.qr_code_2_rounded),
-                        ),
                 ],
               ),
               if (_addFriendsOpen) ...[
                 const SizedBox(height: 12),
-                Row(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: FutureBuilder<List<FriendRequestItem>>(
-                        future: _incomingFuture,
-                        builder: (context, snapshot) {
-                          final reqs = snapshot.data ?? _cachedIncomingRequests;
-                          final loading =
-                              snapshot.connectionState == ConnectionState.waiting &&
-                              reqs.isEmpty;
-                          return _RequestColumn(
-                            title: t('incoming_requests'),
-                            count: reqs.length,
-                            loading: loading,
-                            emptyText: t('no_pending_friend_request'),
-                            children: reqs
-                                .map(
-                                  (r) => _RequestRow(
-                                    name: r.peerName.isNotEmpty ? r.peerName : t('user'),
-                                    primaryLabel: t('accept'),
-                                    primaryAction: () => _accept(r.requestId),
-                                    secondaryLabel: t('reject'),
-                                    secondaryAction: () => _reject(r.requestId),
-                                  ),
-                                )
-                                .toList(),
-                          );
-                        },
-                      ),
+                    FutureBuilder<List<FriendRequestItem>>(
+                      future: _incomingFuture,
+                      builder: (context, snapshot) {
+                        final reqs = snapshot.data ?? _cachedIncomingRequests;
+                        final loading =
+                            snapshot.connectionState == ConnectionState.waiting &&
+                            reqs.isEmpty;
+                        return _RequestColumn(
+                          title: t('incoming_requests'),
+                          count: reqs.length,
+                          loading: loading,
+                          emptyText: t('no_pending_friend_request'),
+                          children: reqs
+                              .map(
+                                (r) => _RequestRow(
+                                  name: r.peerName.isNotEmpty ? r.peerName : t('user'),
+                                  primaryLabel: t('accept'),
+                                  primaryAction: () => _accept(r.requestId),
+                                  secondaryLabel: t('reject'),
+                                  secondaryAction: () => _reject(r.requestId),
+                                ),
+                              )
+                              .toList(),
+                        );
+                      },
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FutureBuilder<List<FriendRequestItem>>(
-                        future: _outgoingFuture,
-                        builder: (context, snapshot) {
-                          final reqs = snapshot.data ?? _cachedOutgoingRequests;
-                          final loading =
-                              snapshot.connectionState == ConnectionState.waiting &&
-                              reqs.isEmpty;
-                          return _RequestColumn(
-                            title: 'Bekleyen İstekler',
-                            count: reqs.length,
-                            loading: loading,
-                            emptyText: 'Bekleyen istek yok.',
-                            children: reqs
-                                .map(
-                                  (r) => _RequestRow(
-                                    name: r.peerName.isNotEmpty ? r.peerName : t('user'),
-                                    primaryLabel: 'Geri Çek',
-                                    primaryAction: () => _cancelFriendRequest(r.requestId),
-                                  ),
-                                )
-                                .toList(),
-                          );
-                        },
-                      ),
+                    const SizedBox(height: 10),
+                    FutureBuilder<List<FriendRequestItem>>(
+                      future: _outgoingFuture,
+                      builder: (context, snapshot) {
+                        final reqs = snapshot.data ?? _cachedOutgoingRequests;
+                        final loading =
+                            snapshot.connectionState == ConnectionState.waiting &&
+                            reqs.isEmpty;
+                        return _RequestColumn(
+                          title: 'Bekleyen İstekler',
+                          count: reqs.length,
+                          loading: loading,
+                          emptyText: 'Bekleyen istek yok.',
+                          children: reqs
+                              .map(
+                                (r) => _RequestRow(
+                                  name: r.peerName.isNotEmpty ? r.peerName : t('user'),
+                                  primaryLabel: 'Geri Çek',
+                                  primaryAction: () => _cancelFriendRequest(r.requestId),
+                                ),
+                              )
+                              .toList(),
+                        );
+                      },
                     ),
                   ],
                 ),

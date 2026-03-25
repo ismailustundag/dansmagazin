@@ -496,7 +496,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _FeedPostCard(
                           post: post,
-                          canDelete: _isSuperAdmin,
+                          canDelete: _isSuperAdmin || post.accountId == widget.accountId,
                           onDeleteTap: () => _deleteFeedPost(post),
                           onLikeTap: () => _toggleFeedLike(post),
                           onReplyTap: () => _openRepliesSheet(post),
