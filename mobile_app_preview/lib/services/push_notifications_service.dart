@@ -301,6 +301,13 @@ class PushNotificationsService {
         final n = message.notification;
         if (n == null) return;
 
+        // iOS foreground'da sistem bildirimi zaten gösteriliyor
+        // (setForegroundNotificationPresentationOptions ile).
+        // Burada bir de local notification gösterirsek çift banner düşüyor.
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+          return;
+        }
+
         await _localNotifications.show(
           DateTime.now().millisecondsSinceEpoch.remainder(100000),
           n.title ?? 'Dansmagazin',
