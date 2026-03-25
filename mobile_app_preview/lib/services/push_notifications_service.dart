@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'notification_center.dart';
 import 'notifications_api.dart';
 
 @pragma('vm:entry-point')
@@ -293,6 +294,10 @@ class PushNotificationsService {
       });
 
       _onMessageSub = FirebaseMessaging.onMessage.listen((message) async {
+        final t = _sessionToken.trim();
+        if (t.isNotEmpty) {
+          unawaited(NotificationCenter.refresh(t));
+        }
         final n = message.notification;
         if (n == null) return;
 
@@ -320,6 +325,10 @@ class PushNotificationsService {
       });
 
       _onMessageOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        final t = _sessionToken.trim();
+        if (t.isNotEmpty) {
+          unawaited(NotificationCenter.refresh(t));
+        }
         final route = _routeFromMessage(message);
         if (route.isNotEmpty) {
           unawaited(_onRouteTap?.call(route));

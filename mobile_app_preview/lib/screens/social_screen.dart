@@ -56,8 +56,11 @@ class _SocialScreenState extends State<SocialScreen> {
   late Future<List<_FriendItem>> _future;
   late Future<List<FriendRequestItem>> _incomingFuture;
   int _unreadTotal = 0;
+  int _lastUnreadSummaryCount = 0;
+  int _lastIncomingRequestCount = 0;
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
+  Timer? _liveRefreshDebounce;
   List<SocialUserItem> _searchItems = const [];
   bool _searchLoading = false;
   String _searchError = '';
@@ -76,15 +79,45 @@ class _SocialScreenState extends State<SocialScreen> {
     super.initState();
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
+    final summary = NotificationCenter.summary.value;
+    _lastUnreadSummaryCount = summary.unreadMessagesCount;
+    _lastIncomingRequestCount = summary.incomingFriendRequestsCount;
+    NotificationCenter.summary.addListener(_onNotificationSummaryChanged);
     NotificationCenter.refresh(widget.sessionToken);
     _loadMyAccountId();
   }
 
   @override
   void dispose() {
+    NotificationCenter.summary.removeListener(_onNotificationSummaryChanged);
     _searchDebounce?.cancel();
+    _liveRefreshDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onNotificationSummaryChanged() {
+    if (!mounted) return;
+    final summary = NotificationCenter.summary.value;
+    final unreadChanged =
+        summary.unreadMessagesCount != _lastUnreadSummaryCount;
+    final requestsChanged =
+        summary.incomingFriendRequestsCount != _lastIncomingRequestCount;
+    if (!unreadChanged && !requestsChanged) return;
+
+    _lastUnreadSummaryCount = summary.unreadMessagesCount;
+    _lastIncomingRequestCount = summary.incomingFriendRequestsCount;
+
+    _liveRefreshDebounce?.cancel();
+    _liveRefreshDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() {
+        _future = _fetchFriends();
+        if (requestsChanged) {
+          _incomingFuture = _fetchIncoming();
+        }
+      });
+    });
   }
 
   Future<List<_FriendItem>> _fetchFriends() async {
@@ -841,15 +874,47 @@ class _SocialScreenState extends State<SocialScreen> {
                                   child: Row(
                                     children: [
                                       Expanded(
-                                        child: EmojiText(
-                                          f.name.isNotEmpty ? f.name : t('user'),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: f.unreadCount > 0 ? Colors.white : null,
-                                          ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            EmojiText(
+                                              f.name.isNotEmpty ? f.name : t('user'),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: f.unreadCount > 0 ? Colors.white : null,
+                                              ),
+                                            ),
+                                            if (f.unreadCount > 0) ...[
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.mark_chat_unread_rounded,
+                                                    size: 12,
+                                                    color: AppTheme.pink,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Flexible(
+                                                    child: Text(
+                                                      t('friend_card_new_message'),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 11.5,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: AppTheme.pink,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
                                       if (f.unreadCount > 0)
