@@ -33,7 +33,9 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
   String _storeError = '';
   String _productError = '';
   String _selectedImagePath = '';
+  String _selectedStoreLogoPath = '';
   String _effectiveStoreTitle = '';
+  String _storeLogoUrl = '';
   final Set<int> _busyProductIds = <int>{};
 
   @override
@@ -68,6 +70,7 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
       setState(() {
         _storeTitleCtrl.text = settings.storeTitle;
         _effectiveStoreTitle = settings.effectiveStoreTitle;
+        _storeLogoUrl = settings.storeLogoUrl;
         _items = items;
         _loading = false;
       });
@@ -80,7 +83,7 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
     }
   }
 
-  Future<void> _saveStoreTitle() async {
+  Future<void> _saveStoreProfile() async {
     final value = _storeTitleCtrl.text.trim();
     if (value.isNotEmpty && value.length < 2) {
       setState(() => _storeError = 'Mağaza adı en az 2 karakter olmalı.');
@@ -91,17 +94,25 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
       _storeError = '';
     });
     try {
-      final settings = await StoreApi.updateMySettings(
+      var settings = await StoreApi.updateMySettings(
         sessionToken: widget.sessionToken,
         storeTitle: value,
       );
+      if (_selectedStoreLogoPath.trim().isNotEmpty) {
+        settings = await StoreApi.uploadMyLogo(
+          sessionToken: widget.sessionToken,
+          imagePath: _selectedStoreLogoPath,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _storeTitleCtrl.text = settings.storeTitle;
         _effectiveStoreTitle = settings.effectiveStoreTitle;
+        _storeLogoUrl = settings.storeLogoUrl;
+        _selectedStoreLogoPath = '';
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mağaza adı güncellendi.')),
+        const SnackBar(content: Text('Mağaza bilgileri güncellendi.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -120,6 +131,17 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
     );
     if (file == null || !mounted) return;
     setState(() => _selectedImagePath = file.path);
+  }
+
+  Future<void> _pickStoreLogo() async {
+    final file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 84,
+      maxWidth: 1200,
+      maxHeight: 1200,
+    );
+    if (file == null || !mounted) return;
+    setState(() => _selectedStoreLogoPath = file.path);
   }
 
   Future<void> _saveProduct() async {
@@ -442,9 +464,12 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
             _StoreTitleCard(
               controller: _storeTitleCtrl,
               effectiveStoreTitle: _effectiveStoreTitle,
+              currentLogoUrl: _storeLogoUrl,
+              selectedLogoPath: _selectedStoreLogoPath,
               saving: _storeSaving,
               error: _storeError,
-              onSave: _saveStoreTitle,
+              onPickLogo: _pickStoreLogo,
+              onSave: _saveStoreProfile,
             ),
             const SizedBox(height: 16),
             _NewProductCard(
@@ -496,20 +521,27 @@ class _StoreManagementScreenState extends State<StoreManagementScreen> {
 class _StoreTitleCard extends StatelessWidget {
   final TextEditingController controller;
   final String effectiveStoreTitle;
+  final String currentLogoUrl;
+  final String selectedLogoPath;
   final bool saving;
   final String error;
+  final VoidCallback onPickLogo;
   final VoidCallback onSave;
 
   const _StoreTitleCard({
     required this.controller,
     required this.effectiveStoreTitle,
+    required this.currentLogoUrl,
+    required this.selectedLogoPath,
     required this.saving,
     required this.error,
+    required this.onPickLogo,
     required this.onSave,
   });
 
   @override
   Widget build(BuildContext context) {
+    final displayLogo = selectedLogoPath.trim().isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: AppTheme.panel(tone: AppTone.profile, radius: 24, elevated: true),
@@ -517,7 +549,7 @@ class _StoreTitleCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Mağaza Adı',
+            'Mağaza Profili',
             style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
@@ -537,6 +569,47 @@ class _StoreTitleCard extends StatelessWidget {
             label: 'Mağaza adı',
             hint: 'Örn. İsmail Dans Butik',
           ),
+          const SizedBox(height: 14),
+          const Text(
+            'Mağaza Logosu',
+            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: Container(
+              width: 112,
+              height: 112,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                color: const Color(0xFF0B1220),
+                border: Border.all(color: AppTheme.borderSoft),
+              ),
+              child: displayLogo
+                  ? Image.file(File(selectedLogoPath), fit: BoxFit.cover)
+                  : currentLogoUrl.trim().isNotEmpty
+                      ? Image.network(currentLogoUrl.trim(), fit: BoxFit.cover)
+                      : const Center(
+                          child: Icon(
+                            Icons.storefront_rounded,
+                            size: 40,
+                            color: Colors.white54,
+                          ),
+                        ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: saving ? null : onPickLogo,
+            icon: const Icon(Icons.image_outlined),
+            label: Text(displayLogo ? 'Logoyu Değiştir' : 'Logo Seç'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+              foregroundColor: Colors.white,
+              side: BorderSide(color: AppTheme.borderSoft),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+          ),
           if (error.trim().isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
@@ -547,8 +620,8 @@ class _StoreTitleCard extends StatelessWidget {
           const SizedBox(height: 14),
           ElevatedButton.icon(
             onPressed: saving ? null : onSave,
-            icon: const Icon(Icons.edit_outlined),
-            label: Text(saving ? 'Kaydediliyor...' : 'Mağaza Adını Kaydet'),
+            icon: const Icon(Icons.save_outlined),
+            label: Text(saving ? 'Kaydediliyor...' : 'Kaydet'),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size.fromHeight(50),
               backgroundColor: Colors.white,

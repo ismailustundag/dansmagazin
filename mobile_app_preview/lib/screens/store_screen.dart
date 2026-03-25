@@ -435,6 +435,9 @@ class _SellerStoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = seller.storeLogoUrl.trim().isNotEmpty
+        ? seller.storeLogoUrl.trim()
+        : seller.coverImageUrl.trim();
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
@@ -450,8 +453,8 @@ class _SellerStoreCard extends StatelessWidget {
                 child: SizedBox(
                   width: 82,
                   height: 82,
-                  child: seller.coverImageUrl.trim().isNotEmpty
-                      ? Image.network(seller.coverImageUrl.trim(), fit: BoxFit.cover)
+                  child: imageUrl.isNotEmpty
+                      ? Image.network(imageUrl, fit: BoxFit.cover)
                       : Container(
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
@@ -606,7 +609,9 @@ class _FeaturedStoreBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = seller.coverImageUrl.trim();
+    final imageUrl = seller.storeLogoUrl.trim().isNotEmpty
+        ? seller.storeLogoUrl.trim()
+        : seller.coverImageUrl.trim();
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -700,13 +705,16 @@ class _SellerHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final heroImage = seller.storeLogoUrl.trim().isNotEmpty
+        ? seller.storeLogoUrl.trim()
+        : seller.avatarUrl;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: AppTheme.panel(tone: AppTone.profile, radius: 24, elevated: true),
       child: Row(
         children: [
           VerifiedAvatar(
-            imageUrl: seller.avatarUrl,
+            imageUrl: heroImage,
             label: seller.name,
             isVerified: seller.isVerified,
             radius: 30,

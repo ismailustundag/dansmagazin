@@ -44,8 +44,13 @@ BoxDecoration _friendCardDecoration({required bool hasUnread}) {
 
 class SocialScreen extends StatefulWidget {
   final String sessionToken;
+  final bool initiallyOpenAddFriends;
 
-  const SocialScreen({super.key, required this.sessionToken});
+  const SocialScreen({
+    super.key,
+    required this.sessionToken,
+    this.initiallyOpenAddFriends = false,
+  });
 
   @override
   State<SocialScreen> createState() => _SocialScreenState();
@@ -80,6 +85,7 @@ class _SocialScreenState extends State<SocialScreen> {
   @override
   void initState() {
     super.initState();
+    _addFriendsOpen = widget.initiallyOpenAddFriends;
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
     _outgoingFuture = _fetchOutgoing();

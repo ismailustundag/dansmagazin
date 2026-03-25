@@ -212,6 +212,7 @@ class NotificationsApi {
     required String body,
     required bool sendToAll,
     int? eventSubmissionId,
+    String? targetRoute,
     List<int> targetAccountIds = const [],
   }) async {
     final resp = await http.post(
@@ -224,6 +225,7 @@ class NotificationsApi {
         'title': title.trim(),
         'body': body.trim(),
         'event_submission_id': eventSubmissionId,
+        'target_route': (targetRoute ?? '').trim().isEmpty ? null : targetRoute!.trim(),
         'send_to_all': sendToAll,
         'target_account_ids': targetAccountIds,
       }),

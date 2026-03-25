@@ -12,6 +12,7 @@ class StoreSellerItem {
   final String avatarUrl;
   final bool isVerified;
   final int productCount;
+  final String storeLogoUrl;
   final String coverImageUrl;
 
   const StoreSellerItem({
@@ -22,6 +23,7 @@ class StoreSellerItem {
     required this.avatarUrl,
     required this.isVerified,
     required this.productCount,
+    required this.storeLogoUrl,
     required this.coverImageUrl,
   });
 
@@ -34,6 +36,7 @@ class StoreSellerItem {
       avatarUrl: (json['avatar_url'] ?? '').toString(),
       isVerified: json['is_verified'] == true,
       productCount: (json['product_count'] as num?)?.toInt() ?? 0,
+      storeLogoUrl: (json['store_logo_url'] ?? '').toString(),
       coverImageUrl: (json['cover_image_url'] ?? '').toString(),
     );
   }
@@ -119,11 +122,13 @@ class StoreSettings {
   final bool storeEnabled;
   final String storeTitle;
   final String effectiveStoreTitle;
+  final String storeLogoUrl;
 
   const StoreSettings({
     required this.storeEnabled,
     required this.storeTitle,
     required this.effectiveStoreTitle,
+    required this.storeLogoUrl,
   });
 
   factory StoreSettings.fromJson(Map<String, dynamic> json) {
@@ -131,6 +136,7 @@ class StoreSettings {
       storeEnabled: json['store_enabled'] == true,
       storeTitle: (json['store_title'] ?? '').toString(),
       effectiveStoreTitle: (json['effective_store_title'] ?? '').toString(),
+      storeLogoUrl: (json['store_logo_url'] ?? '').toString(),
     );
   }
 }
@@ -235,6 +241,21 @@ class StoreApi {
       throw Exception(parseApiErrorBody(resp.body, fallback: 'Mağaza ayarları güncellenemedi'));
     }
     return StoreSettings.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+  }
+
+  static Future<StoreSettings> uploadMyLogo({
+    required String sessionToken,
+    required String imagePath,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$_base/store/me/logo'))
+      ..headers['Authorization'] = 'Bearer ${sessionToken.trim()}'
+      ..files.add(await http.MultipartFile.fromPath('image', imagePath));
+    final streamed = await req.send();
+    final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode != 200) {
+      throw Exception(parseApiErrorBody(body, fallback: 'Mağaza logosu yüklenemedi'));
+    }
+    return StoreSettings.fromJson(jsonDecode(body) as Map<String, dynamic>);
   }
 
   static Future<void> createProduct({

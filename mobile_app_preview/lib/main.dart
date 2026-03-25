@@ -21,9 +21,11 @@ import 'screens/event_detail_screen.dart';
 import 'screens/events_store_hub_screen.dart';
 import 'screens/chat_thread_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/news_detail_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/social_screen.dart';
+import 'screens/store_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -228,7 +230,13 @@ class _RootScreenState extends State<RootScreen> {
     final path = uri.path.trim();
     final segments = uri.pathSegments.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
-    if (path.startsWith('/events/') || path.startsWith('/messages/') || path == '/profile/notifications') {
+    if (path.startsWith('/events/') ||
+        path.startsWith('/messages/') ||
+        path.startsWith('/news/') ||
+        path == '/store' ||
+        path.startsWith('/store/') ||
+        path == '/social/add-friends' ||
+        path == '/profile/notifications') {
       return path;
     }
 
@@ -241,6 +249,24 @@ class _RootScreenState extends State<RootScreen> {
         final id = int.tryParse(segments.first) ?? 0;
         if (id > 0) return '/messages/$id';
       }
+      if ((host == 'news' || host == 'article') && segments.isNotEmpty) {
+        final id = int.tryParse(segments.first) ?? 0;
+        if (id > 0) return '/news/$id';
+      }
+      if (host == 'store' || host == 'shop') {
+        if (segments.isEmpty) return '/store';
+        if (segments.length >= 2 && segments.first == 'sellers') {
+          final id = int.tryParse(segments[1]) ?? 0;
+          if (id > 0) return '/store/sellers/$id';
+        }
+        if (segments.length >= 2 && segments.first == 'products') {
+          final id = int.tryParse(segments[1]) ?? 0;
+          if (id > 0) return '/store/products/$id';
+        }
+      }
+      if (host == 'social' && (segments.isNotEmpty && segments.first == 'add-friends')) {
+        return '/social/add-friends';
+      }
       if (host == 'notifications' || host == 'notification') {
         return '/profile/notifications';
       }
@@ -250,8 +276,13 @@ class _RootScreenState extends State<RootScreen> {
       if (path == '/notifications' || path == '/bildirimler') {
         return '/profile/notifications';
       }
+      if (path == '/store' || path == '/magaza') {
+        return '/store';
+      }
       final eId = int.tryParse((uri.queryParameters['event_submission_id'] ?? uri.queryParameters['event_id'] ?? '').trim()) ?? 0;
       if (eId > 0) return '/events/$eId';
+      final newsId = int.tryParse((uri.queryParameters['news_id'] ?? '').trim()) ?? 0;
+      if (newsId > 0) return '/news/$newsId';
     }
     return '';
   }
@@ -702,6 +733,38 @@ class _RootScreenState extends State<RootScreen> {
         return;
       }
     }
+    final newsMatch = RegExp(r'^/news/(\d+)$').firstMatch(path);
+    if (newsMatch != null) {
+      final postId = int.tryParse(newsMatch.group(1) ?? '') ?? 0;
+      if (postId > 0) {
+        await _openNewsDetailById(postId);
+        return;
+      }
+    }
+    final sellerMatch = RegExp(r'^/store/sellers/(\d+)$').firstMatch(path);
+    if (sellerMatch != null) {
+      final sellerId = int.tryParse(sellerMatch.group(1) ?? '') ?? 0;
+      if (sellerId > 0) {
+        await _openStoreSellerById(sellerId);
+        return;
+      }
+    }
+    final productMatch = RegExp(r'^/store/products/(\d+)$').firstMatch(path);
+    if (productMatch != null) {
+      final productId = int.tryParse(productMatch.group(1) ?? '') ?? 0;
+      if (productId > 0) {
+        await _openStoreProductById(productId);
+        return;
+      }
+    }
+    if (path == '/store') {
+      await _openStoreHome();
+      return;
+    }
+    if (path == '/social/add-friends') {
+      await _openAddFriends();
+      return;
+    }
     if (path == '/profile/notifications') {
       if (!mounted) return;
       setState(() => _index = 4);
@@ -716,6 +779,68 @@ class _RootScreenState extends State<RootScreen> {
       );
       return;
     }
+  }
+
+  Future<void> _openNewsDetailById(int postId) async {
+    if (!mounted) return;
+    setState(() => _index = 0);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NewsDetailScreen(
+          postId: postId,
+          sessionToken: _sessionToken,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openStoreHome() async {
+    if (!mounted) return;
+    setState(() => _index = 1);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StoreScreen(sessionToken: _sessionToken),
+      ),
+    );
+  }
+
+  Future<void> _openStoreSellerById(int sellerAccountId) async {
+    if (!mounted) return;
+    setState(() => _index = 1);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SellerStoreScreen(
+          sessionToken: _sessionToken,
+          sellerAccountId: sellerAccountId,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openStoreProductById(int productId) async {
+    if (!mounted) return;
+    setState(() => _index = 1);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StoreProductDetailScreen(
+          sessionToken: _sessionToken,
+          productId: productId,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAddFriends() async {
+    if (_sessionToken.trim().isEmpty || !mounted) return;
+    setState(() => _index = 3);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SocialScreen(
+          sessionToken: _sessionToken,
+          initiallyOpenAddFriends: true,
+        ),
+      ),
+    );
   }
 
   String _asAbsUrl(String v, {String host = _apiBase}) {
