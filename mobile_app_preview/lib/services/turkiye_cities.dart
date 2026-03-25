@@ -80,6 +80,12 @@ const List<String> kTurkiyeCities = [
   'Yalova',
   'Yozgat',
   'Zonguldak',
+  'Batum',
+  'Lefkoşa',
+  'Girne',
+  'Gazimağusa',
+  'İskele',
+  'Güzelyurt',
 ];
 
 const List<String> kTurkiyeCitiesWithUnknown = [

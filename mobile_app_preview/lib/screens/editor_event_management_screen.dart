@@ -201,6 +201,8 @@ const List<String> _preferredEventCities = <String>[
   'Antalya',
   'Eskişehir',
   'Adana',
+  'Batum',
+  'Lefkoşa',
 ];
 
 List<String> _prioritizedEventCities(List<String> cities) {

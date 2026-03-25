@@ -995,7 +995,7 @@ class _RequestColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       decoration: AppTheme.glassPanel(tone: AppTone.social, radius: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1004,7 +1004,7 @@ class _RequestColumn extends StatelessWidget {
             count > 0 ? '$title ($count)' : title,
             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           if (loading)
             const Center(
               child: Padding(
@@ -1047,34 +1047,88 @@ class _RequestRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Row(
         children: [
-          EmojiText(
-            name,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          Expanded(
+            child: EmojiText(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (secondaryLabel != null && secondaryAction != null)
-                TextButton(
-                  onPressed: secondaryAction,
-                  child: Text(secondaryLabel!),
-                ),
-              ElevatedButton(
-                onPressed: primaryAction,
-                child: Text(primaryLabel),
-              ),
-            ],
+          if (secondaryLabel != null && secondaryAction != null) ...[
+            _SlimRequestButton(
+              label: secondaryLabel!,
+              onTap: secondaryAction!,
+              outlined: true,
+            ),
+            const SizedBox(width: 6),
+          ],
+          _SlimRequestButton(
+            label: primaryLabel,
+            onTap: primaryAction,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SlimRequestButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final bool outlined;
+
+  const _SlimRequestButton({
+    required this.label,
+    required this.onTap,
+    this.outlined = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w700,
+        color: outlined ? Colors.white.withOpacity(0.84) : Colors.white,
+      ),
+    );
+    if (outlined) {
+      return OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          minimumSize: const Size(0, 32),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+          side: BorderSide(color: Colors.white.withOpacity(0.14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        ),
+        child: child,
+      );
+    }
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      child: child,
     );
   }
 }
