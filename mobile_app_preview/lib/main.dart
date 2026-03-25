@@ -13,6 +13,7 @@ import 'services/app_settings.dart';
 import 'services/i18n.dart';
 import 'services/notification_center.dart';
 import 'services/notifications_api.dart';
+import 'services/photo_polls_api.dart';
 import 'services/push_notifications_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth_screen.dart';
@@ -22,6 +23,7 @@ import 'screens/events_store_hub_screen.dart';
 import 'screens/chat_thread_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/news_detail_screen.dart';
+import 'screens/photo_poll_detail_screen.dart';
 import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/social_screen.dart';
@@ -233,6 +235,8 @@ class _RootScreenState extends State<RootScreen> {
     if (path.startsWith('/events/') ||
         path.startsWith('/messages/') ||
         path.startsWith('/news/') ||
+        path.startsWith('/photos/albums/') ||
+        path.startsWith('/photos/polls/') ||
         path == '/store' ||
         path.startsWith('/store/') ||
         path == '/social/add-friends' ||
@@ -252,6 +256,15 @@ class _RootScreenState extends State<RootScreen> {
       if ((host == 'news' || host == 'article') && segments.isNotEmpty) {
         final id = int.tryParse(segments.first) ?? 0;
         if (id > 0) return '/news/$id';
+      }
+      if (host == 'photos' || host == 'photo') {
+        if (segments.length >= 2 && segments.first == 'albums') {
+          return '/photos/albums/${segments[1]}';
+        }
+        if (segments.length >= 2 && segments.first == 'polls') {
+          final id = int.tryParse(segments[1]) ?? 0;
+          if (id > 0) return '/photos/polls/$id';
+        }
       }
       if (host == 'store' || host == 'shop') {
         if (segments.isEmpty) return '/store';
@@ -741,6 +754,22 @@ class _RootScreenState extends State<RootScreen> {
         return;
       }
     }
+    final albumMatch = RegExp(r'^/photos/albums/([^/]+)$').firstMatch(path);
+    if (albumMatch != null) {
+      final albumSlug = (albumMatch.group(1) ?? '').trim();
+      if (albumSlug.isNotEmpty) {
+        await _openPhotoAlbum(albumSlug);
+        return;
+      }
+    }
+    final pollMatch = RegExp(r'^/photos/polls/(\d+)$').firstMatch(path);
+    if (pollMatch != null) {
+      final pollId = int.tryParse(pollMatch.group(1) ?? '') ?? 0;
+      if (pollId > 0) {
+        await _openPhotoPoll(pollId);
+        return;
+      }
+    }
     final sellerMatch = RegExp(r'^/store/sellers/(\d+)$').firstMatch(path);
     if (sellerMatch != null) {
       final sellerId = int.tryParse(sellerMatch.group(1) ?? '') ?? 0;
@@ -841,6 +870,40 @@ class _RootScreenState extends State<RootScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openPhotoAlbum(String albumSlug) async {
+    if (!mounted) return;
+    setState(() => _index = 2);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PhotoAlbumRouteScreen(
+          albumSlug: albumSlug,
+          accountId: _accountId,
+          sessionToken: _sessionToken,
+          onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPhotoPoll(int pollId) async {
+    if (!mounted) return;
+    setState(() => _index = 2);
+    try {
+      final poll = await PhotoPollsApi.fetchOne(_sessionToken, pollId: pollId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PhotoPollDetailScreen(
+            sessionToken: _sessionToken,
+            initialPoll: poll,
+          ),
+        ),
+      );
+    } catch (_) {
+      // sessiz geç
+    }
   }
 
   String _asAbsUrl(String v, {String host = _apiBase}) {

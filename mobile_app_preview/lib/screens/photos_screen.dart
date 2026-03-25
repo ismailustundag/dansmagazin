@@ -80,6 +80,107 @@ class PhotosScreen extends StatefulWidget {
   State<PhotosScreen> createState() => _PhotosScreenState();
 }
 
+class PhotoAlbumRouteScreen extends StatefulWidget {
+  final String albumSlug;
+  final int accountId;
+  final String sessionToken;
+  final VoidCallback? onRequireLogin;
+
+  const PhotoAlbumRouteScreen({
+    super.key,
+    required this.albumSlug,
+    required this.accountId,
+    required this.sessionToken,
+    this.onRequireLogin,
+  });
+
+  @override
+  State<PhotoAlbumRouteScreen> createState() => _PhotoAlbumRouteScreenState();
+}
+
+class _PhotoAlbumRouteScreenState extends State<PhotoAlbumRouteScreen> {
+  late Future<_Album> _albumFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _albumFuture = _loadAlbum();
+  }
+
+  Future<_Album> _loadAlbum() async {
+    final headers = <String, String>{
+      if (widget.sessionToken.trim().isNotEmpty) 'Authorization': 'Bearer ${widget.sessionToken.trim()}',
+    };
+    final listResp = await http.get(
+      Uri.parse('https://api2.dansmagazin.net/photos/albums?limit=100'),
+      headers: headers,
+    );
+    if (listResp.statusCode == 200) {
+      final body = jsonDecode(listResp.body) as Map<String, dynamic>;
+      final items = (body['items'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(_Album.fromJson)
+          .toList();
+      for (final album in items) {
+        if (album.slug == widget.albumSlug) return album;
+      }
+    }
+
+    final detailResp = await http.get(
+      Uri.parse('https://api2.dansmagazin.net/photos/albums/${widget.albumSlug}?limit=1'),
+      headers: headers,
+    );
+    if (detailResp.statusCode != 200) {
+      throw Exception('Albüm bulunamadı');
+    }
+    final body = jsonDecode(detailResp.body) as Map<String, dynamic>;
+    return _Album(
+      slug: (body['slug'] ?? widget.albumSlug).toString(),
+      name: (body['name'] ?? body['event_slug'] ?? widget.albumSlug).toString(),
+      albumType: (body['album_type'] ?? 'event').toString(),
+      coverUrl: '',
+      coverThumbUrl: '',
+      createdAt: '',
+      photoCount: (body['total'] as num?)?.toInt() ?? 0,
+      likeCount: (body['like_count'] as num?)?.toInt() ?? 0,
+      likedByMe: body['liked_by_me'] == true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<_Album>(
+      future: _albumFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: AppTheme.bgPrimary,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError || snapshot.data == null) {
+          return Scaffold(
+            backgroundColor: AppTheme.bgPrimary,
+            appBar: AppBar(backgroundColor: AppTheme.bgPrimary),
+            body: Center(
+              child: Text(
+                'Albüm bulunamadı',
+                style: TextStyle(color: Colors.white.withOpacity(0.8)),
+              ),
+            ),
+          );
+        }
+        return AlbumPhotosScreen(
+          album: snapshot.data!,
+          accountId: widget.accountId,
+          sessionToken: widget.sessionToken,
+          onRequireLogin: widget.onRequireLogin,
+        );
+      },
+    );
+  }
+}
+
 class _PhotosScreenState extends State<PhotosScreen> {
   static const String _albumsUrl = 'https://api2.dansmagazin.net/photos';
 
