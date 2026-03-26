@@ -712,26 +712,31 @@ class _SocialScreenState extends State<SocialScreen> {
                         final loading =
                             snapshot.connectionState == ConnectionState.waiting &&
                             reqs.isEmpty;
-                        return _RequestColumn(
-                          title: t('incoming_requests'),
-                          count: reqs.length,
-                          loading: loading,
-                          emptyText: t('no_pending_friend_request'),
-                          children: reqs
-                              .map(
-                                (r) => _RequestRow(
-                                  name: r.peerName.isNotEmpty ? r.peerName : t('user'),
-                                  primaryLabel: t('accept'),
-                                  primaryAction: () => _accept(r.requestId),
-                                  secondaryLabel: t('reject'),
-                                  secondaryAction: () => _reject(r.requestId),
-                                ),
-                              )
-                              .toList(),
+                        if (!loading && reqs.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _RequestColumn(
+                            title: t('incoming_requests'),
+                            count: reqs.length,
+                            loading: loading,
+                            emptyText: t('no_pending_friend_request'),
+                            children: reqs
+                                .map(
+                                  (r) => _RequestRow(
+                                    name: r.peerName.isNotEmpty ? r.peerName : t('user'),
+                                    primaryLabel: t('accept'),
+                                    primaryAction: () => _accept(r.requestId),
+                                    secondaryLabel: t('reject'),
+                                    secondaryAction: () => _reject(r.requestId),
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         );
                       },
                     ),
-                    const SizedBox(height: 10),
                     FutureBuilder<List<FriendRequestItem>>(
                       future: _outgoingFuture,
                       builder: (context, snapshot) {
@@ -739,6 +744,9 @@ class _SocialScreenState extends State<SocialScreen> {
                         final loading =
                             snapshot.connectionState == ConnectionState.waiting &&
                             reqs.isEmpty;
+                        if (!loading && reqs.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
                         return _RequestColumn(
                           title: 'Bekleyen İstekler',
                           count: reqs.length,
