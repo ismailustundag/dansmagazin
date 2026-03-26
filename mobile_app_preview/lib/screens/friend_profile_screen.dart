@@ -862,43 +862,53 @@ class _FriendConnectionsPreviewCard extends StatelessWidget {
               ],
             ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      I18n.t('all_friends_section'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          I18n.t('all_friends_section'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          friends.isEmpty
+                              ? I18n.t('visible_friends_empty')
+                              : '${friends.length} · ${I18n.t("tap_to_view")}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.72),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      friends.isEmpty
-                          ? I18n.t('visible_friends_empty')
-                          : '${friends.length} · ${I18n.t("tap_to_view")}',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.72),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.72), size: 24),
+                ],
               ),
-              if (preview.isNotEmpty)
+              if (preview.isNotEmpty) ...[
+                const SizedBox(height: 12),
                 SizedBox(
                   width: 108,
+                  height: 40,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       for (var i = 0; i < preview.length; i++)
                         Positioned(
                           left: i * 22,
+                          top: 0,
                           child: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
@@ -916,8 +926,7 @@ class _FriendConnectionsPreviewCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.72), size: 24),
+              ],
             ],
           ),
         ),
