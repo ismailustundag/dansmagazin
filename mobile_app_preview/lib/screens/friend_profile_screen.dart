@@ -491,6 +491,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
             }
             final profile = snapshot.data!;
             return ListView(
+              physics: const ClampingScrollPhysics(),
               padding: const EdgeInsets.all(14),
               children: [
                 _FriendProfileHeroCard(
@@ -550,6 +551,11 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                     foregroundColor: const Color(0xFFE4DBFF),
                     isLoading: _sendingRequest,
                   ),
+                const SizedBox(height: 12),
+                _FriendConnectionsPreviewCard(
+                  friends: profile.friends,
+                  onTap: () => _showAllFriendsSheet(profile),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -575,11 +581,6 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                _FriendConnectionsPreviewCard(
-                  friends: profile.friends,
-                  onTap: () => _showAllFriendsSheet(profile),
                 ),
               ],
             );
