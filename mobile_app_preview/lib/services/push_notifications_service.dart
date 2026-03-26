@@ -267,9 +267,9 @@ class PushNotificationsService {
 
     try {
       await messaging.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
+        alert: false,
+        badge: false,
+        sound: false,
       );
     } catch (_) {}
 
@@ -300,13 +300,6 @@ class PushNotificationsService {
         }
         final n = message.notification;
         if (n == null) return;
-
-        // iOS foreground'da sistem bildirimi zaten gösteriliyor
-        // (setForegroundNotificationPresentationOptions ile).
-        // Burada bir de local notification gösterirsek çift banner düşüyor.
-        if (defaultTargetPlatform == TargetPlatform.iOS) {
-          return;
-        }
 
         await _localNotifications.show(
           DateTime.now().millisecondsSinceEpoch.remainder(100000),
@@ -363,6 +356,11 @@ class PushNotificationsService {
       if (fromId > 0) {
         return '/messages/$fromId';
       }
+    }
+    if (type == 'friend_request') {
+      final route = (data['route'] ?? '').toString().trim();
+      if (route.isNotEmpty) return route;
+      return '/social/add-friends';
     }
     final route = (data['route'] ?? '').toString().trim();
     if (route.isNotEmpty) return route;
