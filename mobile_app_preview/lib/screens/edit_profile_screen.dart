@@ -55,6 +55,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _pickingAvatar = false;
+  bool _allowImmediatePop = false;
+  _ProfileDraftSnapshot? _loadedSnapshot;
 
   static final List<String> _allDanceInterestOptions = [
     for (final group in _danceInterestGroups) ...group.items,
@@ -86,6 +88,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final bust = updatedAt.trim().isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : updatedAt.trim();
     final separator = raw.contains('?') ? '&' : '?';
     return '$raw${separator}v=${Uri.encodeQueryComponent(bust)}';
+  }
+
+  _ProfileDraftSnapshot _buildSnapshot() {
+    return _ProfileDraftSnapshot(
+      username: _usernameCtrl.text.trim(),
+      city: _city.trim(),
+      birthDate: _birthDate.trim(),
+      gender: _gender.trim(),
+      danceInterests: _danceInterestsCtrl.text.trim(),
+      danceSchool: _danceSchoolCtrl.text.trim(),
+      about: _aboutCtrl.text.trim(),
+      avatarUrl: _avatarUrl.trim(),
+    );
+  }
+
+  bool get _hasUnsavedChanges {
+    final loaded = _loadedSnapshot;
+    if (loaded == null) return false;
+    return loaded != _buildSnapshot();
+  }
+
+  void _setLoadedSnapshot(ProfileSettingsData remote) {
+    _loadedSnapshot = _ProfileDraftSnapshot(
+      username: remote.username.trim(),
+      city: (remote.city.trim().isEmpty ? _defaultCity : remote.city.trim()),
+      birthDate: remote.birthDate.trim(),
+      gender: _genderValues.contains(remote.gender.trim()) ? remote.gender.trim() : 'unspecified',
+      danceInterests: _danceInterestsCtrl.text.trim(),
+      danceSchool: remote.danceSchool.trim(),
+      about: remote.about.trim(),
+      avatarUrl: _resolveAvatarUrl(remote.avatarUrl, remote.updatedAt),
+    );
   }
 
   @override
@@ -121,6 +155,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _avatarPath = avatar;
         _loading = false;
       });
+      _setLoadedSnapshot(remote);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -642,12 +677,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Future<void> _saveProfile() async {
-    if (_saving) return;
+  void _popWithResult(bool updated) {
+    if (!mounted) return;
+    setState(() => _allowImmediatePop = true);
+    Navigator.of(context).pop(updated);
+  }
+
+  Future<bool> _saveProfile({
+    bool popOnSuccess = true,
+    bool showSavedMessage = true,
+  }) async {
+    if (_saving) return false;
     FocusScope.of(context).unfocus();
     setState(() => _saving = true);
     try {
-      await ProfileApi.updateSettings(
+      final saved = await ProfileApi.updateSettings(
         sessionToken: widget.sessionToken,
         username: _usernameCtrl.text.trim(),
         city: _city.trim(),
@@ -658,19 +702,49 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         about: _aboutCtrl.text.trim(),
         avatarUrl: _avatarUrl.trim(),
       );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(I18n.t('saved'))),
-      );
-      Navigator.of(context).pop(true);
+      if (!mounted) return false;
+      setState(() {
+        _avatarUrl = _resolveAvatarUrl(saved.avatarUrl, saved.updatedAt);
+      });
+      _setLoadedSnapshot(saved);
+      if (showSavedMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(I18n.t('saved'))),
+        );
+      }
+      if (popOnSuccess) {
+        _popWithResult(true);
+      }
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _handleCloseRequest() async {
+    if (_allowImmediatePop || !mounted) return;
+    if (_saving || _pickingAvatar) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('saving_ellipsis'))),
+      );
+      return;
+    }
+    if (!_hasUnsavedChanges) {
+      _popWithResult(false);
+      return;
+    }
+    final didSave = await _saveProfile(
+      popOnSuccess: false,
+      showSavedMessage: false,
+    );
+    if (!mounted || !didSave) return;
+    _popWithResult(true);
   }
 
   Widget _card({required Widget child}) {
@@ -707,19 +781,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       height: 1.2,
       color: Colors.white.withOpacity(0.68),
     );
-    return Scaffold(
-      backgroundColor: const Color(0xFF0C111B),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF111827),
-        title: Text(t('edit_profile')),
-      ),
-      body: SafeArea(
-        top: false,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                padding: const EdgeInsets.all(14),
-                children: [
+    return PopScope<bool>(
+      canPop: _allowImmediatePop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        unawaited(_handleCloseRequest());
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0C111B),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF111827),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: _handleCloseRequest,
+          ),
+          title: Text(t('edit_profile')),
+        ),
+        body: SafeArea(
+          top: false,
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
                   _card(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -923,20 +1007,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB45F13),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : () => _saveProfile(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFB45F13),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        ),
+                        child: Text(_saving ? '...' : t('save')),
                       ),
-                      child: Text(_saving ? '...' : t('save')),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -947,4 +1032,51 @@ class _DanceInterestGroup {
   final List<String> items;
 
   const _DanceInterestGroup(this.title, this.items);
+}
+
+class _ProfileDraftSnapshot {
+  final String username;
+  final String city;
+  final String birthDate;
+  final String gender;
+  final String danceInterests;
+  final String danceSchool;
+  final String about;
+  final String avatarUrl;
+
+  const _ProfileDraftSnapshot({
+    required this.username,
+    required this.city,
+    required this.birthDate,
+    required this.gender,
+    required this.danceInterests,
+    required this.danceSchool,
+    required this.about,
+    required this.avatarUrl,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _ProfileDraftSnapshot &&
+        other.username == username &&
+        other.city == city &&
+        other.birthDate == birthDate &&
+        other.gender == gender &&
+        other.danceInterests == danceInterests &&
+        other.danceSchool == danceSchool &&
+        other.about == about &&
+        other.avatarUrl == avatarUrl;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        username,
+        city,
+        birthDate,
+        gender,
+        danceInterests,
+        danceSchool,
+        about,
+        avatarUrl,
+      );
 }
