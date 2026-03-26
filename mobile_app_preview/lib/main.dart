@@ -236,6 +236,7 @@ class _RootScreenState extends State<RootScreen> {
     if (path.startsWith('/events/') ||
         path.startsWith('/messages/') ||
         path.startsWith('/news/') ||
+        path == '/photos' ||
         path.startsWith('/photos/albums/') ||
         path.startsWith('/photos/polls/') ||
         path == '/store' ||
@@ -259,6 +260,9 @@ class _RootScreenState extends State<RootScreen> {
         if (id > 0) return '/news/$id';
       }
       if (host == 'photos' || host == 'photo') {
+        if (segments.isEmpty) {
+          return '/photos';
+        }
         if (segments.length >= 2 && segments.first == 'albums') {
           return '/photos/albums/${segments[1]}';
         }
@@ -754,6 +758,11 @@ class _RootScreenState extends State<RootScreen> {
         await _openNewsDetailById(postId);
         return;
       }
+    }
+    if (path == '/photos') {
+      if (!mounted) return;
+      setState(() => _index = 2);
+      return;
     }
     final albumMatch = RegExp(r'^/photos/albums/([^/]+)$').firstMatch(path);
     if (albumMatch != null) {

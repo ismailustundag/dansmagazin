@@ -50,6 +50,7 @@ class PhotoFlowPost {
   final String authorName;
   final bool authorIsVerified;
   final String authorAvatarUrl;
+  final List<String> likePreviewNames;
   final List<PhotoFlowReply> replies;
 
   const PhotoFlowPost({
@@ -65,6 +66,7 @@ class PhotoFlowPost {
     required this.authorName,
     required this.authorIsVerified,
     required this.authorAvatarUrl,
+    required this.likePreviewNames,
     required this.replies,
   });
 
@@ -72,6 +74,10 @@ class PhotoFlowPost {
     final replies = (json['replies'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(PhotoFlowReply.fromJson)
+        .toList();
+    final likePreviewNames = (json['like_preview_names'] as List<dynamic>? ?? const [])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
         .toList();
     return PhotoFlowPost(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -86,6 +92,7 @@ class PhotoFlowPost {
       authorName: (json['author_name'] ?? '').toString(),
       authorIsVerified: json['author_is_verified'] == true,
       authorAvatarUrl: (json['author_avatar_url'] ?? '').toString(),
+      likePreviewNames: likePreviewNames,
       replies: replies,
     );
   }

@@ -189,6 +189,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   late Future<List<PhotoPoll>> _pollsFuture;
   int _tab = 0; // 0: Akis, 1: Anket, 2: Fotograf, 3: Video
   List<_FavoritePhoto> _favorites = [];
+  List<PhotoFlowPost> _cachedCommunityPosts = const [];
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _postCtrl = TextEditingController();
   XFile? _selectedPostImage;
@@ -296,7 +297,10 @@ class _PhotosScreenState extends State<PhotosScreen> {
   }
 
   Future<List<PhotoFlowPost>> _fetchCommunityFeed() {
-    return PhotoFlowApi.fetch(sessionToken: widget.sessionToken);
+    return PhotoFlowApi.fetch(sessionToken: widget.sessionToken).then((items) {
+      _cachedCommunityPosts = items;
+      return items;
+    });
   }
 
   Future<List<PhotoPoll>> _fetchPolls() {
@@ -350,7 +354,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
     }
     setState(() => _sendingPost = true);
     try {
-      await PhotoFlowApi.createPost(
+      final created = await PhotoFlowApi.createPost(
         widget.sessionToken,
         text: text,
         imagePath: imagePath.isEmpty ? null : imagePath,
@@ -359,7 +363,8 @@ class _PhotosScreenState extends State<PhotosScreen> {
       if (mounted) {
         setState(() {
           _selectedPostImage = null;
-          _communityFeedFuture = _fetchCommunityFeed();
+          _cachedCommunityPosts = [created, ..._cachedCommunityPosts];
+          _communityFeedFuture = Future.value(_cachedCommunityPosts);
         });
       }
     } catch (e) {
@@ -378,13 +383,18 @@ class _PhotosScreenState extends State<PhotosScreen> {
       return;
     }
     try {
-      await PhotoFlowApi.setLike(
+      final updated = await PhotoFlowApi.setLike(
         widget.sessionToken,
         postId: post.id,
         like: !post.likedByMe,
       );
       if (!mounted) return;
-      setState(() => _communityFeedFuture = _fetchCommunityFeed());
+      setState(() {
+        _cachedCommunityPosts = _cachedCommunityPosts
+            .map((item) => item.id == updated.id ? updated : item)
+            .toList(growable: false);
+        _communityFeedFuture = Future.value(_cachedCommunityPosts);
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -394,7 +404,6 @@ class _PhotosScreenState extends State<PhotosScreen> {
   }
 
   Future<void> _deleteFeedPost(PhotoFlowPost post) async {
-    if (!_isSuperAdmin) return;
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -421,7 +430,12 @@ class _PhotosScreenState extends State<PhotosScreen> {
         postId: post.id,
       );
       if (!mounted) return;
-      setState(() => _communityFeedFuture = _fetchCommunityFeed());
+      setState(() {
+        _cachedCommunityPosts = _cachedCommunityPosts
+            .where((item) => item.id != post.id)
+            .toList(growable: false);
+        _communityFeedFuture = Future.value(_cachedCommunityPosts);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Gönderi silindi')),
       );
@@ -448,7 +462,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
       ),
     );
     if (!mounted) return;
-    setState(() => _communityFeedFuture = _fetchCommunityFeed());
+    setState(() {
+      _communityFeedFuture = _fetchCommunityFeed();
+    });
   }
 
   Future<void> _openFeedImageViewer(PhotoFlowPost post) async {
@@ -475,7 +491,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
       ),
     );
     if (!mounted) return;
-    setState(() => _pollsFuture = _fetchPolls());
+    setState(() {
+      _pollsFuture = _fetchPolls();
+    });
   }
 
   Future<void> _openTopLikedViewer(List<_Photo> photos, int initialIndex) async {
@@ -582,11 +600,13 @@ class _PhotosScreenState extends State<PhotosScreen> {
                 return _ErrorCard(
                   text: I18n.t('feed_load_error'),
                   onRetry: () async {
-                    setState(() => _communityFeedFuture = _fetchCommunityFeed());
+                    setState(() {
+                      _communityFeedFuture = _fetchCommunityFeed();
+                    });
                   },
                 );
               }
-              final posts = snapshot.data ?? const <PhotoFlowPost>[];
+              final posts = snapshot.data ?? _cachedCommunityPosts;
               if (posts.isEmpty) {
                 return _InfoCard(text: I18n.t('no_feed_posts_yet'));
               }
@@ -623,7 +643,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
                 return _ErrorCard(
                   text: I18n.t('polls_load_error'),
                   onRetry: () async {
-                    setState(() => _pollsFuture = _fetchPolls());
+                    setState(() {
+                      _pollsFuture = _fetchPolls();
+                    });
                   },
                 );
               }
@@ -1056,6 +1078,16 @@ class _FeedPostCard extends StatelessWidget {
               ),
             ],
           ),
+          if (post.likePreviewNames.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _likePreviewText(post.likePreviewNames, post.likeCount),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
           if (post.replies.isNotEmpty) ...[
             const SizedBox(height: 12),
             ...post.replies.take(2).map(
@@ -1102,6 +1134,15 @@ class _FeedPostCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _likePreviewText(List<String> names, int totalCount) {
+    if (names.isEmpty) return '';
+    if (totalCount <= names.length) {
+      return '${names.join(', ')} beğendi';
+    }
+    final remaining = totalCount - names.length;
+    return '${names.join(', ')} ve +$remaining kişi beğendi';
   }
 }
 
