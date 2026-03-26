@@ -109,6 +109,7 @@ class _RootScreenState extends State<RootScreen> {
   bool _onboardingVisible = false;
   bool _startupPopupChecked = false;
   bool _startupPopupVisible = false;
+  int _socialOpenAddFriendsToken = 0;
 
   @override
   void initState() {
@@ -861,15 +862,14 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openAddFriends() async {
     if (_sessionToken.trim().isEmpty || !mounted) return;
-    setState(() => _index = 3);
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SocialScreen(
-          sessionToken: _sessionToken,
-          initiallyOpenAddFriends: true,
-        ),
-      ),
-    );
+    setState(() {
+      _index = 3;
+      _socialOpenAddFriendsToken += 1;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _socialOpenAddFriendsToken = 0);
+    });
   }
 
   Future<void> _openPhotoAlbum(String albumSlug) async {
@@ -985,7 +985,11 @@ class _RootScreenState extends State<RootScreen> {
         appRole: _appRole,
         onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
       ),
-      SocialScreen(sessionToken: _sessionToken),
+      SocialScreen(
+        sessionToken: _sessionToken,
+        initiallyOpenAddFriends: false,
+        openAddFriendsToken: _socialOpenAddFriendsToken,
+      ),
       ProfileScreen(
         isLoggedIn: _isLoggedIn,
         userName: _userName,

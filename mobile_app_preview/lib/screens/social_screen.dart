@@ -45,11 +45,13 @@ BoxDecoration _friendCardDecoration({required bool hasUnread}) {
 class SocialScreen extends StatefulWidget {
   final String sessionToken;
   final bool initiallyOpenAddFriends;
+  final int openAddFriendsToken;
 
   const SocialScreen({
     super.key,
     required this.sessionToken,
     this.initiallyOpenAddFriends = false,
+    this.openAddFriendsToken = 0,
   });
 
   @override
@@ -85,7 +87,8 @@ class _SocialScreenState extends State<SocialScreen> {
   @override
   void initState() {
     super.initState();
-    _addFriendsOpen = widget.initiallyOpenAddFriends;
+    _addFriendsOpen =
+        widget.initiallyOpenAddFriends || widget.openAddFriendsToken > 0;
     _future = _fetchFriends();
     _incomingFuture = _fetchIncoming();
     _outgoingFuture = _fetchOutgoing();
@@ -95,6 +98,19 @@ class _SocialScreenState extends State<SocialScreen> {
     NotificationCenter.summary.addListener(_onNotificationSummaryChanged);
     NotificationCenter.refresh(widget.sessionToken);
     _loadMyAccountId();
+  }
+
+  @override
+  void didUpdateWidget(covariant SocialScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openAddFriendsToken != oldWidget.openAddFriendsToken &&
+        widget.openAddFriendsToken > 0) {
+      setState(() {
+        _addFriendsOpen = true;
+        _incomingFuture = _fetchIncoming();
+        _outgoingFuture = _fetchOutgoing();
+      });
+    }
   }
 
   @override
