@@ -318,6 +318,152 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
     );
   }
 
+  Future<void> _openRelatedFriendProfile(_FriendListItem friend) async {
+    if (friend.accountId <= 0 || friend.accountId == widget.friendAccountId) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FriendProfileScreen(
+          sessionToken: widget.sessionToken,
+          friendAccountId: friend.accountId,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _future = _fetch());
+  }
+
+  void _showAllFriendsSheet(_FriendProfile profile) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF10172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        final friends = profile.friends;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        I18n.t('all_friends_section'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.white.withOpacity(0.10)),
+                      ),
+                      child: Text(
+                        '${friends.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (friends.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Text(
+                      I18n.t('visible_friends_empty'),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.72),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: MediaQuery.of(sheetContext).size.height * 0.52,
+                    child: GridView.builder(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 18,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.76,
+                      ),
+                      itemCount: friends.length,
+                      itemBuilder: (context, index) {
+                        final friend = friends[index];
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            Future<void>.delayed(const Duration(milliseconds: 120), () {
+                              if (!mounted) return;
+                              _openRelatedFriendProfile(friend);
+                            });
+                          },
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              VerifiedAvatar(
+                                imageUrl: friend.avatarUrl,
+                                label: friend.name,
+                                isVerified: friend.isVerified,
+                                radius: 28,
+                                backgroundColor: Colors.white.withOpacity(0.08),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                friend.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = I18n.t;
@@ -350,6 +496,11 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 _FriendProfileHeroCard(
                   profile: profile,
                   onPhotoTap: () => _showAvatarPreview(profile.avatarUrl, profile.name),
+                ),
+                const SizedBox(height: 14),
+                _FriendConnectionsPreviewCard(
+                  friends: profile.friends,
+                  onTap: () => _showAllFriendsSheet(profile),
                 ),
                 const SizedBox(height: 14),
                 if (profile.friendStatus == 'friend')
@@ -678,6 +829,102 @@ class _FriendProfileHeroCard extends StatelessWidget {
   }
 }
 
+class _FriendConnectionsPreviewCard extends StatelessWidget {
+  final List<_FriendListItem> friends;
+  final VoidCallback onTap;
+
+  const _FriendConnectionsPreviewCard({
+    required this.friends,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = friends.take(4).toList();
+    return Material(
+      color: const Color(0xFF121A2B),
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.04),
+                Colors.white.withOpacity(0.02),
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      I18n.t('all_friends_section'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      friends.isEmpty
+                          ? I18n.t('visible_friends_empty')
+                          : '${friends.length} · ${I18n.t("tap_to_view")}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.72),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (preview.isNotEmpty)
+                SizedBox(
+                  width: 108,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (var i = 0; i < preview.length; i++)
+                        Positioned(
+                          left: i * 22,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF121A2B), width: 2),
+                            ),
+                            child: VerifiedAvatar(
+                              imageUrl: preview[i].avatarUrl,
+                              label: preview[i].name,
+                              isVerified: preview[i].isVerified,
+                              radius: 18,
+                              backgroundColor: Colors.white.withOpacity(0.10),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.72), size: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ProfileActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -833,6 +1080,7 @@ class _FriendProfile {
   final int? friendRequestId;
   final bool isFriend;
   final bool isVerified;
+  final List<_FriendListItem> friends;
 
   const _FriendProfile({
     required this.accountId,
@@ -847,6 +1095,7 @@ class _FriendProfile {
     required this.friendRequestId,
     required this.isFriend,
     required this.isVerified,
+    required this.friends,
   });
 
   String get initials => name.trim().isNotEmpty ? name.trim().substring(0, 1).toUpperCase() : '?';
@@ -864,6 +1113,33 @@ class _FriendProfile {
       friendStatus: (json['friend_status'] ?? 'none').toString(),
       friendRequestId: (json['friend_request_id'] as num?)?.toInt(),
       isFriend: json['is_friend'] == true,
+      isVerified: json['is_verified'] == true,
+      friends: ((json['friends'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(_FriendListItem.fromJson)
+          .toList()),
+    );
+  }
+}
+
+class _FriendListItem {
+  final int accountId;
+  final String name;
+  final String avatarUrl;
+  final bool isVerified;
+
+  const _FriendListItem({
+    required this.accountId,
+    required this.name,
+    required this.avatarUrl,
+    required this.isVerified,
+  });
+
+  factory _FriendListItem.fromJson(Map<String, dynamic> json) {
+    return _FriendListItem(
+      accountId: (json['account_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      avatarUrl: (json['avatar_url'] ?? '').toString(),
       isVerified: json['is_verified'] == true,
     );
   }
