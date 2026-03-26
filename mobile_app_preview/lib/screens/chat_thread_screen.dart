@@ -37,13 +37,17 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _inputFocusNode = FocusNode();
   bool _sending = false;
   bool _loading = true;
+  bool _clearingThread = false;
   String? _error;
   int _meAccountId = 0;
   int _peerLastReadMessageId = 0;
   bool _peerTyping = false;
   List<_MsgItem> _items = const [];
+  _MsgItem? _replyingTo;
+  _MsgItem? _editingMessage;
   Timer? _pollTimer;
   Timer? _typingIdleTimer;
   bool _typingActive = false;
@@ -66,6 +70,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       unawaited(_setTyping(false));
     }
     _scrollCtrl.dispose();
+    _inputFocusNode.dispose();
     _msgCtrl.dispose();
     super.dispose();
   }
@@ -138,16 +143,29 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
     setState(() => _sending = true);
     try {
+      final isEditing = _editingMessage != null;
       final resp = await http.post(
-        Uri.parse('$_base/messages/send'),
+        Uri.parse(
+          isEditing
+              ? '$_base/messages/${_editingMessage!.id}/edit'
+              : '$_base/messages/send',
+        ),
         headers: {
           'Authorization': 'Bearer ${widget.sessionToken.trim()}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'to_account_id': widget.peerAccountId, 'body': text}),
+        body: jsonEncode(
+          isEditing
+              ? {'body': text}
+              : {
+                  'to_account_id': widget.peerAccountId,
+                  'body': text,
+                  if (_replyingTo != null) 'reply_to_message_id': _replyingTo!.id,
+                },
+        ),
       );
       if (resp.statusCode != 200) {
-        String msg = 'Mesaj gönderilemedi';
+        String msg = isEditing ? 'Mesaj düzenlenemedi' : 'Mesaj gönderilemedi';
         try {
           final j = jsonDecode(resp.body) as Map<String, dynamic>;
           msg = parseApiErrorBody(jsonEncode(j), fallback: msg);
@@ -158,6 +176,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         return;
       }
       _msgCtrl.clear();
+      _replyingTo = null;
+      _editingMessage = null;
       if (!mounted) return;
       await _refreshThread(scrollToBottom: true);
     } finally {
@@ -181,7 +201,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         }),
       );
     } catch (_) {
-      // Yaziyor guncellemesi kritik degil; sessiz gec.
+      // non-critical
     }
   }
 
@@ -243,6 +263,198 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     );
   }
 
+  void _startReply(_MsgItem item) {
+    setState(() {
+      _editingMessage = null;
+      _replyingTo = item;
+    });
+    _inputFocusNode.requestFocus();
+  }
+
+  void _startEdit(_MsgItem item) {
+    setState(() {
+      _replyingTo = null;
+      _editingMessage = item;
+      _msgCtrl.text = item.body;
+      _msgCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _msgCtrl.text.length));
+    });
+    _inputFocusNode.requestFocus();
+  }
+
+  void _clearComposerContext() {
+    setState(() {
+      _replyingTo = null;
+      _editingMessage = null;
+    });
+  }
+
+  Future<void> _deleteMessage(_MsgItem item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mesaj silinsin mi?'),
+        content: const Text('Bu mesaj sohbet içinde silinmiş olarak görünecek.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final resp = await http.post(
+      Uri.parse('$_base/messages/${item.id}/delete'),
+      headers: {'Authorization': 'Bearer ${widget.sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mesaj silinemedi')));
+      return;
+    }
+    if (!mounted) return;
+    await _refreshThread();
+  }
+
+  Future<void> _toggleLike(_MsgItem item, bool like) async {
+    final resp = await http.post(
+      Uri.parse('$_base/messages/${item.id}/${like ? 'like' : 'unlike'}'),
+      headers: {'Authorization': 'Bearer ${widget.sessionToken.trim()}'},
+    );
+    if (resp.statusCode != 200) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(like ? 'Mesaj beğenilemedi' : 'Beğeni geri alınamadı')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    await _refreshThread(silent: true);
+  }
+
+  Future<void> _clearConversation() async {
+    if (_clearingThread) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sohbeti temizle'),
+        content: const Text('Bu işlem sohbeti sadece senin görünümünden kaldırır. Karşı tarafın mesajları silinmez.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Temizle'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _clearingThread = true);
+    try {
+      final resp = await http.post(
+        Uri.parse('$_base/messages/clear'),
+        headers: {
+          'Authorization': 'Bearer ${widget.sessionToken.trim()}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'peer_account_id': widget.peerAccountId}),
+      );
+      if (resp.statusCode != 200) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sohbet temizlenemedi')));
+        return;
+      }
+      _replyingTo = null;
+      _editingMessage = null;
+      _msgCtrl.clear();
+      if (!mounted) return;
+      await _refreshThread();
+    } finally {
+      if (mounted) setState(() => _clearingThread = false);
+    }
+  }
+
+  String _replySenderLabel(_MsgItem item) {
+    return item.senderAccountId == _meAccountId ? 'Sen' : widget.peerName;
+  }
+
+  String _quotedPreviewText(_MsgItem item) {
+    if (item.isDeleted) return 'Bu mesaj silindi';
+    final text = item.body.trim();
+    if (text.length <= 80) return text;
+    return '${text.substring(0, 77)}...';
+  }
+
+  Future<void> _showMessageActions(_MsgItem item) async {
+    final mine = item.senderAccountId == _meAccountId;
+    if (item.isDeleted) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppTheme.surfacePrimary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (mine) ...[
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Mesajı düzenle'),
+                  onTap: () => Navigator.of(ctx).pop('edit'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline),
+                  title: const Text('Mesajı sil'),
+                  onTap: () => Navigator.of(ctx).pop('delete'),
+                ),
+              ] else ...[
+                ListTile(
+                  leading: Icon(item.likedByMe ? Icons.favorite_border : Icons.favorite),
+                  title: Text(item.likedByMe ? 'Beğeniyi geri al' : 'Beğen'),
+                  onTap: () => Navigator.of(ctx).pop(item.likedByMe ? 'unlike' : 'like'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.reply_rounded),
+                  title: const Text('Yanıtla'),
+                  onTap: () => Navigator.of(ctx).pop('reply'),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'edit':
+        _startEdit(item);
+        break;
+      case 'delete':
+        await _deleteMessage(item);
+        break;
+      case 'like':
+        await _toggleLike(item, true);
+        break;
+      case 'unlike':
+        await _toggleLike(item, false);
+        break;
+      case 'reply':
+        _startReply(item);
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final messageScale = AppSettings.textScale.value.clamp(0.90, 1.35).toDouble();
@@ -275,6 +487,21 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             ),
           ],
         ),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'clear') {
+                _clearConversation();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'clear',
+                child: Text('Sohbeti temizle'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -305,51 +532,107 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                 final seenByPeer = mine && m.id > 0 && _peerLastReadMessageId >= m.id;
                                 return Align(
                                   alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                                  child: Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    constraints: const BoxConstraints(maxWidth: 280),
-                                    decoration: BoxDecoration(
-                                      color: mine ? AppTheme.violet : AppTheme.surfaceSecondary,
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                        color: mine
-                                            ? AppTheme.violet.withOpacity(0.28)
-                                            : AppTheme.borderSoft,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        EmojiText(
-                                          m.body,
-                                          style: TextStyle(
-                                            fontSize: 15 * messageScale,
-                                            height: 1.35,
-                                          ),
+                                  child: GestureDetector(
+                                    onLongPress: () => _showMessageActions(m),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      constraints: const BoxConstraints(maxWidth: 280),
+                                      decoration: BoxDecoration(
+                                        color: mine ? AppTheme.violet : AppTheme.surfaceSecondary,
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: mine ? AppTheme.violet.withOpacity(0.28) : AppTheme.borderSoft,
                                         ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              formatDateTimeDdMmYyyyHmDot(m.createdAt),
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(0.7),
-                                                fontSize: 11 * messageScale,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (m.replyTo != null) ...[
+                                            Container(
+                                              width: double.infinity,
+                                              margin: const EdgeInsets.only(bottom: 8),
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withOpacity(0.12),
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(color: Colors.white.withOpacity(0.10)),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    _replySenderLabel(m.replyTo!),
+                                                    style: TextStyle(
+                                                      color: Colors.white.withOpacity(0.78),
+                                                      fontSize: 11 * messageScale,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 3),
+                                                  EmojiText(
+                                                    _quotedPreviewText(m.replyTo!),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 12 * messageScale,
+                                                      color: Colors.white.withOpacity(0.84),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                            if (deliveredToServer) ...[
-                                              const SizedBox(width: 4),
-                                              Icon(
-                                                seenByPeer ? Icons.done_all : Icons.done,
-                                                size: 17 * messageScale,
-                                                color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
-                                              ),
-                                            ],
                                           ],
-                                        ),
-                                      ],
+                                          EmojiText(
+                                            m.isDeleted ? 'Bu mesaj silindi' : m.body,
+                                            style: TextStyle(
+                                              fontSize: 15 * messageScale,
+                                              height: 1.35,
+                                              fontStyle: m.isDeleted ? FontStyle.italic : FontStyle.normal,
+                                              color: m.isDeleted ? Colors.white.withOpacity(0.72) : null,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                formatDateTimeDdMmYyyyHmDot(m.createdAt),
+                                                style: TextStyle(
+                                                  color: Colors.white.withOpacity(0.7),
+                                                  fontSize: 11 * messageScale,
+                                                ),
+                                              ),
+                                              if (m.editedAt.trim().isNotEmpty) ...[
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  'düzenlendi',
+                                                  style: TextStyle(
+                                                    color: Colors.white.withOpacity(0.62),
+                                                    fontSize: 10 * messageScale,
+                                                  ),
+                                                ),
+                                              ],
+                                              if (m.likeCount > 0) ...[
+                                                const SizedBox(width: 6),
+                                                Icon(
+                                                  Icons.favorite,
+                                                  size: 13 * messageScale,
+                                                  color: Colors.pinkAccent,
+                                                ),
+                                              ],
+                                              if (deliveredToServer) ...[
+                                                const SizedBox(width: 4),
+                                                Icon(
+                                                  seenByPeer ? Icons.done_all : Icons.done,
+                                                  size: 17 * messageScale,
+                                                  color: seenByPeer ? AppTheme.success : AppTheme.textSecondary,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 );
@@ -365,6 +648,51 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_replyingTo != null || _editingMessage != null)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceSecondary,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppTheme.borderSoft),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _editingMessage != null ? 'Mesajı düzenle' : 'Yanıtlanıyor',
+                                    style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 11 * messageScale,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  EmojiText(
+                                    _editingMessage != null ? _editingMessage!.body : _quotedPreviewText(_replyingTo!),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13 * messageScale,
+                                      color: AppTheme.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _clearComposerContext,
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
                     if (_peerTyping)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
@@ -390,6 +718,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             ),
                             child: TextField(
                               controller: _msgCtrl,
+                              focusNode: _inputFocusNode,
                               minLines: 1,
                               maxLines: 4,
                               onChanged: _onDraftChanged,
@@ -404,7 +733,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                               ),
                               cursorColor: AppTheme.violet,
                               decoration: InputDecoration(
-                                hintText: 'Mesaj yaz...',
+                                hintText: _editingMessage != null ? 'Mesajı düzenle...' : 'Mesaj yaz...',
                                 hintStyle: TextStyle(
                                   fontSize: 14 * messageScale,
                                   color: AppTheme.textTertiary,
@@ -438,7 +767,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             ),
                             child: _sending
                                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                                : Text('Gönder', style: TextStyle(fontSize: 14 * messageScale)),
+                                : Text(_editingMessage != null ? 'Kaydet' : 'Gönder', style: TextStyle(fontSize: 14 * messageScale)),
                           ),
                         ),
                       ],
@@ -474,6 +803,11 @@ class _MsgItem {
   final int receiverAccountId;
   final String body;
   final String createdAt;
+  final String editedAt;
+  final String deletedAt;
+  final int likeCount;
+  final bool likedByMe;
+  final _MsgItem? replyTo;
 
   const _MsgItem({
     required this.id,
@@ -481,15 +815,41 @@ class _MsgItem {
     required this.receiverAccountId,
     required this.body,
     required this.createdAt,
+    required this.editedAt,
+    required this.deletedAt,
+    required this.likeCount,
+    required this.likedByMe,
+    required this.replyTo,
   });
 
+  bool get isDeleted => deletedAt.trim().isNotEmpty;
+
   factory _MsgItem.fromJson(Map<String, dynamic> json) {
+    final replyMessageId = (json['reply_message_id'] as num?)?.toInt() ?? 0;
     return _MsgItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
       senderAccountId: (json['sender_account_id'] as num?)?.toInt() ?? 0,
       receiverAccountId: (json['receiver_account_id'] as num?)?.toInt() ?? 0,
       body: (json['body'] ?? '').toString(),
       createdAt: (json['created_at'] ?? '').toString(),
+      editedAt: (json['edited_at'] ?? '').toString(),
+      deletedAt: (json['deleted_at'] ?? '').toString(),
+      likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+      likedByMe: json['liked_by_me'] == true,
+      replyTo: replyMessageId > 0
+          ? _MsgItem(
+              id: replyMessageId,
+              senderAccountId: (json['reply_sender_account_id'] as num?)?.toInt() ?? 0,
+              receiverAccountId: 0,
+              body: (json['reply_body'] ?? '').toString(),
+              createdAt: '',
+              editedAt: '',
+              deletedAt: (json['reply_deleted_at'] ?? '').toString(),
+              likeCount: 0,
+              likedByMe: false,
+              replyTo: null,
+            )
+          : null,
     );
   }
 }
