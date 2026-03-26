@@ -533,7 +533,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                 return Align(
                                   alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                                   child: GestureDetector(
-                                    onLongPress: () => _showMessageActions(m),
+                                    onTap: () => _showMessageActions(m),
                                     child: Container(
                                       margin: const EdgeInsets.only(bottom: 8),
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
