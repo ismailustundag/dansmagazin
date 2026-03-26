@@ -550,11 +550,6 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                     foregroundColor: const Color(0xFFE4DBFF),
                     isLoading: _sendingRequest,
                   ),
-                const SizedBox(height: 12),
-                _FriendConnectionsPreviewCard(
-                  friends: profile.friends,
-                  onTap: () => _showAllFriendsSheet(profile),
-                ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -581,12 +576,11 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                     ),
                   ],
                 ),
-                if (profile.danceInterests.trim().isNotEmpty ||
-                    profile.danceSchool.trim().isNotEmpty ||
-                    profile.about.trim().isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  _FriendProfileDetailsCard(profile: profile),
-                ],
+                const SizedBox(height: 12),
+                _FriendConnectionsPreviewCard(
+                  friends: profile.friends,
+                  onTap: () => _showAllFriendsSheet(profile),
+                ),
               ],
             );
           },
@@ -605,10 +599,19 @@ class _FriendProfileHeroCard extends StatelessWidget {
     required this.onPhotoTap,
   });
 
+  List<String> _interestItems(String raw) {
+    return raw
+        .split(RegExp(r'[,;\n]+'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
+
   Widget _infoCell({
     required String title,
     required String value,
     required ProfileCardPalette palette,
+    Widget? child,
   }) {
     final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
     return Container(
@@ -630,16 +633,17 @@ class _FriendProfileHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          EmojiText(
-            resolvedValue,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFFFFF7F1),
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          child ??
+              EmojiText(
+                resolvedValue,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFFFF7F1),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
         ],
       ),
     );
@@ -705,6 +709,7 @@ class _FriendProfileHeroCard extends StatelessWidget {
     final t = I18n.t;
     final nameText = profile.name.trim().toUpperCase();
     final palette = ProfileCardPalette.fromGender(profile.gender);
+    final interestItems = _interestItems(profile.danceInterests);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -740,151 +745,84 @@ class _FriendProfileHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _infoCell(
-                  title: t('registration_date'),
-                  value: profile.registeredAt,
-                  palette: palette,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _infoCell(
-                  title: t('profile_id'),
-                  value: '${profile.accountId}',
-                  palette: palette,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FriendProfileDetailsCard extends StatelessWidget {
-  final _FriendProfile profile;
-
-  const _FriendProfileDetailsCard({
-    required this.profile,
-  });
-
-  List<String> _interestItems(String raw) {
-    return raw
-        .split(RegExp(r'[,;\n]+'))
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-  }
-
-  Widget _infoCell({
-    required String title,
-    required String value,
-    Widget? child,
-  }) {
-    final resolvedValue = value.trim().isEmpty ? I18n.t('not_added_yet') : value.trim();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.74),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          child ??
-              EmojiText(
-                resolvedValue,
-                style: const TextStyle(
-                  color: Color(0xFFFFF7F1),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = I18n.t;
-    final interestItems = _interestItems(profile.danceInterests);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121A2B),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            t('about_profile'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (interestItems.isNotEmpty)
-            _infoCell(
-              title: t('dance_interests'),
-              value: profile.danceInterests,
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: interestItems
-                    .map(
-                      (item) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: Colors.white.withOpacity(0.08)),
-                        ),
-                        child: EmojiText(
-                          item,
-                          style: const TextStyle(
-                            color: Color(0xFFFFF7F1),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cellWidth = (constraints.maxWidth - 10) / 2;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('registration_date'),
+                      value: profile.registeredAt,
+                      palette: palette,
+                    ),
+                  ),
+                  SizedBox(
+                    width: cellWidth,
+                    child: _infoCell(
+                      title: t('profile_id'),
+                      value: '${profile.accountId}',
+                      palette: palette,
+                    ),
+                  ),
+                  SizedBox(
+                    width: constraints.maxWidth,
+                    child: _infoCell(
+                      title: t('dance_interests'),
+                      value: profile.danceInterests,
+                      palette: palette,
+                      child: interestItems.isEmpty
+                          ? null
+                          : Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: interestItems
+                                  .map(
+                                    (item) => Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(999),
+                                        border: Border.all(color: Colors.white.withOpacity(0.08)),
+                                      ),
+                                      child: EmojiText(
+                                        item,
+                                        style: const TextStyle(
+                                          color: Color(0xFFFFF7F1),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: constraints.maxWidth,
+                    child: _infoCell(
+                      title: t('dance_school'),
+                      value: profile.danceSchool,
+                      palette: palette,
+                    ),
+                  ),
+                  if (profile.about.trim().isNotEmpty)
+                    SizedBox(
+                      width: constraints.maxWidth,
+                      child: _infoCell(
+                        title: t('about_profile'),
+                        value: profile.about,
+                        palette: palette,
                       ),
-                    )
-                    .toList(),
-              ),
-            ),
-          if (interestItems.isNotEmpty && (profile.danceSchool.trim().isNotEmpty || profile.about.trim().isNotEmpty))
-            const SizedBox(height: 10),
-          if (profile.danceSchool.trim().isNotEmpty)
-            _infoCell(
-              title: t('dance_school'),
-              value: profile.danceSchool,
-            ),
-          if (profile.danceSchool.trim().isNotEmpty && profile.about.trim().isNotEmpty)
-            const SizedBox(height: 10),
-          if (profile.about.trim().isNotEmpty)
-            _infoCell(
-              title: t('about_profile'),
-              value: profile.about,
-            ),
+                    ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
