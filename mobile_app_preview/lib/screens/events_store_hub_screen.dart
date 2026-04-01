@@ -7,11 +7,13 @@ import 'store_screen.dart';
 class EventsStoreHubScreen extends StatelessWidget {
   final String sessionToken;
   final bool canCreateEvent;
+  final bool canAddToFeed;
 
   const EventsStoreHubScreen({
     super.key,
     required this.sessionToken,
     required this.canCreateEvent,
+    required this.canAddToFeed,
   });
 
   @override
@@ -36,8 +38,12 @@ class EventsStoreHubScreen extends StatelessWidget {
             EventsScreen(
               sessionToken: sessionToken,
               canCreateEvent: canCreateEvent,
+              canAddToFeed: canAddToFeed,
             ),
-            StoreScreen(sessionToken: sessionToken),
+            StoreScreen(
+              sessionToken: sessionToken,
+              canAddToFeed: canAddToFeed,
+            ),
           ],
         ),
       ),

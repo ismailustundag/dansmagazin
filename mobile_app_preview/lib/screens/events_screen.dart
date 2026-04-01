@@ -20,11 +20,13 @@ Alignment _coverAlignment(String raw) {
 class EventsScreen extends StatefulWidget {
   final String sessionToken;
   final bool canCreateEvent;
+  final bool canAddToFeed;
 
   const EventsScreen({
     super.key,
     required this.sessionToken,
     required this.canCreateEvent,
+    required this.canAddToFeed,
   });
 
   @override
@@ -131,6 +133,7 @@ class _EventsScreenState extends State<EventsScreen> {
                               wooProductId: items[i].wooProductId,
                               ticketSalesEnabled: items[i].ticketSalesEnabled,
                               sessionToken: widget.sessionToken,
+                              canAddToFeed: widget.canAddToFeed,
                             ),
                           ),
                         );

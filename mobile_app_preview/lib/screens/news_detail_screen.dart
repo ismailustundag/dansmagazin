@@ -3,13 +3,21 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:http/http.dart' as http;
-import 'package:share_plus/share_plus.dart';
+
+import '../services/content_share_service.dart';
+import '../services/i18n.dart';
 
 class NewsDetailScreen extends StatefulWidget {
   final int postId;
   final String sessionToken;
+  final bool canAddToFeed;
 
-  const NewsDetailScreen({super.key, required this.postId, required this.sessionToken});
+  const NewsDetailScreen({
+    super.key,
+    required this.postId,
+    required this.sessionToken,
+    required this.canAddToFeed,
+  });
 
   @override
   State<NewsDetailScreen> createState() => _NewsDetailScreenState();
@@ -19,6 +27,7 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   late Future<_NewsDetail> _future;
   int _likeCount = 0;
   bool _liked = false;
+  bool _sharingBusy = false;
 
   @override
   void initState() {
@@ -78,22 +87,100 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     return _NewsDetail.fromJson(body);
   }
 
+  ContentSharePayload _sharePayload(_NewsDetail item) {
+    return ContentSharePayload(
+      categoryLabel: 'Haber',
+      title: item.title.trim(),
+      subtitle: item.date.trim(),
+      description: _plainSummary(item.contentHtml),
+      imageUrl: item.image.trim(),
+      feedText: '',
+      accentColor: const Color(0xFFF97316),
+    );
+  }
+
+  String _plainSummary(String html) {
+    final noTags = html.replaceAll(RegExp(r'<[^>]+>'), ' ');
+    final cleaned = noTags.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (cleaned.length <= 180) return cleaned;
+    return '${cleaned.substring(0, 180).trim()}...';
+  }
+
   Future<void> _shareNews(_NewsDetail item) async {
-    final shareText = item.link.isNotEmpty ? '${item.title}\n${item.link}' : item.title;
-    final box = context.findRenderObject() as RenderBox?;
-    final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
     try {
-      await Share.share(
-        shareText,
-        subject: item.title,
-        sharePositionOrigin: origin,
+      await ContentShareService.shareAsImage(
+        context,
+        payload: _sharePayload(item),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylaşım açılamadı, tekrar deneyin.')),
+        SnackBar(content: Text(I18n.t('visual_share_failed'))),
       );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
     }
+  }
+
+  Future<void> _addNewsToFeed(_NewsDetail item) async {
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
+    try {
+      await ContentShareService.addToFeed(
+        sessionToken: widget.sessionToken,
+        payload: _sharePayload(item),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('added_to_feed'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${I18n.t('feed_add_failed')} ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
+    }
+  }
+
+  Future<void> _openShareActions(_NewsDetail item) async {
+    if (!widget.canAddToFeed) {
+      await _shareNews(item);
+      return;
+    }
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF111827),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined, color: Colors.white),
+              title: Text(I18n.t('share_as_visual')),
+              onTap: () => Navigator.of(context).pop('share'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
+              title: Text(I18n.t('add_to_feed')),
+              onTap: () => Navigator.of(context).pop('feed'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'feed') {
+      await _addNewsToFeed(item);
+      return;
+    }
+    await _shareNews(item);
   }
 
   @override
@@ -169,20 +256,18 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _shareNews(item),
-                      icon: const Icon(Icons.share),
-                      label: const Text('Paylaş'),
+                      onPressed: _sharingBusy ? null : () => _openShareActions(item),
+                      icon: _sharingBusy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.share),
+                      label: Text(I18n.t('share')),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Paylaş seçeneğinde WhatsApp / Instagram / Facebook gibi uygulamalar listelenir.',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.55),
-                  fontSize: 12,
-                ),
               ),
             ],
           );

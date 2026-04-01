@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../services/content_share_service.dart';
+import '../services/i18n.dart';
 import '../services/store_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
@@ -11,8 +13,13 @@ import 'screen_shell.dart';
 
 class StoreScreen extends StatefulWidget {
   final String sessionToken;
+  final bool canAddToFeed;
 
-  const StoreScreen({super.key, required this.sessionToken});
+  const StoreScreen({
+    super.key,
+    required this.sessionToken,
+    required this.canAddToFeed,
+  });
 
   @override
   State<StoreScreen> createState() => _StoreScreenState();
@@ -76,12 +83,13 @@ class _StoreScreenState extends State<StoreScreen> {
                   _FeaturedStoresCarousel(
                     items: items,
                     onTap: (seller) => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => SellerStoreScreen(
-                          sessionToken: widget.sessionToken,
-                          sellerAccountId: seller.accountId,
+                        MaterialPageRoute(
+                          builder: (_) => SellerStoreScreen(
+                            sessionToken: widget.sessionToken,
+                            sellerAccountId: seller.accountId,
+                            canAddToFeed: widget.canAddToFeed,
+                          ),
                         ),
-                      ),
                     ),
                   ),
                 ],
@@ -128,6 +136,7 @@ class _StoreScreenState extends State<StoreScreen> {
                         builder: (_) => SellerStoreScreen(
                           sessionToken: widget.sessionToken,
                           sellerAccountId: seller.accountId,
+                          canAddToFeed: widget.canAddToFeed,
                         ),
                       ),
                     ),
@@ -144,11 +153,13 @@ class _StoreScreenState extends State<StoreScreen> {
 class SellerStoreScreen extends StatefulWidget {
   final String sessionToken;
   final int sellerAccountId;
+  final bool canAddToFeed;
 
   const SellerStoreScreen({
     super.key,
     required this.sessionToken,
     required this.sellerAccountId,
+    required this.canAddToFeed,
   });
 
   @override
@@ -233,6 +244,7 @@ class _SellerStoreScreenState extends State<SellerStoreScreen> {
                           builder: (_) => StoreProductDetailScreen(
                             sessionToken: widget.sessionToken,
                             productId: product.id,
+                            canAddToFeed: widget.canAddToFeed,
                           ),
                         ),
                       ),
@@ -249,11 +261,13 @@ class _SellerStoreScreenState extends State<SellerStoreScreen> {
 class StoreProductDetailScreen extends StatefulWidget {
   final String sessionToken;
   final int productId;
+  final bool canAddToFeed;
 
   const StoreProductDetailScreen({
     super.key,
     required this.sessionToken,
     required this.productId,
+    required this.canAddToFeed,
   });
 
   @override
@@ -262,6 +276,7 @@ class StoreProductDetailScreen extends StatefulWidget {
 
 class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
   late Future<StoreProductItem> _future;
+  bool _sharingBusy = false;
 
   @override
   void initState() {
@@ -288,6 +303,97 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
         ),
       ),
     );
+  }
+
+  ContentSharePayload _sharePayload(StoreProductItem product) {
+    final desc = product.description.trim();
+    final trimmedDesc = desc.length > 180 ? '${desc.substring(0, 180).trim()}...' : desc;
+    return ContentSharePayload(
+      categoryLabel: 'Mağaza Ürünü',
+      title: product.title.trim(),
+      subtitle: '${product.formattedPrice} · ${product.seller.name}',
+      description: trimmedDesc,
+      imageUrl: product.imageUrl.trim(),
+      feedText: '',
+      accentColor: AppTheme.cyan,
+    );
+  }
+
+  Future<void> _shareProduct(StoreProductItem product) async {
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
+    try {
+      await ContentShareService.shareAsImage(
+        context,
+        payload: _sharePayload(product),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('visual_share_failed'))),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
+    }
+  }
+
+  Future<void> _addProductToFeed(StoreProductItem product) async {
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
+    try {
+      await ContentShareService.addToFeed(
+        sessionToken: widget.sessionToken,
+        payload: _sharePayload(product),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('added_to_feed'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${I18n.t('feed_add_failed')} ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
+    }
+  }
+
+  Future<void> _openShareActions(StoreProductItem product) async {
+    if (!widget.canAddToFeed) {
+      await _shareProduct(product);
+      return;
+    }
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF111827),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined, color: Colors.white),
+              title: Text(I18n.t('share_as_visual')),
+              onTap: () => Navigator.of(context).pop('share'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
+              title: Text(I18n.t('add_to_feed')),
+              onTap: () => Navigator.of(context).pop('feed'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'feed') {
+      await _addProductToFeed(product);
+      return;
+    }
+    await _shareProduct(product);
   }
 
   @override
@@ -407,17 +513,44 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              ElevatedButton.icon(
-                onPressed: () => _openChat(product),
-                icon: const Icon(Icons.chat_bubble_outline_rounded),
-                label: const Text('İletişime Geç'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(54),
-                  backgroundColor: AppTheme.cyan,
-                  foregroundColor: const Color(0xFF06111F),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _sharingBusy ? null : () => _openShareActions(product),
+                      icon: _sharingBusy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.ios_share_rounded),
+                      label: Text(I18n.t('share')),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(54),
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.8)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openChat(product),
+                      icon: const Icon(Icons.chat_bubble_outline_rounded),
+                      label: const Text('İletişime Geç'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(54),
+                        backgroundColor: AppTheme.cyan,
+                        foregroundColor: const Color(0xFF06111F),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           );

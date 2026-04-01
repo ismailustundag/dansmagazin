@@ -39,8 +39,13 @@ Alignment _coverAlignment(String raw) {
 
 class DiscoverScreen extends StatefulWidget {
   final String sessionToken;
+  final bool canAddToFeed;
 
-  const DiscoverScreen({super.key, required this.sessionToken});
+  const DiscoverScreen({
+    super.key,
+    required this.sessionToken,
+    required this.canAddToFeed,
+  });
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
@@ -536,6 +541,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           wooProductId: item.wooProductId,
           ticketSalesEnabled: item.ticketSalesEnabled,
           sessionToken: widget.sessionToken,
+          canAddToFeed: widget.canAddToFeed,
         ),
       ),
     );
@@ -632,6 +638,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         builder: (_) => NewsDetailScreen(
                           postId: items[i].id,
                           sessionToken: widget.sessionToken,
+                          canAddToFeed: widget.canAddToFeed,
                         ),
                       ),
                     );

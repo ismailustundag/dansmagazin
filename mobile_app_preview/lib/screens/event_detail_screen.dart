@@ -3,9 +3,11 @@ import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/checkout_api.dart';
+import '../services/content_share_service.dart';
 import '../services/calendar_service.dart';
 import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
+import '../services/i18n.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
 import '../widgets/verified_avatar.dart';
@@ -28,6 +30,7 @@ class EventDetailScreen extends StatefulWidget {
   final String wooProductId;
   final bool ticketSalesEnabled;
   final String sessionToken;
+  final bool canAddToFeed;
 
   const EventDetailScreen({
     super.key,
@@ -46,6 +49,7 @@ class EventDetailScreen extends StatefulWidget {
     required this.wooProductId,
     required this.ticketSalesEnabled,
     required this.sessionToken,
+    required this.canAddToFeed,
   });
 
   @override
@@ -69,6 +73,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   String? _raffleError;
   int? _deletingCommentId;
   bool _editingComment = false;
+  bool _sharingBusy = false;
   final TextEditingController _commentCtrl = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _didAutoHintScroll = false;
@@ -175,6 +180,108 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         builder: (_) => AppWebViewScreen(url: targetUrl, title: widget.title),
       ),
     );
+  }
+
+  ContentSharePayload _sharePayload() {
+    final parts = <String>[];
+    final eventDate = _fmtDate(widget.eventDate).trim();
+    if (eventDate.isNotEmpty) parts.add(eventDate);
+    if (widget.venue.trim().isNotEmpty) parts.add(widget.venue.trim());
+    final subtitle = parts.join(' · ');
+    final rawDescription = widget.description.trim().isNotEmpty
+        ? widget.description.trim()
+        : widget.program.trim().isNotEmpty
+            ? widget.program.trim()
+            : widget.organizer.trim();
+    final trimmedDescription = rawDescription.length > 180
+        ? '${rawDescription.substring(0, 180).trim()}...'
+        : rawDescription;
+    return ContentSharePayload(
+      categoryLabel: 'Etkinlik',
+      title: widget.title.trim(),
+      subtitle: subtitle,
+      description: trimmedDescription,
+      imageUrl: widget.cover.trim(),
+      feedText: '',
+      accentColor: AppTheme.orange,
+    );
+  }
+
+  Future<void> _shareEvent() async {
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
+    try {
+      await ContentShareService.shareAsImage(
+        context,
+        payload: _sharePayload(),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('visual_share_failed'))),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
+    }
+  }
+
+  Future<void> _addEventToFeed() async {
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
+    try {
+      await ContentShareService.addToFeed(
+        sessionToken: widget.sessionToken,
+        payload: _sharePayload(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('added_to_feed'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${I18n.t('feed_add_failed')} ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
+    }
+  }
+
+  Future<void> _openShareActions() async {
+    if (!widget.canAddToFeed) {
+      await _shareEvent();
+      return;
+    }
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF111827),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined, color: Colors.white),
+              title: Text(I18n.t('share_as_visual')),
+              onTap: () => Navigator.of(context).pop('share'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
+              title: Text(I18n.t('add_to_feed')),
+              onTap: () => Navigator.of(context).pop('feed'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'feed') {
+      await _addEventToFeed();
+      return;
+    }
+    await _shareEvent();
   }
 
   Future<void> _loadAttendees() async {
@@ -642,7 +749,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ),
             ),
           if (canAddToCalendar) const SizedBox(height: 12),
-            SizedBox(
+          SizedBox(
             height: 54,
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
@@ -662,6 +769,30 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       _joined ? 'Katılımı Geri Çek' : 'Etkinliğe Katılacağım',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                     ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: _sharingBusy ? null : _openShareActions,
+              style: OutlinedButton.styleFrom(
+                backgroundColor: AppTheme.surfaceSecondary,
+                side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
+                foregroundColor: AppTheme.textPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              ),
+              icon: _sharingBusy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.ios_share_rounded),
+              label: Text(
+                I18n.t('share'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
           const SizedBox(height: 12),

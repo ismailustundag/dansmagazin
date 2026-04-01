@@ -111,6 +111,11 @@ class _RootScreenState extends State<RootScreen> {
   bool _startupPopupVisible = false;
   int _socialOpenAddFriendsToken = 0;
 
+  bool get _canAddToFeedFromDetails =>
+      _appRole.trim().toLowerCase() == 'super_admin' ||
+      _wpRoles.map((e) => e.trim().toLowerCase()).contains('editor') ||
+      _wpRoles.map((e) => e.trim().toLowerCase()).contains('administrator');
+
   @override
   void initState() {
     super.initState();
@@ -828,6 +833,7 @@ class _RootScreenState extends State<RootScreen> {
         builder: (_) => NewsDetailScreen(
           postId: postId,
           sessionToken: _sessionToken,
+          canAddToFeed: _canAddToFeedFromDetails,
         ),
       ),
     );
@@ -838,7 +844,10 @@ class _RootScreenState extends State<RootScreen> {
     setState(() => _index = 1);
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => StoreScreen(sessionToken: _sessionToken),
+        builder: (_) => StoreScreen(
+          sessionToken: _sessionToken,
+          canAddToFeed: _canAddToFeedFromDetails,
+        ),
       ),
     );
   }
@@ -851,6 +860,7 @@ class _RootScreenState extends State<RootScreen> {
         builder: (_) => SellerStoreScreen(
           sessionToken: _sessionToken,
           sellerAccountId: sellerAccountId,
+          canAddToFeed: _canAddToFeedFromDetails,
         ),
       ),
     );
@@ -864,6 +874,7 @@ class _RootScreenState extends State<RootScreen> {
         builder: (_) => StoreProductDetailScreen(
           sessionToken: _sessionToken,
           productId: productId,
+          canAddToFeed: _canAddToFeedFromDetails,
         ),
       ),
     );
@@ -958,6 +969,7 @@ class _RootScreenState extends State<RootScreen> {
             wooProductId: (ev['woo_product_id'] ?? '').toString(),
             ticketSalesEnabled: (ev['ticket_sales_enabled'] == true) || (ev['ticket_sales_enabled'] == 1),
             sessionToken: _sessionToken,
+            canAddToFeed: _canAddToFeedFromDetails,
           ),
         ),
       );
@@ -983,10 +995,14 @@ class _RootScreenState extends State<RootScreen> {
     }
 
     final pages = [
-      DiscoverScreen(sessionToken: _sessionToken),
+      DiscoverScreen(
+        sessionToken: _sessionToken,
+        canAddToFeed: _canAddToFeedFromDetails,
+      ),
       EventsStoreHubScreen(
         sessionToken: _sessionToken,
         canCreateEvent: _canCreateMobileEvent,
+        canAddToFeed: _canAddToFeedFromDetails,
       ),
       PhotosScreen(
         accountId: _accountId,
