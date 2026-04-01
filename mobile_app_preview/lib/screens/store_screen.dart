@@ -339,6 +339,24 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
     }
   }
 
+  Future<void> _shareProductLink(StoreProductItem product) async {
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
+    try {
+      await ContentShareService.shareLink(
+        context,
+        payload: _sharePayload(product),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('link_share_failed'))),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
+    }
+  }
+
   Future<void> _addProductToFeed(StoreProductItem product) async {
     if (_sharingBusy) return;
     setState(() => _sharingBusy = true);
@@ -362,10 +380,6 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
   }
 
   Future<void> _openShareActions(StoreProductItem product) async {
-    if (!widget.canAddToFeed) {
-      await _shareProduct(product);
-      return;
-    }
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF111827),
@@ -382,15 +396,25 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
               onTap: () => Navigator.of(context).pop('share'),
             ),
             ListTile(
-              leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
-              title: Text(I18n.t('add_to_feed')),
-              onTap: () => Navigator.of(context).pop('feed'),
+              leading: const Icon(Icons.link_rounded, color: Colors.white),
+              title: Text(I18n.t('share_as_link')),
+              onTap: () => Navigator.of(context).pop('link'),
             ),
+            if (widget.canAddToFeed)
+              ListTile(
+                leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
+                title: Text(I18n.t('add_to_feed')),
+                onTap: () => Navigator.of(context).pop('feed'),
+              ),
           ],
         ),
       ),
     );
     if (!mounted || action == null) return;
+    if (action == 'link') {
+      await _shareProductLink(product);
+      return;
+    }
     if (action == 'feed') {
       await _addProductToFeed(product);
       return;

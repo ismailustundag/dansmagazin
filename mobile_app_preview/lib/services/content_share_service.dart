@@ -35,6 +35,23 @@ class ContentSharePayload {
 }
 
 class ContentShareService {
+  static Future<void> shareLink(
+    BuildContext context, {
+    required ContentSharePayload payload,
+  }) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final parts = [
+      payload.title.trim(),
+      payload.shareUrl.trim(),
+    ].where((e) => e.isNotEmpty).toList();
+    final text = parts.join('\n');
+    await Share.share(
+      text,
+      subject: payload.title.trim().isEmpty ? null : payload.title.trim(),
+      sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+    );
+  }
+
   static Future<void> shareAsImage(
     BuildContext context, {
     required ContentSharePayload payload,

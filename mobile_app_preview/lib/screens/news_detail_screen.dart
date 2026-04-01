@@ -126,6 +126,24 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
     }
   }
 
+  Future<void> _shareNewsLink(_NewsDetail item) async {
+    if (_sharingBusy) return;
+    setState(() => _sharingBusy = true);
+    try {
+      await ContentShareService.shareLink(
+        context,
+        payload: _sharePayload(item),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(I18n.t('link_share_failed'))),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingBusy = false);
+    }
+  }
+
   Future<void> _addNewsToFeed(_NewsDetail item) async {
     if (_sharingBusy) return;
     setState(() => _sharingBusy = true);
@@ -149,10 +167,6 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   }
 
   Future<void> _openShareActions(_NewsDetail item) async {
-    if (!widget.canAddToFeed) {
-      await _shareNews(item);
-      return;
-    }
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF111827),
@@ -169,15 +183,25 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
               onTap: () => Navigator.of(context).pop('share'),
             ),
             ListTile(
-              leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
-              title: Text(I18n.t('add_to_feed')),
-              onTap: () => Navigator.of(context).pop('feed'),
+              leading: const Icon(Icons.link_rounded, color: Colors.white),
+              title: Text(I18n.t('share_as_link')),
+              onTap: () => Navigator.of(context).pop('link'),
             ),
+            if (widget.canAddToFeed)
+              ListTile(
+                leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
+                title: Text(I18n.t('add_to_feed')),
+                onTap: () => Navigator.of(context).pop('feed'),
+              ),
           ],
         ),
       ),
     );
     if (!mounted || action == null) return;
+    if (action == 'link') {
+      await _shareNewsLink(item);
+      return;
+    }
     if (action == 'feed') {
       await _addNewsToFeed(item);
       return;
