@@ -242,6 +242,7 @@ class _RootScreenState extends State<RootScreen> {
         path.startsWith('/messages/') ||
         path.startsWith('/news/') ||
         path == '/photos' ||
+        path.startsWith('/photos/feed/posts/') ||
         path.startsWith('/photos/albums/') ||
         path.startsWith('/photos/polls/') ||
         path == '/store' ||
@@ -267,6 +268,10 @@ class _RootScreenState extends State<RootScreen> {
       if (host == 'photos' || host == 'photo') {
         if (segments.isEmpty) {
           return '/photos';
+        }
+        if (segments.length >= 3 && segments.first == 'feed' && segments[1] == 'posts') {
+          final id = int.tryParse(segments[2]) ?? 0;
+          if (id > 0) return '/photos/feed/posts/$id';
         }
         if (segments.length >= 2 && segments.first == 'albums') {
           return '/photos/albums/${segments[1]}';
@@ -769,6 +774,14 @@ class _RootScreenState extends State<RootScreen> {
       setState(() => _index = 2);
       return;
     }
+    final feedPostMatch = RegExp(r'^/photos/feed/posts/(\d+)$').firstMatch(path);
+    if (feedPostMatch != null) {
+      final postId = int.tryParse(feedPostMatch.group(1) ?? '') ?? 0;
+      if (postId > 0) {
+        await _openPhotoFeedPost(postId);
+        return;
+      }
+    }
     final albumMatch = RegExp(r'^/photos/albums/([^/]+)$').firstMatch(path);
     if (albumMatch != null) {
       final albumSlug = (albumMatch.group(1) ?? '').trim();
@@ -899,6 +912,21 @@ class _RootScreenState extends State<RootScreen> {
       MaterialPageRoute(
         builder: (_) => PhotoAlbumRouteScreen(
           albumSlug: albumSlug,
+          accountId: _accountId,
+          sessionToken: _sessionToken,
+          onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPhotoFeedPost(int postId) async {
+    if (!mounted) return;
+    setState(() => _index = 2);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PhotoFeedPostRouteScreen(
+          postId: postId,
           accountId: _accountId,
           sessionToken: _sessionToken,
           onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),

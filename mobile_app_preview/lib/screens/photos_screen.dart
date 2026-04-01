@@ -9,6 +9,7 @@ import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/date_time_format.dart';
+import '../services/content_share_service.dart';
 import '../services/i18n.dart';
 import '../services/photo_flow_api.dart';
 import '../services/photo_polls_api.dart';
@@ -177,6 +178,199 @@ class _PhotoAlbumRouteScreenState extends State<PhotoAlbumRouteScreen> {
           onRequireLogin: widget.onRequireLogin,
         );
       },
+    );
+  }
+}
+
+class PhotoFeedPostRouteScreen extends StatefulWidget {
+  final int postId;
+  final int accountId;
+  final String sessionToken;
+  final VoidCallback? onRequireLogin;
+
+  const PhotoFeedPostRouteScreen({
+    super.key,
+    required this.postId,
+    required this.accountId,
+    required this.sessionToken,
+    this.onRequireLogin,
+  });
+
+  @override
+  State<PhotoFeedPostRouteScreen> createState() => _PhotoFeedPostRouteScreenState();
+}
+
+class _PhotoFeedPostRouteScreenState extends State<PhotoFeedPostRouteScreen> {
+  late Future<PhotoFlowPost> _future;
+  PhotoFlowPost? _post;
+
+  bool get _isLoggedIn => widget.sessionToken.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<PhotoFlowPost> _load() async {
+    final post = await PhotoFlowApi.fetchOne(
+      widget.postId,
+      sessionToken: widget.sessionToken,
+    );
+    _post = post;
+    return post;
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _future = _load();
+    });
+    await _future;
+  }
+
+  Future<void> _toggleLike() async {
+    final current = _post;
+    if (current == null) return;
+    if (!_isLoggedIn) {
+      widget.onRequireLogin?.call();
+      return;
+    }
+    try {
+      final updated = await PhotoFlowApi.setLike(
+        widget.sessionToken,
+        postId: current.id,
+        like: !current.likedByMe,
+      );
+      if (!mounted) return;
+      setState(() {
+        _post = updated;
+        _future = Future.value(updated);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _openReplies() async {
+    final current = _post;
+    if (current == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _RepliesSheet(
+        post: current,
+        sessionToken: widget.sessionToken,
+        onRequireLogin: widget.onRequireLogin,
+      ),
+    );
+    if (!mounted) return;
+    await _refresh();
+  }
+
+  Future<void> _openImage() async {
+    final current = _post;
+    if (current == null) return;
+    final url = current.imageUrl.trim().isNotEmpty
+        ? current.imageUrl.trim()
+        : current.imageThumbUrl.trim();
+    if (url.isEmpty) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => _FeedImageViewerScreen(
+          imageUrl: url,
+          heroTag: 'feed-image-${current.id}',
+          title: current.authorName,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sharePost() async {
+    final current = _post;
+    if (current == null) return;
+    final rawBody = current.body.trim();
+    final trimmed = rawBody.length > 180
+        ? '${rawBody.substring(0, 180).trim()}...'
+        : rawBody;
+    final payload = ContentSharePayload(
+      categoryLabel: 'Akış',
+      title: '${current.authorName} paylaşımı',
+      subtitle: formatDateTimeDdMmYyyyHmDot(current.createdAt, fallback: ''),
+      description: trimmed,
+      imageUrl: current.imageUrl.trim().isNotEmpty
+          ? current.imageUrl.trim()
+          : current.imageThumbUrl.trim(),
+      feedText: '',
+      shareUrl: 'https://www.dansmagazin.net/?route=/photos/feed/posts/${current.id}',
+      accentColor: AppTheme.orange,
+    );
+    try {
+      await ContentShareService.shareAsImage(context, payload: payload);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.bgPrimary,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgPrimary,
+        title: const Text('Akış Gönderisi'),
+      ),
+      body: FutureBuilder<PhotoFlowPost>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && _post == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError && _post == null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: _ErrorCard(
+                  text: 'Gönderi yüklenemedi',
+                  onRetry: _refresh,
+                ),
+              ),
+            );
+          }
+          final post = snapshot.data ?? _post;
+          if (post == null) {
+            return const Center(
+              child: Text(
+                'Gönderi bulunamadı',
+                style: TextStyle(color: AppTheme.textSecondary),
+              ),
+            );
+          }
+          _post = post;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _FeedPostCard(
+                post: post,
+                canDelete: post.accountId == widget.accountId,
+                onLikeTap: _toggleLike,
+                onReplyTap: _openReplies,
+                onImageTap: _openImage,
+                onShareTap: _sharePost,
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -481,6 +675,29 @@ class _PhotosScreenState extends State<PhotosScreen> {
     );
   }
 
+  Future<void> _shareFeedPost(PhotoFlowPost post) async {
+    final rawBody = post.body.trim();
+    final trimmed = rawBody.length > 180 ? '${rawBody.substring(0, 180).trim()}...' : rawBody;
+    final payload = ContentSharePayload(
+      categoryLabel: 'Akış',
+      title: '${post.authorName} paylaşımı',
+      subtitle: formatDateTimeDdMmYyyyHmDot(post.createdAt, fallback: ''),
+      description: trimmed,
+      imageUrl: post.imageUrl.trim().isNotEmpty ? post.imageUrl.trim() : post.imageThumbUrl.trim(),
+      feedText: '',
+      shareUrl: 'https://www.dansmagazin.net/?route=/photos/feed/posts/${post.id}',
+      accentColor: AppTheme.orange,
+    );
+    try {
+      await ContentShareService.shareAsImage(context, payload: payload);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _openPollDetail(PhotoPoll poll) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -622,6 +839,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
                           onLikeTap: () => _toggleFeedLike(post),
                           onReplyTap: () => _openRepliesSheet(post),
                           onImageTap: () => _openFeedImageViewer(post),
+                          onShareTap: () => _shareFeedPost(post),
                         ),
                       ),
                     )
@@ -954,6 +1172,7 @@ class _FeedPostCard extends StatelessWidget {
   final VoidCallback onLikeTap;
   final VoidCallback onReplyTap;
   final VoidCallback onImageTap;
+  final VoidCallback? onShareTap;
 
   const _FeedPostCard({
     required this.post,
@@ -962,6 +1181,7 @@ class _FeedPostCard extends StatelessWidget {
     required this.onLikeTap,
     required this.onReplyTap,
     required this.onImageTap,
+    this.onShareTap,
   });
 
   @override
@@ -1076,6 +1296,23 @@ class _FeedPostCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onShareTap != null) ...[
+                const SizedBox(width: 18),
+                InkWell(
+                  onTap: onShareTap,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.ios_share_rounded, size: 19, color: AppTheme.textSecondary),
+                        const SizedBox(width: 6),
+                        Text(I18n.t('share')),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           if (post.likePreviewNames.isNotEmpty) ...[
@@ -1384,6 +1621,7 @@ class _RepliesSheetState extends State<_RepliesSheet> {
                     canDelete: false,
                     onLikeTap: () {},
                     onReplyTap: () {},
+                    onShareTap: null,
                     onImageTap: () {
                       final url = _post.imageUrl.trim().isNotEmpty ? _post.imageUrl.trim() : _post.imageThumbUrl.trim();
                       if (url.isEmpty) return;

@@ -139,6 +139,21 @@ class PhotoFlowApi {
         .toList();
   }
 
+  static Future<PhotoFlowPost> fetchOne(
+    int postId, {
+    String sessionToken = '',
+  }) async {
+    final resp = await http.get(
+      Uri.parse('$_base/posts/$postId'),
+      headers: _headers(sessionToken),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception(_parseError(resp.body, fallback: 'Gönderi yüklenemedi'));
+    }
+    final map = jsonDecode(resp.body) as Map<String, dynamic>;
+    return PhotoFlowPost.fromJson((map['item'] as Map<String, dynamic>? ?? const {}));
+  }
+
   static Future<PhotoFlowPost> createPost(
     String sessionToken, {
     required String text,

@@ -17,6 +17,7 @@ class ContentSharePayload {
   final String description;
   final String imageUrl;
   final String feedText;
+  final String shareUrl;
   final Color accentColor;
 
   const ContentSharePayload({
@@ -26,6 +27,7 @@ class ContentSharePayload {
     required this.description,
     required this.imageUrl,
     required this.feedText,
+    this.shareUrl = '',
     required this.accentColor,
   });
 }
@@ -37,9 +39,14 @@ class ContentShareService {
   }) async {
     final file = await _buildCardFile(payload);
     final box = context.findRenderObject() as RenderBox?;
+    final shareText = [
+      payload.title.trim(),
+      payload.shareUrl.trim(),
+    ].where((e) => e.isNotEmpty).join('\n');
     await Share.shareXFiles(
       [XFile(file.path)],
       subject: payload.title,
+      text: shareText.isEmpty ? null : shareText,
       sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     );
   }
