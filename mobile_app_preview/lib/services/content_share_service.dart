@@ -118,6 +118,7 @@ class ContentShareService {
           payload.accentColor.withOpacity(0.82),
           const Color(0xFF10182E),
         ],
+        const [0.0, 0.54, 1.0],
       );
     canvas.drawRect(rect, bgPaint);
 
