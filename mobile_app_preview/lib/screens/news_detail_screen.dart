@@ -95,6 +95,8 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       description: _plainSummary(item.contentHtml),
       imageUrl: item.image.trim(),
       feedText: '',
+      shareUrl: 'https://www.dansmagazin.net/?route=/news/${widget.postId}',
+      targetRoute: '/news/${widget.postId}',
       accentColor: const Color(0xFFF97316),
     );
   }

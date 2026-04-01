@@ -930,6 +930,7 @@ class _RootScreenState extends State<RootScreen> {
           accountId: _accountId,
           sessionToken: _sessionToken,
           onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
+          onOpenRoute: _openFromPushRoute,
         ),
       ),
     );
@@ -1037,6 +1038,7 @@ class _RootScreenState extends State<RootScreen> {
         sessionToken: _sessionToken,
         appRole: _appRole,
         onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
+        onOpenRoute: _openFromPushRoute,
       ),
       SocialScreen(
         sessionToken: _sessionToken,

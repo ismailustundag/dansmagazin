@@ -68,6 +68,7 @@ class PhotosScreen extends StatefulWidget {
   final String sessionToken;
   final String appRole;
   final VoidCallback? onRequireLogin;
+  final Future<void> Function(String route)? onOpenRoute;
 
   const PhotosScreen({
     super.key,
@@ -75,6 +76,7 @@ class PhotosScreen extends StatefulWidget {
     required this.sessionToken,
     this.appRole = 'customer',
     this.onRequireLogin,
+    this.onOpenRoute,
   });
 
   @override
@@ -187,6 +189,7 @@ class PhotoFeedPostRouteScreen extends StatefulWidget {
   final int accountId;
   final String sessionToken;
   final VoidCallback? onRequireLogin;
+  final Future<void> Function(String route)? onOpenRoute;
 
   const PhotoFeedPostRouteScreen({
     super.key,
@@ -194,6 +197,7 @@ class PhotoFeedPostRouteScreen extends StatefulWidget {
     required this.accountId,
     required this.sessionToken,
     this.onRequireLogin,
+    this.onOpenRoute,
   });
 
   @override
@@ -277,6 +281,11 @@ class _PhotoFeedPostRouteScreenState extends State<PhotoFeedPostRouteScreen> {
   Future<void> _openImage() async {
     final current = _post;
     if (current == null) return;
+    final targetRoute = current.targetRoute.trim();
+    if (targetRoute.startsWith('/') && widget.onOpenRoute != null) {
+      await widget.onOpenRoute!(targetRoute);
+      return;
+    }
     final url = current.imageUrl.trim().isNotEmpty
         ? current.imageUrl.trim()
         : current.imageThumbUrl.trim();
@@ -366,6 +375,7 @@ class _PhotoFeedPostRouteScreenState extends State<PhotoFeedPostRouteScreen> {
                 onReplyTap: _openReplies,
                 onImageTap: _openImage,
                 onShareTap: _sharePost,
+                onContentTap: post.targetRoute.trim().startsWith('/') ? _openImage : null,
               ),
             ],
           );
@@ -662,6 +672,11 @@ class _PhotosScreenState extends State<PhotosScreen> {
   }
 
   Future<void> _openFeedImageViewer(PhotoFlowPost post) async {
+    final targetRoute = post.targetRoute.trim();
+    if (targetRoute.startsWith('/') && widget.onOpenRoute != null) {
+      await widget.onOpenRoute!(targetRoute);
+      return;
+    }
     final url = post.imageUrl.trim().isNotEmpty ? post.imageUrl.trim() : post.imageThumbUrl.trim();
     if (url.isEmpty) return;
     await Navigator.of(context).push<void>(
@@ -840,6 +855,9 @@ class _PhotosScreenState extends State<PhotosScreen> {
                           onReplyTap: () => _openRepliesSheet(post),
                           onImageTap: () => _openFeedImageViewer(post),
                           onShareTap: () => _shareFeedPost(post),
+                          onContentTap: post.targetRoute.trim().startsWith('/')
+                              ? () => _openFeedImageViewer(post)
+                              : null,
                         ),
                       ),
                     )
@@ -1173,6 +1191,7 @@ class _FeedPostCard extends StatelessWidget {
   final VoidCallback onReplyTap;
   final VoidCallback onImageTap;
   final VoidCallback? onShareTap;
+  final VoidCallback? onContentTap;
 
   const _FeedPostCard({
     required this.post,
@@ -1182,6 +1201,7 @@ class _FeedPostCard extends StatelessWidget {
     required this.onReplyTap,
     required this.onImageTap,
     this.onShareTap,
+    this.onContentTap,
   });
 
   @override
@@ -1236,9 +1256,16 @@ class _FeedPostCard extends StatelessWidget {
           ),
           if (post.body.trim().isNotEmpty) ...[
             const SizedBox(height: 14),
-            EmojiText(
-              post.body,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+            InkWell(
+              onTap: onContentTap,
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: EmojiText(
+                  post.body,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+                ),
+              ),
             ),
           ],
           if (imageUrl.trim().isNotEmpty) ...[

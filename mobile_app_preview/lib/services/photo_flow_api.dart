@@ -43,6 +43,7 @@ class PhotoFlowPost {
   final String body;
   final String imageUrl;
   final String imageThumbUrl;
+  final String targetRoute;
   final int likeCount;
   final int replyCount;
   final bool likedByMe;
@@ -59,6 +60,7 @@ class PhotoFlowPost {
     required this.body,
     required this.imageUrl,
     required this.imageThumbUrl,
+    required this.targetRoute,
     required this.likeCount,
     required this.replyCount,
     required this.likedByMe,
@@ -85,6 +87,7 @@ class PhotoFlowPost {
       body: (json['body'] ?? '').toString(),
       imageUrl: (json['image_url'] ?? '').toString(),
       imageThumbUrl: (json['image_thumb_url'] ?? '').toString(),
+      targetRoute: (json['target_route'] ?? '').toString(),
       likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
       replyCount: (json['reply_count'] as num?)?.toInt() ?? 0,
       likedByMe: json['liked_by_me'] == true,
@@ -158,10 +161,12 @@ class PhotoFlowApi {
     String sessionToken, {
     required String text,
     String? imagePath,
+    String targetRoute = '',
   }) async {
     final req = http.MultipartRequest('POST', Uri.parse('$_base/posts'))
       ..headers.addAll(_headers(sessionToken))
-      ..fields['text'] = text;
+      ..fields['text'] = text
+      ..fields['target_route'] = targetRoute.trim();
     final path = (imagePath ?? '').trim();
     if (path.isNotEmpty) {
       req.files.add(await http.MultipartFile.fromPath('image', path));

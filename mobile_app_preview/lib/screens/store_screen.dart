@@ -315,6 +315,8 @@ class _StoreProductDetailScreenState extends State<StoreProductDetailScreen> {
       description: trimmedDesc,
       imageUrl: product.imageUrl.trim(),
       feedText: '',
+      shareUrl: 'https://www.dansmagazin.net/?route=/store/products/${product.id}',
+      targetRoute: '/store/products/${product.id}',
       accentColor: AppTheme.cyan,
     );
   }

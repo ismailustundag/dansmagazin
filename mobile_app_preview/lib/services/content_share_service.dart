@@ -18,6 +18,7 @@ class ContentSharePayload {
   final String imageUrl;
   final String feedText;
   final String shareUrl;
+  final String targetRoute;
   final Color accentColor;
 
   const ContentSharePayload({
@@ -28,6 +29,7 @@ class ContentSharePayload {
     required this.imageUrl,
     required this.feedText,
     this.shareUrl = '',
+    this.targetRoute = '',
     required this.accentColor,
   });
 }
@@ -60,6 +62,7 @@ class ContentShareService {
       sessionToken,
       text: payload.feedText.trim(),
       imagePath: file.path,
+      targetRoute: payload.targetRoute.trim(),
     );
   }
 

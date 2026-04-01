@@ -203,6 +203,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       description: trimmedDescription,
       imageUrl: widget.cover.trim(),
       feedText: '',
+      shareUrl: 'https://www.dansmagazin.net/?route=/events/${widget.submissionId}',
+      targetRoute: '/events/${widget.submissionId}',
       accentColor: AppTheme.orange,
     );
   }
