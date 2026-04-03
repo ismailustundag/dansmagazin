@@ -748,7 +748,7 @@ class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
               return ListView(
                 children: const [
                   SizedBox(height: 60),
-                  Center(child: Text('Bu kullanıcıya atanmış bilet kontrol yetkisi yok.')),
+                  Center(child: Text('Bu kullanıcıya atanmış etkinlik editör yetkisi yok.')),
                 ],
               );
             }
@@ -1466,6 +1466,7 @@ class _EditManagedEventSheet extends StatefulWidget {
 
 class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   static const String _base = 'https://api2.dansmagazin.net';
+  final _picker = ImagePicker();
   late final TextEditingController _descCtrl;
   late final TextEditingController _startDateCtrl;
   late final TextEditingController _startTimeCtrl;
@@ -1482,6 +1483,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   final Set<String> _danceStyles = <String>{};
   bool _repeatWeekly = false;
   int _repeatWeekday = 0;
+  XFile? _coverImage;
   bool _saving = false;
   String? _error;
   bool get _isPromoLesson => _eventKind == 'promo_lesson';
@@ -1576,6 +1578,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim();
+      if (_coverImage != null) {
+        req.files.add(await http.MultipartFile.fromPath('cover_image', _coverImage!.path));
+      }
       final res = await req.send();
       final body = await res.stream.bytesToString();
       if (res.statusCode != 200) {
@@ -1634,6 +1639,94 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
           _section(
             'Mekan ve Tür',
             [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Etkinlik Afişi',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: _coverImage != null
+                          ? Image.file(
+                              File(_coverImage!.path),
+                              height: 148,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            )
+                          : (widget.item.coverUrl.isNotEmpty
+                              ? Image.network(
+                                  widget.item.coverUrl,
+                                  height: 148,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  alignment: _coverAlignment(_coverCrop),
+                                  errorBuilder: (_, __, ___) => Container(
+                                    height: 148,
+                                    color: AppTheme.surfacePrimary,
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.image_not_supported_outlined, color: AppTheme.textSecondary),
+                                  ),
+                                )
+                              : Container(
+                                  height: 148,
+                                  width: double.infinity,
+                                  color: AppTheme.surfacePrimary,
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.image_not_supported_outlined, color: AppTheme.textSecondary),
+                                )),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _saving
+                              ? null
+                              : () async {
+                                  try {
+                                    final x = await _picker
+                                        .pickImage(
+                                          source: ImageSource.gallery,
+                                          imageQuality: 85,
+                                          requestFullMetadata: false,
+                                          maxWidth: 1440,
+                                        )
+                                        .timeout(const Duration(seconds: 25));
+                                    if (x != null && mounted) {
+                                      setState(() => _coverImage = x);
+                                    }
+                                  } on TimeoutException {
+                                    if (!mounted) return;
+                                    setState(() => _error = I18n.t('gallery_timeout'));
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    setState(() => _error = '${I18n.t('photo_pick_failed')}: $e');
+                                  }
+                                },
+                          icon: const Icon(Icons.image_outlined),
+                          label: Text(_coverImage == null ? 'Afişi Değiştir' : 'Yeni Afiş Seçildi'),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _coverImage == null ? 'Mevcut afiş korunuyor' : _coverImage!.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
               _txt(_venueNameCtrl, 'Mekan Adı'),
               _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
               _eventCityField(
