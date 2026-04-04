@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show lerpDouble;
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
@@ -1208,42 +1209,105 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
               builder: (context, _) {
                 final pulse = Curves.easeInOut.transform(_logoPulseController.value);
                 final selected = _index == 2;
-                final scale = selected ? 1.0 + (pulse * 0.08) : 0.98 + (pulse * 0.04);
-                final glowOpacity = selected ? 0.30 + (pulse * 0.18) : 0.16 + (pulse * 0.08);
+                final scale = selected ? 1.0 + (pulse * 0.13) : 0.97 + (pulse * 0.06);
+                final glowOpacity = selected ? 0.34 + (pulse * 0.28) : 0.18 + (pulse * 0.10);
+                final haloScale = selected ? 1.04 + (pulse * 0.18) : 1.0 + (pulse * 0.08);
+                final borderOpacity = selected ? 0.24 + (pulse * 0.16) : 0.10 + (pulse * 0.05);
+                final shineOffset = lerpDouble(-78, 78, pulse) ?? 0;
                 return GestureDetector(
                   onTap: () => _onNavTap(2),
-                  child: Transform.scale(
-                    scale: scale,
-                    child: Container(
-                      width: 86,
-                      height: 86,
-                      padding: const EdgeInsets.all(10),
-                      decoration: AppTheme.glowCircle(tone: AppTone.photos, radius: 26).copyWith(
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.orange.withOpacity(glowOpacity),
-                            blurRadius: selected ? 28 : 20,
-                            spreadRadius: selected ? 3 : 1,
-                          ),
-                        ],
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.bgDeep.withOpacity(0.92),
-                          border: Border.all(
-                            color: selected
-                                ? Colors.white.withOpacity(0.18)
-                                : Colors.white.withOpacity(0.08),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
+                      Transform.scale(
+                        scale: haloScale,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  AppTheme.orange.withOpacity(selected ? 0.34 + (pulse * 0.20) : 0.16),
+                                  AppTheme.amber.withOpacity(selected ? 0.12 + (pulse * 0.08) : 0.05),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0.0, 0.52, 1.0],
+                              ),
+                            ),
                           ),
                         ),
-                        padding: const EdgeInsets.all(8),
-                        child: Image.asset(
-                          'assets/icons/dm.png',
-                          fit: BoxFit.contain,
+                      ),
+                      Transform.scale(
+                        scale: scale,
+                        child: Container(
+                          width: 86,
+                          height: 86,
+                          padding: const EdgeInsets.all(10),
+                          decoration: AppTheme.glowCircle(tone: AppTone.photos, radius: 26).copyWith(
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.orange.withOpacity(glowOpacity),
+                                blurRadius: selected ? 34 : 22,
+                                spreadRadius: selected ? 4 : 1,
+                              ),
+                              BoxShadow(
+                                color: AppTheme.amber.withOpacity(selected ? 0.18 + (pulse * 0.10) : 0.06),
+                                blurRadius: selected ? 44 : 26,
+                                spreadRadius: selected ? 2 : 0,
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppTheme.bgDeep.withOpacity(0.92),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(borderOpacity),
+                                width: selected ? 1.6 : 1.2,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Image.asset(
+                                      'assets/icons/dm.png',
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                  IgnorePointer(
+                                    child: Transform.translate(
+                                      offset: Offset(shineOffset, 0),
+                                      child: Transform.rotate(
+                                        angle: -0.55,
+                                        child: Container(
+                                          width: 28,
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.white.withOpacity(0.0),
+                                                Colors.white.withOpacity(selected ? 0.34 : 0.18),
+                                                Colors.white.withOpacity(0.0),
+                                              ],
+                                              stops: const [0.0, 0.5, 1.0],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 );
               },
