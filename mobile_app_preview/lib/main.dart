@@ -74,8 +74,9 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<RootScreen> {
+class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateMixin {
   static const _apiBase = 'https://api2.dansmagazin.net';
+  static const _defaultIndex = 2;
   static const _kRemember = 'auth.remember';
   static const _kLoggedIn = 'auth.logged_in';
   static const _kName = 'auth.name';
@@ -89,7 +90,7 @@ class _RootScreenState extends State<RootScreen> {
   static const _kOnboardingSeen = 'app.onboarding_seen_v1';
   static const _kDismissedPopupIds = 'app.dismissed_popup_ids_v1';
 
-  int _index = 0;
+  int _index = _defaultIndex;
   bool _bootDone = false;
   bool _isLoggedIn = false;
   bool _guestMode = false;
@@ -110,6 +111,9 @@ class _RootScreenState extends State<RootScreen> {
   bool _startupPopupChecked = false;
   bool _startupPopupVisible = false;
   int _socialOpenAddFriendsToken = 0;
+  late final PageController _rootPageController;
+  late final AnimationController _logoPulseController;
+  int _lastAccessibleIndex = _defaultIndex;
 
   bool get _canAddToFeedFromDetails =>
       _appRole.trim().toLowerCase() == 'super_admin' ||
@@ -119,6 +123,11 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
+    _rootPageController = PageController(initialPage: _index);
+    _logoPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
     WidgetsBinding.instance.addObserver(_appLifecycleObserver);
     AppSettings.language.addListener(_onLanguageChanged);
     NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
@@ -135,6 +144,8 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   void dispose() {
+    _rootPageController.dispose();
+    _logoPulseController.dispose();
     WidgetsBinding.instance.removeObserver(_appLifecycleObserver);
     AppSettings.language.removeListener(_onLanguageChanged);
     NotificationCenter.totalCount.removeListener(_onNotificationCountChanged);
@@ -213,7 +224,11 @@ class _RootScreenState extends State<RootScreen> {
         _wpRoles = wpRoles;
         _appRole = appRole.isEmpty ? 'customer' : appRole;
         _canCreateMobileEvent = canCreate;
-        _index = 0;
+        _index = _defaultIndex;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _setCurrentIndex(_defaultIndex, animate: false, refreshIdentity: false);
       });
       _startNotificationsPolling();
       unawaited(PushNotificationsService.initForSession(
@@ -323,6 +338,61 @@ class _RootScreenState extends State<RootScreen> {
     }
   }
 
+  void _setCurrentIndex(
+    int value, {
+    bool animate = true,
+    bool refreshIdentity = true,
+  }) {
+    if (!mounted) return;
+    if (_index != value) {
+      setState(() => _index = value);
+    }
+    if (value != 3 && value != 4) {
+      _lastAccessibleIndex = value;
+    } else if (_isLoggedIn) {
+      _lastAccessibleIndex = value;
+    }
+    if (_rootPageController.hasClients) {
+      final currentPage = _rootPageController.page?.round() ?? _rootPageController.initialPage;
+      if (currentPage != value) {
+        if (animate) {
+          unawaited(
+            _rootPageController.animateToPage(
+              value,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+            ),
+          );
+        } else {
+          _rootPageController.jumpToPage(value);
+        }
+      }
+    }
+    if (refreshIdentity) {
+      unawaited(_refreshSessionIdentity());
+    }
+  }
+
+  void _handleRootPageChanged(int value) {
+    if ((value == 3 || value == 4) && !_isLoggedIn) {
+      final fallback = _lastAccessibleIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_rootPageController.hasClients) return;
+        _rootPageController.jumpToPage(fallback);
+      });
+      unawaited(_openAuthIfNeeded(allowGuest: false, targetIndex: value));
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _index = value);
+    if (value != 3 && value != 4) {
+      _lastAccessibleIndex = value;
+    } else if (_isLoggedIn) {
+      _lastAccessibleIndex = value;
+    }
+    unawaited(_refreshSessionIdentity());
+  }
+
   Future<void> _restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
     final remember = prefs.getBool(_kRemember) ?? false;
@@ -425,8 +495,12 @@ class _RootScreenState extends State<RootScreen> {
           _wpRoles = const [];
           _appRole = 'customer';
           _canCreateMobileEvent = false;
-          _index = 0;
+          _index = _defaultIndex;
           _notificationCount = 0;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _setCurrentIndex(_defaultIndex, animate: false, refreshIdentity: false);
         });
         NotificationCenter.clear();
         _stopNotificationsPolling();
@@ -459,7 +533,11 @@ class _RootScreenState extends State<RootScreen> {
         _wpRoles = result.wpRoles;
         _appRole = result.appRole;
         _canCreateMobileEvent = result.canCreateMobileEvent;
-        if (targetIndex != null) _index = targetIndex;
+        _index = targetIndex ?? _defaultIndex;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _setCurrentIndex(targetIndex ?? _defaultIndex, animate: false, refreshIdentity: false);
       });
       _startNotificationsPolling();
       unawaited(PushNotificationsService.initForSession(
@@ -522,9 +600,13 @@ class _RootScreenState extends State<RootScreen> {
       _wpRoles = const [];
       _appRole = 'customer';
       _canCreateMobileEvent = false;
-      _index = 0;
+      _index = _defaultIndex;
       _guestMode = false;
       _notificationCount = 0;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _setCurrentIndex(_defaultIndex, animate: false, refreshIdentity: false);
     });
     NotificationCenter.clear();
     _stopNotificationsPolling();
@@ -699,8 +781,7 @@ class _RootScreenState extends State<RootScreen> {
       unawaited(_openAuthIfNeeded(allowGuest: false, targetIndex: i));
       return;
     }
-    setState(() => _index = i);
-    unawaited(_refreshSessionIdentity());
+    _setCurrentIndex(i);
   }
 
   void _stopNotificationsPolling() {
@@ -748,7 +829,7 @@ class _RootScreenState extends State<RootScreen> {
       final peerId = int.tryParse(messageMatch.group(1) ?? '') ?? 0;
       if (peerId > 0 && _sessionToken.trim().isNotEmpty) {
         if (!mounted) return;
-        setState(() => _index = 3);
+        _setCurrentIndex(3, animate: false, refreshIdentity: false);
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ChatThreadScreen(
@@ -771,7 +852,7 @@ class _RootScreenState extends State<RootScreen> {
     }
     if (path == '/photos') {
       if (!mounted) return;
-      setState(() => _index = 2);
+      _setCurrentIndex(2, animate: false, refreshIdentity: false);
       return;
     }
     final feedPostMatch = RegExp(r'^/photos/feed/posts/(\d+)$').firstMatch(path);
@@ -824,7 +905,7 @@ class _RootScreenState extends State<RootScreen> {
     }
     if (path == '/profile/notifications') {
       if (!mounted) return;
-      setState(() => _index = 4);
+      _setCurrentIndex(4, animate: false, refreshIdentity: false);
       if (_sessionToken.trim().isEmpty) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -840,7 +921,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openNewsDetailById(int postId) async {
     if (!mounted) return;
-    setState(() => _index = 0);
+    _setCurrentIndex(0, animate: false, refreshIdentity: false);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => NewsDetailScreen(
@@ -854,7 +935,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openStoreHome() async {
     if (!mounted) return;
-    setState(() => _index = 1);
+    _setCurrentIndex(1, animate: false, refreshIdentity: false);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => StoreScreen(
@@ -867,7 +948,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openStoreSellerById(int sellerAccountId) async {
     if (!mounted) return;
-    setState(() => _index = 1);
+    _setCurrentIndex(1, animate: false, refreshIdentity: false);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SellerStoreScreen(
@@ -881,7 +962,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openStoreProductById(int productId) async {
     if (!mounted) return;
-    setState(() => _index = 1);
+    _setCurrentIndex(1, animate: false, refreshIdentity: false);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => StoreProductDetailScreen(
@@ -895,8 +976,8 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openAddFriends() async {
     if (_sessionToken.trim().isEmpty || !mounted) return;
+    _setCurrentIndex(3, animate: false, refreshIdentity: false);
     setState(() {
-      _index = 3;
       _socialOpenAddFriendsToken += 1;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -907,7 +988,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openPhotoAlbum(String albumSlug) async {
     if (!mounted) return;
-    setState(() => _index = 2);
+    _setCurrentIndex(2, animate: false, refreshIdentity: false);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PhotoAlbumRouteScreen(
@@ -922,7 +1003,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openPhotoFeedPost(int postId) async {
     if (!mounted) return;
-    setState(() => _index = 2);
+    _setCurrentIndex(2, animate: false, refreshIdentity: false);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PhotoFeedPostRouteScreen(
@@ -938,7 +1019,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _openPhotoPoll(int pollId) async {
     if (!mounted) return;
-    setState(() => _index = 2);
+    _setCurrentIndex(2, animate: false, refreshIdentity: false);
     try {
       final poll = await PhotoPollsApi.fetchOne(_sessionToken, pollId: pollId);
       if (!mounted) return;
@@ -979,7 +1060,7 @@ class _RootScreenState extends State<RootScreen> {
       }
       if (event == null || !mounted) return;
       final ev = event;
-      setState(() => _index = 0);
+      _setCurrentIndex(0, animate: false, refreshIdentity: false);
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => EventDetailScreen(
@@ -1066,7 +1147,12 @@ class _RootScreenState extends State<RootScreen> {
     final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Scaffold(
-      body: pages[_index],
+      body: PageView(
+        controller: _rootPageController,
+        onPageChanged: _handleRootPageChanged,
+        physics: const ClampingScrollPhysics(),
+        children: pages,
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -1117,26 +1203,50 @@ class _RootScreenState extends State<RootScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: keyboardVisible
           ? null
-          : GestureDetector(
-              onTap: () => _onNavTap(2),
-              child: Container(
-                width: 86,
-                height: 86,
-                padding: const EdgeInsets.all(10),
-                decoration: AppTheme.glowCircle(tone: AppTone.photos, radius: 26),
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppTheme.bgDeep.withOpacity(0.9),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+          : AnimatedBuilder(
+              animation: _logoPulseController,
+              builder: (context, _) {
+                final pulse = Curves.easeInOut.transform(_logoPulseController.value);
+                final selected = _index == 2;
+                final scale = selected ? 1.0 + (pulse * 0.08) : 0.98 + (pulse * 0.04);
+                final glowOpacity = selected ? 0.30 + (pulse * 0.18) : 0.16 + (pulse * 0.08);
+                return GestureDetector(
+                  onTap: () => _onNavTap(2),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 86,
+                      height: 86,
+                      padding: const EdgeInsets.all(10),
+                      decoration: AppTheme.glowCircle(tone: AppTone.photos, radius: 26).copyWith(
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.orange.withOpacity(glowOpacity),
+                            blurRadius: selected ? 28 : 20,
+                            spreadRadius: selected ? 3 : 1,
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.bgDeep.withOpacity(0.92),
+                          border: Border.all(
+                            color: selected
+                                ? Colors.white.withOpacity(0.18)
+                                : Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        child: Image.asset(
+                          'assets/icons/dm.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
                   ),
-                  padding: const EdgeInsets.all(8),
-                  child: Image.asset(
-                    'assets/icons/dm.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
+                );
+              },
             ),
     );
   }

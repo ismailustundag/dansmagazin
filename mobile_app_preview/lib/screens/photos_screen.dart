@@ -391,7 +391,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
   late Future<_PhotosFeed> _feedFuture;
   late Future<List<PhotoFlowPost>> _communityFeedFuture;
   late Future<List<PhotoPoll>> _pollsFuture;
-  int _tab = 0; // 0: Akis, 1: Anket, 2: Fotograf, 3: Video
+  int _tab = 0; // 0: Akis, 1: Anket, 2: Album, 3: Video
   List<_FavoritePhoto> _favorites = [];
   List<PhotoFlowPost> _cachedCommunityPosts = const [];
   final ImagePicker _picker = ImagePicker();
@@ -782,7 +782,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
             Expanded(
               child: _tabChip(
                 2,
-                I18n.t('photos'),
+                I18n.t('album_tab'),
                 icon: Icons.photo_library_rounded,
                 accent: AppTheme.cyan,
               ),
