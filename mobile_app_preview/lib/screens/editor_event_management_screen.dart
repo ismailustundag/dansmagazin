@@ -105,6 +105,26 @@ DateTime? _combineDateAndTime(String dateRaw, String timeRaw) {
   return DateTime(d.year, d.month, d.day, t?.hour ?? 0, t?.minute ?? 0);
 }
 
+DateTime _normalizeEventEnd(DateTime start, DateTime end) {
+  if (end.isBefore(start) &&
+      start.year == end.year &&
+      start.month == end.month &&
+      start.day == end.day) {
+    return end.add(const Duration(days: 1));
+  }
+  return end;
+}
+
+String _formatApiMoment(DateTime value) {
+  final y = value.year.toString().padLeft(4, '0');
+  final m = value.month.toString().padLeft(2, '0');
+  final d = value.day.toString().padLeft(2, '0');
+  final hh = value.hour.toString().padLeft(2, '0');
+  final mm = value.minute.toString().padLeft(2, '0');
+  final ss = value.second.toString().padLeft(2, '0');
+  return '$y-$m-$d $hh:$mm:$ss';
+}
+
 class _VenueParts {
   final String name;
   final String mapUrl;
@@ -1427,26 +1447,33 @@ class _ManagedEventItem {
   }
 
   DateTime get sortKey {
-    final raw = startAt.isNotEmpty ? startAt : eventDate;
-    final parsed = DateTime.tryParse(raw.trim().replaceAll(' ', 'T'));
-    final dt = parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
+    final startDt = _effectiveStartMoment;
+    final dt = startDt;
     if (dt == null) return DateTime.utc(9999, 1, 1);
-    final now = DateTime.now();
-    final itemDay = DateTime(dt.year, dt.month, dt.day);
-    final today = DateTime(now.year, now.month, now.day);
-    if (itemDay.isBefore(today)) {
-      return DateTime.utc(9999, 1, 1).add(today.difference(itemDay));
-    }
+    if (isPast) return DateTime.utc(9999, 1, 1);
     return dt;
   }
 
-  bool get isPast {
-    final candidate = endAt.isNotEmpty
-        ? endAt
-        : (startAt.isNotEmpty ? startAt : eventDate);
+  DateTime? get _effectiveStartMoment {
+    final raw = startAt.isNotEmpty ? startAt : eventDate;
+    final parsed = DateTime.tryParse(raw.trim().replaceAll(' ', 'T'));
+    if (parsed == null) return null;
+    return parsed.isUtc ? parsed.toLocal() : parsed;
+  }
+
+  DateTime? get _effectiveEndMoment {
+    final candidate = endAt.isNotEmpty ? endAt : (startAt.isNotEmpty ? startAt : eventDate);
     final parsed = DateTime.tryParse(candidate.trim().replaceAll(' ', 'T'));
-    if (parsed == null) return false;
-    final dt = parsed.isUtc ? parsed.toLocal() : parsed;
+    if (parsed == null) return null;
+    final endDt = parsed.isUtc ? parsed.toLocal() : parsed;
+    final startDt = _effectiveStartMoment;
+    if (startDt == null) return endDt;
+    return _normalizeEventEnd(startDt, endDt);
+  }
+
+  bool get isPast {
+    final dt = _effectiveEndMoment;
+    if (dt == null) return false;
     return dt.isBefore(DateTime.now());
   }
 }
@@ -1540,7 +1567,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
 
   Future<void> _save() async {
     final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
-    final endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    DateTime? endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
     if (startMoment == null) {
       setState(() => _error = 'Başlangıç tarihi ve saati zorunlu.');
       return;
@@ -1549,10 +1576,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       setState(() => _error = 'Bitiş tarihi ve saati zorunlu.');
       return;
     }
-    if (endMoment.isBefore(startMoment)) {
-      setState(() => _error = 'Bitiş tarihi başlangıçtan önce olamaz.');
-      return;
-    }
+    endMoment = _normalizeEventEnd(startMoment, endMoment);
     setState(() {
       _saving = true;
       _error = null;
@@ -1566,8 +1590,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_startDateCtrl.text.trim())
-        ..fields['start_at'] = _toApiDateTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim())
-        ..fields['end_at'] = _toApiDateTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim())
+        ..fields['start_at'] = _formatApiMoment(startMoment)
+        ..fields['end_at'] = _formatApiMoment(endMoment)
         ..fields['venue'] = _venueNameCtrl.text.trim()
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
@@ -2833,7 +2857,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       return;
     }
     final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
-    final endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    DateTime? endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
     if (startMoment == null) {
       setState(() => _error = 'Başlangıç tarihi ve saati zorunlu.');
       return;
@@ -2842,10 +2866,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       setState(() => _error = 'Bitiş tarihi ve saati zorunlu.');
       return;
     }
-    if (endMoment.isBefore(startMoment)) {
-      setState(() => _error = 'Bitiş tarihi başlangıçtan önce olamaz.');
-      return;
-    }
+    endMoment = _normalizeEventEnd(startMoment, endMoment);
     setState(() {
       _sending = true;
       _error = null;
@@ -2866,8 +2887,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_startDateCtrl.text.trim())
-        ..fields['start_at'] = _toApiDateTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim())
-        ..fields['end_at'] = _toApiDateTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim())
+        ..fields['start_at'] = _formatApiMoment(startMoment)
+        ..fields['end_at'] = _formatApiMoment(endMoment)
         ..fields['entry_fee'] = _feeCtrl.text.trim();
       final token = widget.sessionToken.trim();
       if (token.isNotEmpty) req.headers['Authorization'] = 'Bearer $token';
