@@ -34,6 +34,7 @@ class EventsStoreHubScreen extends StatelessWidget {
           ),
         ),
         body: TabBarView(
+          physics: const NeverScrollableScrollPhysics(),
           children: [
             EventsScreen(
               sessionToken: sessionToken,
