@@ -337,8 +337,8 @@ class _AuthScreenState extends State<AuthScreen> {
     required String hint,
     Widget? suffixIcon,
   }) {
-    final fillColor = _isRegister ? Colors.white : Colors.white.withOpacity(0.05);
-    final hintColor = _isRegister ? const Color(0xFF6B7280) : Colors.white.withOpacity(0.20);
+    final fillColor = Colors.white;
+    final hintColor = const Color(0xFF6B7280);
 
     return InputDecoration(
       hintText: hint,
@@ -384,7 +384,7 @@ class _AuthScreenState extends State<AuthScreen> {
     TextInputType? keyboardType,
     Widget? suffixIcon,
   }) {
-    final textColor = _isRegister ? const Color(0xFF171717) : Colors.white;
+    const textColor = Color(0xFF171717);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -572,7 +572,7 @@ class _AuthScreenState extends State<AuthScreen> {
             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             icon: Icon(
               _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-              color: Colors.white.withOpacity(0.32),
+              color: const Color(0xFF6B7280),
               size: 20,
             ),
           ),
@@ -857,12 +857,12 @@ class _AuthScreenState extends State<AuthScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 410),
-                    child: Container(
+                      child: Container(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(32),
-                        color: Colors.white.withOpacity(0.03),
-                        border: Border.all(color: Colors.white.withOpacity(0.10)),
+                        color: Colors.white.withOpacity(0.08),
+                        border: Border.all(color: Colors.white.withOpacity(0.16)),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.34),
@@ -876,47 +876,17 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Center(
-                              child: Container(
-                                width: 72,
-                                height: 72,
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      const Color(0xFF8B5CF6).withOpacity(0.34),
-                                      const Color(0xFFEC4899).withOpacity(0.18),
-                                      Colors.transparent,
-                                    ],
-                                  ),
-                                ),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xCC0F0717),
-                                    border: Border.all(color: Colors.white.withOpacity(0.10)),
-                                  ),
-                                  padding: const EdgeInsets.all(10),
-                                  child: Image.asset(
-                                    'assets/icons/dm.png',
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
                             Text(
                               'Sahne senin, Biz seninleyiz',
                               textAlign: TextAlign.center,
                               style: GoogleFonts.epilogue(
                                 color: Colors.white,
-                                fontSize: 21,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.7,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: -0.2,
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 14),
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
