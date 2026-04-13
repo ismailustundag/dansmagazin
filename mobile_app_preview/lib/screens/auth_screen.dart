@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 
 import '../services/auth_api.dart';
 import '../services/legal_links.dart';
@@ -71,9 +72,54 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _loading = false;
   bool _acceptedLegal = false;
   String? _error;
+  VideoPlayerController? _bgVideoController;
+  bool _bgVideoReady = false;
+  bool _screenClosed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initBackgroundVideo();
+  }
+
+  Future<void> _initBackgroundVideo() async {
+    final controller = VideoPlayerController.asset('assets/video/dm_teaser.mp4');
+    try {
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      await controller.initialize();
+      if (!mounted || _screenClosed) {
+        await controller.dispose();
+        return;
+      }
+      _bgVideoController = controller;
+      await controller.play();
+      if (!mounted || _screenClosed) {
+        if (_bgVideoController == controller) {
+          _bgVideoController = null;
+        }
+        await controller.dispose();
+        return;
+      }
+      setState(() => _bgVideoReady = true);
+    } catch (_) {
+      if (_bgVideoController == controller) {
+        _bgVideoController = null;
+      }
+      try {
+        await controller.dispose();
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() => _bgVideoReady = false);
+    }
+  }
 
   @override
   void dispose() {
+    _screenClosed = true;
+    final bgVideoController = _bgVideoController;
+    _bgVideoController = null;
+    bgVideoController?.dispose();
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
@@ -134,7 +180,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _openForgotPassword() async {
     try {
-      final ok = await launchUrl(_forgotPasswordUri, mode: LaunchMode.externalApplication);
+      final ok = await launchUrl(_forgotPasswordUri, mode: LaunchMode.inAppBrowserView);
       if (ok) return;
     } catch (_) {}
     if (!mounted) return;
@@ -280,7 +326,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _openLegalLink(String url) async {
     try {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = 'Yasal bağlantı açılamadı');
@@ -292,27 +338,26 @@ class _AuthScreenState extends State<AuthScreen> {
     Widget? suffixIcon,
   }) {
     final fillColor = _isRegister ? Colors.white : Colors.white.withOpacity(0.05);
-    final textColor = _isRegister ? const Color(0xFF1A1A1A) : Colors.white;
     final hintColor = _isRegister ? const Color(0xFF6B7280) : Colors.white.withOpacity(0.20);
 
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.manrope(
         color: hintColor,
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: FontWeight.w500,
       ),
       filled: true,
       fillColor: fillColor,
       suffixIcon: suffixIcon,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: const Color(0xFF8B5CF6).withOpacity(0.75)),
+        borderSide: const BorderSide(color: Color(0xFF8B5CF6)),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -345,14 +390,14 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         if (label != null) ...[
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            padding: const EdgeInsets.only(left: 4, bottom: 5),
             child: Text(
               label,
               style: GoogleFonts.manrope(
-                color: Colors.white.withOpacity(0.72),
-                fontSize: 11,
+                color: Colors.white.withOpacity(0.70),
+                fontSize: 10.5,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 1.6,
+                letterSpacing: 1.5,
               ),
             ),
           ),
@@ -362,6 +407,7 @@ class _AuthScreenState extends State<AuthScreen> {
           validator: validator,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           style: GoogleFonts.manrope(
             color: textColor,
             fontSize: 14,
@@ -379,7 +425,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }) {
     return SizedBox(
       width: double.infinity,
-      height: 58,
+      height: 54,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
@@ -390,9 +436,9 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF8B5CF6).withOpacity(0.24),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
+              color: const Color(0xFF8B5CF6).withOpacity(0.22),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -413,7 +459,7 @@ class _AuthScreenState extends State<AuthScreen> {
               : Text(
                   label,
                   style: GoogleFonts.epilogue(
-                    fontSize: 19,
+                    fontSize: 18,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -430,12 +476,12 @@ class _AuthScreenState extends State<AuthScreen> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
-          height: 54,
+          height: 50,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.white.withOpacity(0.10)),
             color: Colors.white.withOpacity(0.02),
           ),
@@ -462,20 +508,20 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget _buildDivider() {
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.white.withOpacity(0.28), thickness: 1)),
+        Expanded(child: Divider(color: Colors.white.withOpacity(0.24), thickness: 1)),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
             'VEYA',
             style: GoogleFonts.manrope(
-              color: Colors.white.withOpacity(0.60),
+              color: Colors.white.withOpacity(0.56),
               fontSize: 10,
               fontWeight: FontWeight.w900,
-              letterSpacing: 2.4,
+              letterSpacing: 2.0,
             ),
           ),
         ),
-        Expanded(child: Divider(color: Colors.white.withOpacity(0.28), thickness: 1)),
+        Expanded(child: Divider(color: Colors.white.withOpacity(0.24), thickness: 1)),
       ],
     );
   }
@@ -516,7 +562,7 @@ class _AuthScreenState extends State<AuthScreen> {
             return null;
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _buildInputField(
           controller: _passwordCtrl,
           hint: '••••••••',
@@ -532,11 +578,10 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           validator: (v) => (v ?? '').length < 6 ? 'Şifre en az 6 karakter olmalı' : null,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(
           children: [
-            InkWell(
-              onTap: _loading ? null : () => setState(() => _rememberMe = !_rememberMe),
+            Expanded(
               child: Row(
                 children: [
                   Checkbox(
@@ -544,43 +589,45 @@ class _AuthScreenState extends State<AuthScreen> {
                     onChanged: _loading ? null : (v) => setState(() => _rememberMe = v ?? true),
                     visualDensity: VisualDensity.compact,
                   ),
-                  Text(
-                    'Beni Hatırla',
-                    style: GoogleFonts.manrope(
-                      color: Colors.white.withOpacity(0.74),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
+                  Flexible(
+                    child: Text(
+                      'Beni Hatırla',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.manrope(
+                        color: Colors.white.withOpacity(0.74),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const Spacer(),
             TextButton(
               onPressed: _loading ? null : _openForgotPassword,
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
               child: Text(
                 'Şifremi Unuttum',
                 style: GoogleFonts.manrope(
                   color: Colors.white.withOpacity(0.42),
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
+                  letterSpacing: 0.8,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 6),
         _buildErrorBox(),
-        if (_error != null) const SizedBox(height: 14),
+        if (_error != null) const SizedBox(height: 12),
         _buildActionButton(
           label: 'Giriş Yap',
           onTap: _loading ? null : _submit,
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 16),
         _buildDivider(),
-        const SizedBox(height: 24),
+        const SizedBox(height: 14),
         Row(
           children: [
             if (showAppleSignIn) ...[
@@ -591,7 +638,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   onTap: _loading ? null : _openAppleLogin,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
             ],
             Expanded(
               child: _buildSocialButton(
@@ -601,34 +648,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 26),
-        Text.rich(
-          TextSpan(
-            text: 'Henüz bir hesabın yok mu? ',
-            style: GoogleFonts.manrope(
-              color: Colors.white.withOpacity(0.42),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            children: [
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: GestureDetector(
-                  onTap: _loading ? null : () => setState(() => _isRegister = true),
-                  child: Text(
-                    'Hesap oluştur',
-                    style: GoogleFonts.manrope(
-                      color: const Color(0xFF8B5CF6),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -684,7 +703,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           validator: (v) => v != _passwordCtrl.text ? 'Şifreler eşleşmiyor' : null,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -702,7 +721,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     style: GoogleFonts.manrope(
                       color: Colors.white.withOpacity(0.52),
                       fontSize: 11,
-                      height: 1.45,
+                      height: 1.4,
                       fontWeight: FontWeight.w600,
                     ),
                     children: [
@@ -719,16 +738,15 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
         _buildErrorBox(),
-        if (_error != null) const SizedBox(height: 14),
+        if (_error != null) const SizedBox(height: 12),
         _buildActionButton(
           label: 'Hesap Oluştur',
           onTap: _loading ? null : _submit,
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 14),
         _buildDivider(),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         Row(
           children: [
             if (showAppleSignIn) ...[
@@ -739,7 +757,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   onTap: _loading ? null : _openAppleLogin,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
             ],
             Expanded(
               child: _buildSocialButton(
@@ -749,34 +767,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 20),
-        Text.rich(
-          TextSpan(
-            text: 'Zaten bir hesabın var mı? ',
-            style: GoogleFonts.manrope(
-              color: Colors.white.withOpacity(0.42),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            children: [
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: GestureDetector(
-                  onTap: _loading ? null : () => setState(() => _isRegister = false),
-                  child: Text(
-                    'Giriş yap',
-                    style: GoogleFonts.manrope(
-                      color: const Color(0xFF8B5CF6),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -799,50 +789,52 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _guestButton() {
-    return TextButton.icon(
-      onPressed: _loading
-          ? null
-          : () {
-              Navigator.of(context).pop(const AuthResult(action: AuthAction.guest));
-            },
-      icon: const Icon(Icons.explore_outlined, color: Colors.white70, size: 18),
-      label: Text(
-        'Kayıt olmadan devam et',
-        style: GoogleFonts.manrope(
-          color: Colors.white.withOpacity(0.68),
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final showAppleSignIn = Theme.of(context).platform == TargetPlatform.iOS;
+    final bgVideo = _bgVideoController;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0717),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topLeft,
-            radius: 1.35,
-            colors: [
-              Color(0xFF2D1B4E),
-              Color(0xFF0F0717),
-            ],
-          ),
-        ),
+      resizeToAvoidBottomInset: true,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
         child: Stack(
+          fit: StackFit.expand,
           children: [
+            if (bgVideo != null && _bgVideoReady && bgVideo.value.isInitialized)
+              FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: SizedBox(
+                  width: bgVideo.value.size.width,
+                  height: bgVideo.value.size.height,
+                  child: VideoPlayer(bgVideo),
+                ),
+              )
+            else
+              const ColoredBox(color: Color(0xFF0F0717)),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x552D1B4E),
+                    Color(0xB20F0717),
+                    Color(0xE60F0717),
+                  ],
+                ),
+              ),
+            ),
             Positioned(
               top: -120,
               right: -80,
               child: _BlurOrb(
                 size: 280,
                 colors: [
-                  const Color(0xFF8B5CF6).withOpacity(0.22),
+                  const Color(0xFF8B5CF6).withOpacity(0.20),
                   Colors.transparent,
                 ],
               ),
@@ -851,9 +843,9 @@ class _AuthScreenState extends State<AuthScreen> {
               bottom: -120,
               left: -60,
               child: _BlurOrb(
-                size: 260,
+                size: 240,
                 colors: [
-                  const Color(0xFFEC4899).withOpacity(0.16),
+                  const Color(0xFFEC4899).withOpacity(0.14),
                   Colors.transparent,
                 ],
               ),
@@ -861,20 +853,21 @@ class _AuthScreenState extends State<AuthScreen> {
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 440),
+                    constraints: const BoxConstraints(maxWidth: 410),
                     child: Container(
-                      padding: const EdgeInsets.fromLTRB(24, 30, 24, 22),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(40),
+                        borderRadius: BorderRadius.circular(32),
                         color: Colors.white.withOpacity(0.03),
                         border: Border.all(color: Colors.white.withOpacity(0.10)),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.34),
-                            blurRadius: 40,
-                            offset: const Offset(0, 18),
+                            blurRadius: 36,
+                            offset: const Offset(0, 16),
                           ),
                         ],
                       ),
@@ -883,32 +876,77 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            Center(
+                              child: Container(
+                                width: 72,
+                                height: 72,
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      const Color(0xFF8B5CF6).withOpacity(0.34),
+                                      const Color(0xFFEC4899).withOpacity(0.18),
+                                      Colors.transparent,
+                                    ],
+                                  ),
+                                ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xCC0F0717),
+                                    border: Border.all(color: Colors.white.withOpacity(0.10)),
+                                  ),
+                                  padding: const EdgeInsets.all(10),
+                                  child: Image.asset(
+                                    'assets/icons/dm.png',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             Text(
-                              _isRegister ? 'Hesap Oluştur' : 'Giriş Yap',
+                              'Sahne senin, Biz seninleyiz',
                               textAlign: TextAlign.center,
                               style: GoogleFonts.epilogue(
                                 color: Colors.white,
-                                fontSize: 34,
+                                fontSize: 21,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: -1.2,
+                                letterSpacing: -0.7,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _isRegister
-                                  ? 'Topluluğa katıl ve ritmi içeriden yaşa.'
-                                  : 'Etkinliklerin, biletlerin ve akışın için hemen giriş yap.',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.manrope(
-                                color: Colors.white.withOpacity(0.56),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                height: 1.5,
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.04),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.white.withOpacity(0.10)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _ModeTab(
+                                      label: 'Giriş',
+                                      selected: !_isRegister,
+                                      onTap: _loading ? null : () => setState(() => _isRegister = false),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: _ModeTab(
+                                      label: 'Kayıt',
+                                      selected: _isRegister,
+                                      onTap: _loading ? null : () => setState(() => _isRegister = true),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 14),
                             AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 240),
+                              duration: const Duration(milliseconds: 220),
                               switchInCurve: Curves.easeOut,
                               switchOutCurve: Curves.easeIn,
                               child: _isRegister
@@ -921,16 +959,12 @@ class _AuthScreenState extends State<AuthScreen> {
                                       child: _buildLoginForm(showAppleSignIn),
                                     ),
                             ),
-                            if (widget.allowGuest) ...[
-                              const SizedBox(height: 12),
-                              Center(child: _guestButton()),
-                            ],
                             const SizedBox(height: 8),
                             Text(
                               'Build: $_buildSha',
                               textAlign: TextAlign.center,
                               style: GoogleFonts.manrope(
-                                color: Colors.white.withOpacity(0.24),
+                                color: Colors.white.withOpacity(0.22),
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -955,6 +989,53 @@ class _AuthScreenState extends State<AuthScreen> {
       height: 22,
       child: CustomPaint(
         painter: _GoogleLogoPainter(),
+      ),
+    );
+  }
+}
+
+class _ModeTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _ModeTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: selected
+                ? const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                  )
+                : null,
+            color: selected ? null : Colors.transparent,
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.manrope(
+              color: Colors.white.withOpacity(selected ? 1 : 0.66),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
       ),
     );
   }
