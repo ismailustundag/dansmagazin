@@ -1,7 +1,7 @@
 name: mobile_app_preview
 description: Mobile app preview for menu structure
 publish_to: "none"
-version: 1.0.13+18
+version: 1.0.21+35
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

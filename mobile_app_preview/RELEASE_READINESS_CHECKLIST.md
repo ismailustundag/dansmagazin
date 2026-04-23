@@ -24,15 +24,33 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
   - `--dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com`
   - `--dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com`
 
+## 3.0) Güncel Proje Değerleri
+
+- Checklist son güncelleme tarihi: `2026-04-23`
+- Geçerli branch: `main`
+- Checklist güncellenirken görülen HEAD: `d0ead8a`
+- `pubspec.yaml` sürümü: `1.0.21+35`
+- Google Play mevcut sürüm: `1.0.20` (`versionCode 34`)
+- Apple mevcut sürüm: `1.0.20` (`build 25`)
+- Yeni public update için önerilen Flutter sürümü: `1.0.21+35`
+- Sadece iOS TestFlight rebuild gerekiyorsa alternatif: `1.0.20+35`
+- Android package / applicationId: `net.dansmagazin.mobile`
+- Android Firebase OAuth type=1 SHA-1: `12:FB:D0:FA:C9:4A:C7:98:35:C9:6E:F0:D5:6C:15:EC:0C:1D:78:F1`
+- iOS bundle id: `com.example.mobilAppPreview`
+- iOS Google client id: `715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com`
+- Xcode Team ID: `2ZC7F7WS8W`
+- iOS deployment target: `13.0`
+
 ## 3.1) Build Almadan Önce Zorunlu Kontrol
 
-- [ ] `pubspec.yaml` içindeki `version:` yeni build için artırıldı.
+- [ ] Build öncesi repo çalışma alanı temiz veya değişiklikler `git stash -u` ile güvene alındı.
+- [x] `pubspec.yaml` içindeki `version:` yeni build için artırıldı.
 - [ ] Android yüklemesi yapılacaksa yeni `versionCode` daha önce Play Console'a yüklenen hiçbir build ile çakışmıyor.
-- [ ] `android/app/google-services.json` içinde `net.dansmagazin.mobile` bloğu var.
-- [ ] `android/app/google-services.json` içinde Android OAuth client var:
+- [x] `android/app/google-services.json` içinde `net.dansmagazin.mobile` bloğu var.
+- [x] `android/app/google-services.json` içinde Android OAuth client var:
   - `client_type: 1`
   - `package_name: net.dansmagazin.mobile`
-  - `certificate_hash: ...`
+  - `certificate_hash: 12fbd0fac94ac79835c96ef0d56c15ec0c1d78f1`
 - [ ] Firebase `Authentication > Sign-in method > Google` açık.
 - [ ] Firebase Android app için SHA fingerprint'ler doğru.
   - Yerel/release keystore SHA-1 kayıtlı:
@@ -42,7 +60,7 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
   - Not: Yerel APK ile Play'den kurulan build ayni sertifikayla imzalanmaz. Google login icin iki SHA-1 de Firebase'te ayni Android app altinda tanimli olmali.
 - [ ] Android'de mağazaya çıkmadan önce en az bir yerel APK testinde Google giriş denendi.
 - [ ] Android'de yeni AAB yuklendikten sonra, tester cihazinda eski uygulama silinip kapali test linkinden temiz kurulumla Google giris tekrar denendi.
-- [ ] iOS için `ios/GoogleService-Info.plist` doğru app/bundle'a ait.
+- [x] iOS için `ios/GoogleService-Info.plist` doğru app/bundle'a ait.
 - [ ] iOS'ta mağazaya çıkmadan önce en az bir gerçek cihaz testinde Google giriş denendi.
 - [ ] Build komutu çalıştırmadan önce `git rev-parse --short HEAD` ile kullanılacak commit not edildi.
 
@@ -120,7 +138,7 @@ APKSIGNER=$(find "$HOME/Library/Android/sdk/build-tools" -name apksigner | sort 
 
 ## 4) Android Yayın Kontrolü
 
-- [ ] `google-services.json` doğru paket adına ait.
+- [x] `google-services.json` doğru paket adına ait (`net.dansmagazin.mobile` bloğu mevcut).
 - [ ] Bildirim izin/teslim testi tamam.
 - [ ] Mesaj geldiğinde push bildirimi ("Yeni bir mesajın var") testi tamam.
 - [ ] Google giriş (mevcut + yeni kullanıcı) test edildi.
@@ -128,7 +146,7 @@ APKSIGNER=$(find "$HOME/Library/Android/sdk/build-tools" -name apksigner | sort 
 
 ## 5) iOS Yayın Kontrolü
 
-- [ ] `GoogleService-Info.plist` doğru bundle id’ye ait.
+- [x] `GoogleService-Info.plist` doğru bundle id’ye ait (`com.example.mobilAppPreview`).
 - [ ] Xcode Signing & Capabilities tamam.
 - [ ] Google giriş (mevcut + yeni kullanıcı) test edildi.
 - [ ] APNs/Push production testi tamam.
@@ -155,7 +173,8 @@ APKSIGNER=$(find "$HOME/Library/Android/sdk/build-tools" -name apksigner | sort 
 
 ## 9) iOS App Store Uyum
 
-- [ ] `Sign in with Apple` eklendi ve test edildi (Google login ile birlikte zorunluluk riski için kritik).
+- [x] `Sign in with Apple` kod ve entitlement tarafında eklendi.
+- [ ] `Sign in with Apple` gerçek cihazda test edildi (Google login ile birlikte zorunluluk riski için kritik).
 - [ ] App Store Connect > App Privacy alanları eksiksiz dolduruldu.
 - [ ] TestFlight internal + external test turu tamamlandı.
 - [ ] Production APNs tokenlarıyla gerçek cihaz testi tamamlandı.

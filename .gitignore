@@ -8,8 +8,22 @@ mobile_app_preview/.packages
 # Python
 mobil_backend/.venv/
 mobil_backend/__pycache__/
+**/__pycache__/
 mobil_backend/.env
 mobil_backend/*.log
 
 # OS
 .DS_Store
+
+# Secrets / credentials
+**/.env
+**/.env.*
+!**/.env.example
+**/google-services.json
+**/GoogleService-Info.plist
+**/AuthKey_*.p8
+**/client_secret*.json
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*RECOVERY*MAP*.txt
