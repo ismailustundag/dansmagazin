@@ -13,6 +13,7 @@ import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
 import 'edit_profile_screen.dart';
 import 'editor_event_management_screen.dart';
+import 'guest_lists_screen.dart';
 import 'my_photos_screen.dart';
 import 'notifications_screen.dart';
 import 'photo_polls_admin_screen.dart';
@@ -314,7 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 14),
           _SectionTitle(title: t('management_tools')),
           const SizedBox(height: 10),
-          if (widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
+          if (widget.appRole == 'super_admin' || widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
             _ProfileListCard(
               title: t('event_management'),
               subtitle: t('event_management_subtitle'),
@@ -323,6 +324,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => EditorEventManagementScreen(sessionToken: widget.sessionToken),
+                ),
+              ),
+            ),
+          if (widget.appRole == 'super_admin' || widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
+            _ProfileListCard(
+              title: 'Davetli Listeleri',
+              subtitle: 'Şehre, seriye veya konsepte göre kullanıcı listeleri oluştur',
+              icon: Icons.groups_rounded,
+              accent: _sky,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => GuestListsScreen(sessionToken: widget.sessionToken),
                 ),
               ),
             ),

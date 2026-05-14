@@ -126,6 +126,11 @@ class _TicketsScreenState extends State<TicketsScreen> {
                                   color: t.statusColor,
                                 ),
                               ),
+                              if (t.isGuestTicket)
+                                const Text(
+                                  'Bilet tipi: Davetli',
+                                  style: TextStyle(color: AppTheme.cyan, fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
                               if (t.wooOrderStatus.isNotEmpty)
                                 Text(
                                   'Sipariş durumu: ${t.wooOrderStatus}',
@@ -370,6 +375,7 @@ class _TicketItem {
   final int submissionId;
   final String eventName;
   final String qrToken;
+  final String ticketType;
   final String wooOrderId;
   final String wooOrderStatus;
   final String status;
@@ -385,6 +391,7 @@ class _TicketItem {
     required this.submissionId,
     required this.eventName,
     required this.qrToken,
+    required this.ticketType,
     required this.wooOrderId,
     required this.wooOrderStatus,
     required this.status,
@@ -402,6 +409,7 @@ class _TicketItem {
       submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
       eventName: (json['event_name'] ?? '').toString(),
       qrToken: (json['qr_token'] ?? '').toString(),
+      ticketType: (json['ticket_type'] ?? 'paid').toString(),
       wooOrderId: (json['woo_order_id'] ?? '').toString(),
       wooOrderStatus: (json['woo_order_status'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
@@ -422,6 +430,8 @@ class _TicketItem {
     final hasTime = raw.contains(':');
     return hasTime ? DateFormat('dd.MM.yyyy HH.mm').format(dt.toLocal()) : DateFormat('dd.MM.yyyy').format(dt.toLocal());
   }
+
+  bool get isGuestTicket => ticketType.trim().toLowerCase() == 'guest';
 
   String get statusLabel {
     if (isUsed) return 'Kullanıldı';
