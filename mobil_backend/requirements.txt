@@ -4,3 +4,7 @@ psycopg2-binary
 python-dotenv
 httpx
 python-multipart
+Pillow
+pillow-heif
+google-auth
+qrcode

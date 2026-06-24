@@ -1,13 +1,14 @@
+import html
 import os
 import re
 from datetime import datetime
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 
 router = APIRouter(prefix="/discover", tags=["Keşfet"])
 
@@ -25,7 +26,11 @@ _DISCOVER_HOME_CACHE: Dict[str, Any] = {"ts": 0.0, "items": {}}
 
 
 def _strip_html(text: str) -> str:
-    return re.sub(r"<[^>]*>", "", text or "").strip()
+    return html.unescape(re.sub(r"<[^>]*>", "", text or "").strip())
+
+
+def _decode_html_text(text: str) -> str:
+    return html.unescape((text or "").strip())
 
 
 def _submission_cover_exists(path: str) -> bool:
@@ -54,6 +59,7 @@ def _media_url(path: str) -> str:
 
 def _parse_wp_item(item: Dict[str, Any]) -> Dict[str, Any]:
     image_url = ""
+    author_name = ""
     emb = item.get("_embedded") or {}
     media_arr = emb.get("wp:featuredmedia") or []
     if media_arr and isinstance(media_arr, list):
@@ -62,49 +68,45 @@ def _parse_wp_item(item: Dict[str, Any]) -> Dict[str, Any]:
             (media.get("media_details") or {}).get("sizes", {}).get("medium_large", {}).get("source_url")
             or (media.get("source_url") or "")
         )
+    author_arr = emb.get("author") or []
+    if author_arr and isinstance(author_arr, list):
+        author = author_arr[0] or {}
+        author_name = (author.get("name") or "").strip()
     return {
         "id": item.get("id"),
-        "title": ((item.get("title") or {}).get("rendered") or "").strip(),
+        "title": _decode_html_text((item.get("title") or {}).get("rendered") or ""),
         "excerpt": _strip_html((item.get("excerpt") or {}).get("rendered") or ""),
         "date": item.get("date"),
         "link": item.get("link"),
         "image": image_url,
+        "author": _decode_html_text(author_name),
     }
 
 
-def _extract_wp_terms(item: Dict[str, Any]) -> List[str]:
-    emb = item.get("_embedded") or {}
-    term_groups = emb.get("wp:term") or []
-    terms: List[str] = []
-    for grp in term_groups:
-        if not isinstance(grp, list):
+def _normalize_news_dedupe_key(title: str, excerpt: str) -> str:
+    raw = f"{title}\n{excerpt}".strip().lower()
+    raw = html.unescape(raw)
+    raw = raw.replace("’", "'").replace("“", '"').replace("”", '"')
+    raw = re.sub(r"\s+", " ", raw)
+    raw = re.sub(r"[^a-z0-9çğıöşüâîûáéíóúäëïöüñß' ]+", "", raw)
+    return raw.strip()
+
+
+def _dedupe_news_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in items:
+        key = _normalize_news_dedupe_key(
+            str(item.get("title") or ""),
+            str(item.get("excerpt") or ""),
+        )
+        if not key:
+            key = f"id:{item.get('id')}"
+        if key in seen:
             continue
-        for t in grp:
-            if not isinstance(t, dict):
-                continue
-            name = (t.get("name") or "").strip().lower()
-            slug = (t.get("slug") or "").strip().lower()
-            if name:
-                terms.append(name)
-            if slug:
-                terms.append(slug)
-    return terms
-
-
-def _is_event_post(item: Dict[str, Any]) -> bool:
-    keys = set(_extract_wp_terms(item))
-    text = (
-        ((item.get("title") or {}).get("rendered") or "")
-        + " "
-        + ((item.get("excerpt") or {}).get("rendered") or "")
-    ).lower()
-    for kw in ("event", "etkinlik", "festival", "workshop", "kamp", "congress"):
-        if kw in text:
-            return True
-    for kw in ("event", "events", "etkinlik", "festival", "workshop", "kongre", "bilet"):
-        if any(kw in v for v in keys):
-            return True
-    return False
+        seen.add(key)
+        out.append(item)
+    return out
 
 
 async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
@@ -133,8 +135,6 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
                     max_scan -= 1
                     if max_scan <= 0:
                         break
-                    if _is_event_post(raw):
-                        continue
                     items.append(_parse_wp_item(raw))
                     remaining -= 1
                     if remaining <= 0:
@@ -146,6 +146,7 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
         if cache and cache.get("items"):
             return list(cache["items"])
         return items
+    items = _dedupe_news_items(items)
     if items:
         _NEWS_CACHE[int(limit)] = {"ts": now, "items": list(items)}
     return items
@@ -233,6 +234,18 @@ def init_news_reaction_table():
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS news_user_reactions (
+                post_id BIGINT NOT NULL,
+                account_id BIGINT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (post_id, account_id)
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_news_user_reactions_post ON news_user_reactions(post_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_news_user_reactions_acc ON news_user_reactions(account_id)")
         conn.commit()
     except Exception:
         conn.rollback()
@@ -254,6 +267,69 @@ def _get_news_like_count(post_id: int) -> int:
         return int((row or {}).get("like_count") or 0)
     except Exception:
         return 0
+    finally:
+        conn.close()
+
+
+def _get_news_user_like_count(conn, post_id: int) -> int:
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) AS cnt FROM news_user_reactions WHERE post_id=%s", (int(post_id),))
+    row = cur.fetchone() or {}
+    return int(row.get("cnt") or 0)
+
+
+def _get_news_like_state(post_id: int, account_id: Optional[int]) -> Dict[str, Any]:
+    try:
+        conn = _db_conn()
+    except Exception:
+        base = _get_news_like_count(post_id)
+        return {"post_id": int(post_id), "like_count": base, "liked_by_me": False}
+    if not conn:
+        base = _get_news_like_count(post_id)
+        return {"post_id": int(post_id), "like_count": base, "liked_by_me": False}
+    try:
+        user_count = _get_news_user_like_count(conn, post_id)
+        legacy_count = _get_news_like_count(post_id)
+        like_count = max(user_count, legacy_count)
+        liked_by_me = False
+        if account_id:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT 1 FROM news_user_reactions WHERE post_id=%s AND account_id=%s LIMIT 1",
+                (int(post_id), int(account_id)),
+            )
+            liked_by_me = bool(cur.fetchone())
+        return {"post_id": int(post_id), "like_count": like_count, "liked_by_me": liked_by_me}
+    finally:
+        conn.close()
+
+
+def _resolve_account_id_from_bearer(authorization: Optional[str]) -> Optional[int]:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        return None
+    try:
+        conn = _db_conn()
+    except Exception:
+        return None
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT s.account_id
+            FROM sessions s
+            JOIN accounts a ON a.id=s.account_id
+            WHERE s.session_token=%s AND COALESCE(a.is_active,1)=1
+            LIMIT 1
+            """,
+            (token,),
+        )
+        row = cur.fetchone()
+        return int(row["account_id"]) if row else None
     finally:
         conn.close()
 
@@ -451,18 +527,66 @@ def _fetch_latest_albums_old(limit: int = 6) -> List[Dict[str, Any]]:
 
 
 @router.get("/news/{post_id}/reactions", summary="Haber beğeni sayısı")
-async def news_reactions(post_id: int):
-    return {"post_id": int(post_id), "like_count": _get_news_like_count(post_id)}
+async def news_reactions(post_id: int, authorization: Optional[str] = Header(default=None)):
+    account_id = _resolve_account_id_from_bearer(authorization)
+    return _get_news_like_state(post_id, account_id)
 
 
 @router.post("/news/{post_id}/like", summary="Haber beğen")
-async def news_like(post_id: int):
-    return {"post_id": int(post_id), "like_count": _apply_news_like_delta(post_id, 1)}
+async def news_like(post_id: int, authorization: Optional[str] = Header(default=None)):
+    account_id = _resolve_account_id_from_bearer(authorization)
+    if not account_id:
+        # Guest / token yok: eski davranışla sayacı arttır.
+        return {"post_id": int(post_id), "like_count": _apply_news_like_delta(post_id, 1), "liked_by_me": True}
+    try:
+        conn = _db_conn()
+    except Exception:
+        raise HTTPException(status_code=500, detail="Veritabanı bağlantısı kurulamadı")
+    if not conn:
+        raise HTTPException(status_code=500, detail="Veritabanı bağlantısı kurulamadı")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO news_user_reactions (post_id, account_id)
+            VALUES (%s,%s)
+            ON CONFLICT (post_id, account_id) DO NOTHING
+            """,
+            (int(post_id), int(account_id)),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail="Beğeni kaydedilemedi")
+    finally:
+        conn.close()
+    return _get_news_like_state(post_id, account_id)
 
 
 @router.post("/news/{post_id}/unlike", summary="Haber beğeniyi geri al")
-async def news_unlike(post_id: int):
-    return {"post_id": int(post_id), "like_count": _apply_news_like_delta(post_id, -1)}
+async def news_unlike(post_id: int, authorization: Optional[str] = Header(default=None)):
+    account_id = _resolve_account_id_from_bearer(authorization)
+    if not account_id:
+        return {"post_id": int(post_id), "like_count": _apply_news_like_delta(post_id, -1), "liked_by_me": False}
+    try:
+        conn = _db_conn()
+    except Exception:
+        raise HTTPException(status_code=500, detail="Veritabanı bağlantısı kurulamadı")
+    if not conn:
+        raise HTTPException(status_code=500, detail="Veritabanı bağlantısı kurulamadı")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM news_user_reactions WHERE post_id=%s AND account_id=%s",
+            (int(post_id), int(account_id)),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail="Beğeni geri alınamadı")
+    finally:
+        conn.close()
+    return _get_news_like_state(post_id, account_id)
 
 
 @router.get("", summary="Keşfet ana içerikleri")

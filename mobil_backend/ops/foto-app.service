@@ -1,0 +1,14 @@
+[Unit]
+Description=Foto App (FastAPI)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/foto_app
+EnvironmentFile=/home/ubuntu/foto_app/.env
+ExecStart=/home/ubuntu/foto_app/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8200 --proxy-headers --forwarded-allow-ips=*
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

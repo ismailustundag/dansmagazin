@@ -11,6 +11,11 @@ mobil_backend/__pycache__/
 **/__pycache__/
 mobil_backend/.env
 mobil_backend/*.log
+mobil_backend/keys/
+mobil_backend/media/
+mobil_backend/*.db
+mobil_backend/*.db.*
+mobil_backend/uvicorn.pid
 
 # OS
 .DS_Store
