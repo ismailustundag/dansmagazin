@@ -12,6 +12,7 @@ class ProfileSettingsData {
   final String birthDate;
   final String gender;
   final String danceInterests;
+  final int? danceSchoolId;
   final String danceSchool;
   final String about;
   final bool isVerified;
@@ -31,6 +32,7 @@ class ProfileSettingsData {
     required this.birthDate,
     required this.gender,
     required this.danceInterests,
+    required this.danceSchoolId,
     required this.danceSchool,
     required this.about,
     required this.isVerified,
@@ -72,6 +74,7 @@ class ProfileSettingsData {
       birthDate: (json['birth_date'] ?? '').toString(),
       gender: (json['gender'] ?? '').toString(),
       danceInterests: (json['dance_interests'] ?? '').toString(),
+      danceSchoolId: (json['dance_school_id'] as num?)?.toInt(),
       danceSchool: (json['dance_school'] ?? '').toString(),
       about: (json['about'] ?? '').toString(),
       isVerified: json['is_verified'] == true,
@@ -82,6 +85,26 @@ class ProfileSettingsData {
       notificationsEnabled: json['notifications_enabled'] == true,
       notificationPreferences: _parseNotificationPreferences(json),
       avatarUrl: (json['avatar_url'] ?? '').toString(),
+    );
+  }
+}
+
+class DanceSchoolOption {
+  final int schoolId;
+  final String name;
+  final String slug;
+
+  const DanceSchoolOption({
+    required this.schoolId,
+    required this.name,
+    required this.slug,
+  });
+
+  factory DanceSchoolOption.fromJson(Map<String, dynamic> json) {
+    return DanceSchoolOption(
+      schoolId: (json['school_id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] ?? '').toString(),
+      slug: (json['slug'] ?? '').toString(),
     );
   }
 }
@@ -119,6 +142,7 @@ class ProfileApi {
     String? birthDate,
     String? gender,
     String? danceInterests,
+    int? danceSchoolId,
     String? danceSchool,
     String? about,
     String? language,
@@ -132,6 +156,7 @@ class ProfileApi {
     if (birthDate != null) body['birth_date'] = birthDate;
     if (gender != null) body['gender'] = gender;
     if (danceInterests != null) body['dance_interests'] = danceInterests;
+    if (danceSchoolId != null) body['dance_school_id'] = danceSchoolId;
     if (danceSchool != null) body['dance_school'] = danceSchool;
     if (about != null) body['about'] = about;
     if (language != null) body['language'] = language;
@@ -154,6 +179,47 @@ class ProfileApi {
       throw Exception(detail);
     }
     return ProfileSettingsData.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+  }
+
+  static Future<List<DanceSchoolOption>> listDanceSchools(String sessionToken) async {
+    final resp = await http.get(
+      Uri.parse('$_base/profile/dance-schools'),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+    );
+    if (resp.statusCode != 200) {
+      String detail = 'Dans okulu listesi alınamadı';
+      try {
+        detail = parseApiErrorBody(resp.body, fallback: detail);
+      } catch (_) {}
+      throw Exception(detail);
+    }
+    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (body['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(DanceSchoolOption.fromJson)
+        .toList();
+  }
+
+  static Future<DanceSchoolOption> createDanceSchool({
+    required String sessionToken,
+    required String name,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/dance-schools'),
+      headers: {
+        'Authorization': 'Bearer $sessionToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'name': name.trim()}),
+    );
+    if (resp.statusCode != 200) {
+      String detail = 'Dans okulu eklenemedi';
+      try {
+        detail = parseApiErrorBody(resp.body, fallback: detail);
+      } catch (_) {}
+      throw Exception(detail);
+    }
+    return DanceSchoolOption.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<String> uploadAvatar({

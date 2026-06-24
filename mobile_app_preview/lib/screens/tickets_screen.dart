@@ -13,8 +13,13 @@ import '../theme/app_theme.dart';
 
 class TicketsScreen extends StatefulWidget {
   final String sessionToken;
+  final int initialTicketId;
 
-  const TicketsScreen({super.key, required this.sessionToken});
+  const TicketsScreen({
+    super.key,
+    required this.sessionToken,
+    this.initialTicketId = 0,
+  });
 
   @override
   State<TicketsScreen> createState() => _TicketsScreenState();
@@ -23,11 +28,13 @@ class TicketsScreen extends StatefulWidget {
 class _TicketsScreenState extends State<TicketsScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
   late Future<List<_TicketItem>> _future;
+  bool _initialTicketHandled = false;
 
   @override
   void initState() {
     super.initState();
     _future = _fetchTickets();
+    _scheduleInitialTicketOpen();
   }
 
   Future<List<_TicketItem>> _fetchTickets() async {
@@ -50,6 +57,31 @@ class _TicketsScreenState extends State<TicketsScreen> {
     final f = _fetchTickets();
     setState(() => _future = f);
     await f;
+  }
+
+  void _scheduleInitialTicketOpen() {
+    final initialTicketId = widget.initialTicketId;
+    if (initialTicketId <= 0) return;
+    _future.then((items) {
+      if (!mounted || _initialTicketHandled) return;
+      _TicketItem? initialTicket;
+      for (final item in items) {
+        if (item.ticketId == initialTicketId) {
+          initialTicket = item;
+          break;
+        }
+      }
+      if (initialTicket == null) return;
+      _initialTicketHandled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TicketQrScreen(ticket: initialTicket!),
+          ),
+        );
+      });
+    }).catchError((_) {});
   }
 
   @override

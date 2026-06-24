@@ -219,6 +219,15 @@ class PushNotificationsService {
     } catch (_) {}
   }
 
+  static Future<void> setBadge(int count) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    try {
+      await _badgeChannel.invokeMethod<void>('setBadge', {
+        'count': count < 0 ? 0 : count,
+      });
+    } catch (_) {}
+  }
+
   static Future<void> initForSession(
     String sessionToken, {
     bool notificationsEnabled = true,
@@ -265,11 +274,13 @@ class PushNotificationsService {
       return;
     }
 
+    final useNativeIosForegroundPresentation =
+        defaultTargetPlatform == TargetPlatform.iOS;
     try {
       await messaging.setForegroundNotificationPresentationOptions(
-        alert: false,
-        badge: false,
-        sound: false,
+        alert: useNativeIosForegroundPresentation,
+        badge: useNativeIosForegroundPresentation,
+        sound: useNativeIosForegroundPresentation,
       );
     } catch (_) {}
 
@@ -297,6 +308,9 @@ class PushNotificationsService {
         final t = _sessionToken.trim();
         if (t.isNotEmpty) {
           unawaited(NotificationCenter.refresh(t));
+        }
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+          return;
         }
         final n = message.notification;
         if (n == null) return;

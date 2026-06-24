@@ -90,14 +90,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       });
     }
     try {
-      final results = await Future.wait<dynamic>([
-        NotificationsApi.fetchSummary(widget.sessionToken),
+      final initialResults = await Future.wait<dynamic>([
         NotificationsApi.fetchFeed(widget.sessionToken, limit: 100),
         ProfileApi.settings(widget.sessionToken),
       ]);
-      final summary = results[0] as NotificationSummary;
-      final feed = results[1] as List<NotificationFeedItem>;
-      final settings = results[2] as ProfileSettingsData;
+      final summary = await NotificationsApi.fetchSummary(widget.sessionToken);
+      final feed = initialResults[0] as List<NotificationFeedItem>;
+      final settings = initialResults[1] as ProfileSettingsData;
       if (!mounted) return;
       NotificationCenter.setSummary(summary);
       setState(() {

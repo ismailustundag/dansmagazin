@@ -23,6 +23,13 @@ import UserNotifications
             UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
             result(nil)
           }
+        case "setBadge":
+          let args = call.arguments as? [String: Any]
+          let count = max(0, args?["count"] as? Int ?? 0)
+          DispatchQueue.main.async {
+            UIApplication.shared.applicationIconBadgeNumber = count
+            result(nil)
+          }
         default:
           result(FlutterMethodNotImplemented)
         }

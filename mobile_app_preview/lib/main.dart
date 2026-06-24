@@ -29,6 +29,7 @@ import 'screens/photos_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/social_screen.dart';
 import 'screens/store_screen.dart';
+import 'screens/tickets_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -134,7 +135,6 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
     NotificationCenter.totalCount.addListener(_onNotificationCountChanged);
     _initDeepLinks();
     unawaited(PushNotificationsService.primeSystemPermissionPrompt());
-    unawaited(PushNotificationsService.clearBadge());
     _restoreSession();
   }
 
@@ -157,7 +157,7 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
   }
 
   late final WidgetsBindingObserver _appLifecycleObserver = _RootLifecycleObserver(
-    onResumed: () => PushNotificationsService.clearBadge(),
+    onResumed: () => _refreshNotificationCount(),
   );
 
   static bool _readBoolParam(String? v) {
@@ -264,7 +264,9 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
         path == '/store' ||
         path.startsWith('/store/') ||
         path == '/social/add-friends' ||
-        path == '/profile/notifications') {
+        path == '/profile/notifications' ||
+        path == '/profile/tickets' ||
+        path.startsWith('/profile/tickets/')) {
       return path;
     }
 
@@ -311,12 +313,22 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
       if (host == 'social' && (segments.isNotEmpty && segments.first == 'add-friends')) {
         return '/social/add-friends';
       }
+      if (host == 'tickets' || host == 'ticket') {
+        if (segments.isEmpty) return '/profile/tickets';
+        final id = int.tryParse(segments.first) ?? 0;
+        if (id > 0) return '/profile/tickets/$id';
+      }
       if (host == 'notifications' || host == 'notification') {
         return '/profile/notifications';
       }
     }
 
     if (host.endsWith('dansmagazin.net')) {
+      if (path == '/tickets' || path == '/biletlerim') {
+        final ticketId = int.tryParse((uri.queryParameters['ticket_id'] ?? '').trim()) ?? 0;
+        if (ticketId > 0) return '/profile/tickets/$ticketId';
+        return '/profile/tickets';
+      }
       if (path == '/notifications' || path == '/bildirimler') {
         return '/profile/notifications';
       }
@@ -334,6 +346,7 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
   void _onNotificationCountChanged() {
     if (!mounted) return;
     final next = NotificationCenter.totalCount.value;
+    unawaited(PushNotificationsService.setBadge(next));
     if (_notificationCount != next) {
       setState(() => _notificationCount = next);
     }
@@ -902,6 +915,33 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
     }
     if (path == '/social/add-friends') {
       await _openAddFriends();
+      return;
+    }
+    final ticketMatch = RegExp(r'^/profile/tickets/(\d+)$').firstMatch(path);
+    if (ticketMatch != null) {
+      final ticketId = int.tryParse(ticketMatch.group(1) ?? '') ?? 0;
+      if (!mounted) return;
+      _setCurrentIndex(4, animate: false, refreshIdentity: false);
+      if (_sessionToken.trim().isEmpty) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => TicketsScreen(
+            sessionToken: _sessionToken,
+            initialTicketId: ticketId,
+          ),
+        ),
+      );
+      return;
+    }
+    if (path == '/profile/tickets') {
+      if (!mounted) return;
+      _setCurrentIndex(4, animate: false, refreshIdentity: false);
+      if (_sessionToken.trim().isEmpty) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => TicketsScreen(sessionToken: _sessionToken),
+        ),
+      );
       return;
     }
     if (path == '/profile/notifications') {

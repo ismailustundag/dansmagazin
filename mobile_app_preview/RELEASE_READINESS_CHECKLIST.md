@@ -26,14 +26,14 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 
 ## 3.0) Güncel Proje Değerleri
 
-- Checklist son güncelleme tarihi: `2026-04-23`
+- Checklist son güncelleme tarihi: `2026-06-23`
 - Geçerli branch: `main`
-- Checklist güncellenirken görülen HEAD: `d0ead8a`
-- `pubspec.yaml` sürümü: `1.0.21+35`
+- Checklist güncellenirken görülen HEAD: `bd950f3`
+- `pubspec.yaml` sürümü: `1.0.23+37`
 - Google Play mevcut sürüm: `1.0.20` (`versionCode 34`)
-- Apple mevcut sürüm: `1.0.20` (`build 25`)
-- Yeni public update için önerilen Flutter sürümü: `1.0.21+35`
-- Sadece iOS TestFlight rebuild gerekiyorsa alternatif: `1.0.20+35`
+- Apple mevcut sürüm: `1.0.21` (`build 35`)
+- Yeni public update için önerilen Flutter sürümü: `1.0.23+37`
+- Sadece iOS TestFlight rebuild gerekiyorsa alternatif: `1.0.22+37`
 - Android package / applicationId: `net.dansmagazin.mobile`
 - Android Firebase OAuth type=1 SHA-1: `12:FB:D0:FA:C9:4A:C7:98:35:C9:6E:F0:D5:6C:15:EC:0C:1D:78:F1`
 - iOS bundle id: `com.example.mobilAppPreview`
@@ -43,8 +43,10 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 
 ## 3.1) Build Almadan Önce Zorunlu Kontrol
 
-- [ ] Build öncesi repo çalışma alanı temiz veya değişiklikler `git stash -u` ile güvene alındı.
-- [x] `pubspec.yaml` içindeki `version:` yeni build için artırıldı.
+- [ ] Build öncesi repo çalışma alanı temiz.
+  - Zorunlu kontrol: `./scripts/release_guard.sh`
+  - Not: Script varsayılan olarak dirty worktree ile release build'i durdurur. Bilinçli local test build gerekiyorsa sadece istisnai olarak `ALLOW_DIRTY_RELEASE=1` ile geç.
+- [x] `pubspec.yaml` içindeki `version:` yeni build için artırıldı (`1.0.23+37`).
 - [ ] Android yüklemesi yapılacaksa yeni `versionCode` daha önce Play Console'a yüklenen hiçbir build ile çakışmıyor.
 - [x] `android/app/google-services.json` içinde `net.dansmagazin.mobile` bloğu var.
 - [x] `android/app/google-services.json` içinde Android OAuth client var:
@@ -63,6 +65,9 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 - [x] iOS için `ios/GoogleService-Info.plist` doğru app/bundle'a ait.
 - [ ] iOS'ta mağazaya çıkmadan önce en az bir gerçek cihaz testinde Google giriş denendi.
 - [ ] Build komutu çalıştırmadan önce `git rev-parse --short HEAD` ile kullanılacak commit not edildi.
+- [ ] Release amacıyla yapılan özellik düzeltmeleri gerçekten commit içinde.
+  - Hızlı kontrol: `git show --stat --oneline -1`
+  - Kritik dosya değişiklikleri çalışma alanında kalmış ama commit'e girmemiş olmamalı.
 
 ## 3.2) Sabit Build Sırası
 
@@ -86,6 +91,15 @@ flutter build appbundle --release \
 cp build/app/outputs/bundle/release/app-release.aab ~/Desktop/dansmagazin-release-$(git rev-parse --short HEAD).aab
 ```
 
+Alternatif tek komut:
+
+```bash
+./scripts/build_android_appbundle.sh
+```
+
+Not:
+- Script build öncesi `./scripts/release_guard.sh` çalıştırır.
+
 ### Android APK (Yerel Doğrulama)
 
 ```bash
@@ -97,6 +111,12 @@ flutter build apk --release \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com \
   --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
 cp build/app/outputs/flutter-apk/app-release.apk ~/Desktop/dansmagazin-release-$(git rev-parse --short HEAD).apk
+```
+
+Alternatif tek komut:
+
+```bash
+./scripts/build_android_release.sh
 ```
 
 ### iOS TestFlight / Archive
@@ -118,6 +138,15 @@ flutter build ios --release --no-codesign \
   --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
 open ios/Runner.xcworkspace
 ```
+
+Alternatif tek komut:
+
+```bash
+./scripts/prepare_ios_archive.sh
+```
+
+Not:
+- Script build öncesi `./scripts/release_guard.sh` çalıştırır.
 
 Not:
 - Play Console'a yanlış build yüklenirse `versionCode` tekrar kullanılamaz.
@@ -169,6 +198,10 @@ APKSIGNER=$(find "$HOME/Library/Android/sdk/build-tools" -name apksigner | sort 
 - [x] Etkinlik detayında `Takvime Ekle` aksiyonu var.
 - [x] Bildirim kartı route içeriyorsa tıklanınca ilgili hedefe gider.
 - [x] Deep link yönlendirme (`/events/:id`, `/messages/:id`, `/profile/notifications`) genişletildi.
+- [ ] Etkinlik paylaşım akışı gerçek cihazda doğrulandı.
+  - `Link paylaş`: `https://api2.dansmagazin.net/share/events/{id}` formatında olmalı.
+  - `Akışa ekle`: paylaşım öncesi not/metin penceresi açılmalı.
+  - `Görsel olarak paylaş`: etkinliğin yüklenen afişi paylaşılmalı; turuncu şablon sadece afiş indirilemezse fallback olmalı.
 - [ ] Bilet için gerçek `Apple Wallet` / `Google Wallet` pass üretimi aktif (backend imzalama + wallet linkleri).
 
 ## 9) iOS App Store Uyum

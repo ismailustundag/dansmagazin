@@ -20,6 +20,7 @@ class ContentSharePayload {
   final String shareUrl;
   final String targetRoute;
   final Color accentColor;
+  final bool preferSourceImageForShare;
 
   const ContentSharePayload({
     required this.categoryLabel,
@@ -31,7 +32,35 @@ class ContentSharePayload {
     this.shareUrl = '',
     this.targetRoute = '',
     required this.accentColor,
+    this.preferSourceImageForShare = false,
   });
+
+  ContentSharePayload copyWith({
+    String? categoryLabel,
+    String? title,
+    String? subtitle,
+    String? description,
+    String? imageUrl,
+    String? feedText,
+    String? shareUrl,
+    String? targetRoute,
+    Color? accentColor,
+    bool? preferSourceImageForShare,
+  }) {
+    return ContentSharePayload(
+      categoryLabel: categoryLabel ?? this.categoryLabel,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      feedText: feedText ?? this.feedText,
+      shareUrl: shareUrl ?? this.shareUrl,
+      targetRoute: targetRoute ?? this.targetRoute,
+      accentColor: accentColor ?? this.accentColor,
+      preferSourceImageForShare:
+          preferSourceImageForShare ?? this.preferSourceImageForShare,
+    );
+  }
 }
 
 class ContentShareService {
@@ -56,7 +85,7 @@ class ContentShareService {
     BuildContext context, {
     required ContentSharePayload payload,
   }) async {
-    final file = await _buildCardFile(payload);
+    final file = await _buildShareImageFile(payload);
     final box = context.findRenderObject() as RenderBox?;
     final shareText = [
       payload.title.trim(),
@@ -68,6 +97,16 @@ class ContentShareService {
       text: shareText.isEmpty ? null : shareText,
       sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     );
+  }
+
+  static Future<File> _buildShareImageFile(ContentSharePayload payload) async {
+    if (payload.preferSourceImageForShare) {
+      final sourceFile = await _buildSourceImageFile(payload);
+      if (sourceFile != null) {
+        return sourceFile;
+      }
+    }
+    return _buildCardFile(payload);
   }
 
   static Future<void> addToFeed({
@@ -94,6 +133,19 @@ class ContentShareService {
     return file;
   }
 
+  static Future<File?> _buildSourceImageFile(ContentSharePayload payload) async {
+    final imageBytes = await _tryDownloadImage(payload.imageUrl);
+    if (imageBytes == null || imageBytes.isEmpty) return null;
+    final normalizedBytes = await _normalizeImageForShare(imageBytes);
+    if (normalizedBytes == null || normalizedBytes.isEmpty) return null;
+    final dir = await getTemporaryDirectory();
+    final file = File(
+      '${dir.path}/dm_share_poster_${DateTime.now().millisecondsSinceEpoch}_${payload.categoryLabel.toLowerCase().replaceAll(' ', '_')}.png',
+    );
+    await file.writeAsBytes(normalizedBytes, flush: true);
+    return file;
+  }
+
   static Future<Uint8List?> _tryDownloadImage(String imageUrl) async {
     final url = imageUrl.trim();
     if (url.isEmpty || !(url.startsWith('http://') || url.startsWith('https://'))) {
@@ -117,6 +169,39 @@ class ContentShareService {
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<Uint8List?> _normalizeImageForShare(Uint8List bytes) async {
+    final sourceImage = await _decodeImage(bytes);
+    if (sourceImage == null) return null;
+
+    const maxSide = 2200.0;
+    final sourceWidth = sourceImage.width.toDouble();
+    final sourceHeight = sourceImage.height.toDouble();
+    final longestSide = sourceWidth > sourceHeight ? sourceWidth : sourceHeight;
+    final scale = longestSide > maxSide ? (maxSide / longestSide) : 1.0;
+    final targetWidth =
+        ((sourceWidth * scale).round().clamp(1, sourceImage.width) as num).toInt();
+    final targetHeight =
+        ((sourceHeight * scale).round().clamp(1, sourceImage.height) as num).toInt();
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(
+      recorder,
+      Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+    );
+    paintImage(
+      canvas: canvas,
+      rect: Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+      image: sourceImage,
+      fit: BoxFit.fill,
+      filterQuality: FilterQuality.high,
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(targetWidth, targetHeight);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData?.buffer.asUint8List();
   }
 
   static Future<Uint8List> _renderCard(

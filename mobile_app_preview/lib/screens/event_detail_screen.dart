@@ -57,6 +57,8 @@ class EventDetailScreen extends StatefulWidget {
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
+  static const _eventShareBaseUrl = 'https://api2.dansmagazin.net/share/events';
+
   int _tab = 0;
   bool _openingCheckout = false;
   bool _loadingAttendees = true;
@@ -137,6 +139,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return formatDateTimeDdMmYyyyHmDot(raw);
   }
 
+  String _shareUrl() => '$_eventShareBaseUrl/${widget.submissionId}';
+
+  String _buildFeedText(String note) {
+    final parts = <String>[];
+    final cleanNote = note.trim();
+    if (cleanNote.isNotEmpty) {
+      parts.add(cleanNote);
+    }
+    if (widget.title.trim().isNotEmpty) {
+      parts.add(widget.title.trim());
+    }
+    final meta = <String>[];
+    final eventDate = _fmtDate(widget.eventDate).trim();
+    if (eventDate.isNotEmpty) meta.add(eventDate);
+    if (widget.venue.trim().isNotEmpty) meta.add(widget.venue.trim());
+    if (meta.isNotEmpty) {
+      parts.add(meta.join(' · '));
+    }
+    return parts.join('\n');
+  }
+
   String _buyUrl() {
     if (!widget.ticketSalesEnabled) return '';
     final t = widget.ticketUrl.trim();
@@ -203,9 +226,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       description: trimmedDescription,
       imageUrl: widget.cover.trim(),
       feedText: '',
-      shareUrl: 'https://www.dansmagazin.net/?route=/events/${widget.submissionId}',
+      shareUrl: _shareUrl(),
       targetRoute: '/events/${widget.submissionId}',
       accentColor: AppTheme.orange,
+      preferSourceImageForShare: true,
     );
   }
 
@@ -246,12 +270,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _addEventToFeed() async {
-    if (_sharingBusy) return;
+    final note = await _promptFeedNote();
+    if (!mounted || note == null || _sharingBusy) return;
     setState(() => _sharingBusy = true);
     try {
       await ContentShareService.addToFeed(
         sessionToken: widget.sessionToken,
-        payload: _sharePayload(),
+        payload: _sharePayload().copyWith(
+          feedText: _buildFeedText(note),
+        ),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -265,6 +292,38 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     } finally {
       if (mounted) setState(() => _sharingBusy = false);
     }
+  }
+
+  Future<String?> _promptFeedNote() async {
+    final controller = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(I18n.t('feed_share_note_title')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 2,
+          maxLines: 4,
+          maxLength: 220,
+          decoration: InputDecoration(
+            hintText: I18n.t('feed_share_note_hint'),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: Text(I18n.t('cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: Text(I18n.t('add_to_feed')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return note;
   }
 
   Future<void> _openShareActions() async {

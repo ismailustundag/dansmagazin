@@ -46,6 +46,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _aboutCtrl = TextEditingController();
   final Set<String> _selectedDanceInterests = <String>{};
   final Set<String> _legacyDanceInterests = <String>{};
+  List<DanceSchoolOption> _danceSchools = const <DanceSchoolOption>[];
+  int? _selectedDanceSchoolId;
 
   String _city = _defaultCity;
   String _birthDate = '';
@@ -97,6 +99,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       birthDate: _birthDate.trim(),
       gender: _gender.trim(),
       danceInterests: _danceInterestsCtrl.text.trim(),
+      danceSchoolId: _selectedDanceSchoolId ?? 0,
       danceSchool: _danceSchoolCtrl.text.trim(),
       about: _aboutCtrl.text.trim(),
       avatarUrl: _avatarUrl.trim(),
@@ -109,14 +112,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return loaded != _buildSnapshot();
   }
 
-  void _setLoadedSnapshot(ProfileSettingsData remote) {
+  void _setLoadedSnapshot(
+    ProfileSettingsData remote, {
+    int? danceSchoolIdOverride,
+    String? danceSchoolNameOverride,
+  }) {
     _loadedSnapshot = _ProfileDraftSnapshot(
       username: remote.username.trim(),
       city: (remote.city.trim().isEmpty ? _defaultCity : remote.city.trim()),
       birthDate: remote.birthDate.trim(),
       gender: _genderValues.contains(remote.gender.trim()) ? remote.gender.trim() : 'unspecified',
       danceInterests: _danceInterestsCtrl.text.trim(),
-      danceSchool: remote.danceSchool.trim(),
+      danceSchoolId: danceSchoolIdOverride ?? remote.danceSchoolId ?? 0,
+      danceSchool: (danceSchoolNameOverride ?? remote.danceSchool).trim(),
       about: remote.about.trim(),
       avatarUrl: _resolveAvatarUrl(remote.avatarUrl, remote.updatedAt),
     );
@@ -142,11 +150,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final avatar = prefs.getString(_kAvatarPath) ?? '';
     try {
       final remote = await ProfileApi.settings(widget.sessionToken);
+      final schools = await ProfileApi.listDanceSchools(widget.sessionToken);
       if (!mounted) return;
       _applyDanceInterests(remote.danceInterests);
+      final selectedSchoolId = remote.danceSchoolId ?? _resolveDanceSchoolIdByName(remote.danceSchool, schools);
+      final selectedSchoolName = selectedSchoolId == null
+          ? remote.danceSchool
+          : (() {
+              for (final school in schools) {
+                if (school.schoolId == selectedSchoolId) return school.name;
+              }
+              return remote.danceSchool;
+            })();
       setState(() {
         _usernameCtrl.text = remote.username;
-        _danceSchoolCtrl.text = remote.danceSchool;
+        _danceSchools = schools;
+        _selectedDanceSchoolId = selectedSchoolId;
+        _danceSchoolCtrl.text = selectedSchoolName;
         _aboutCtrl.text = remote.about;
         _city = remote.city.trim().isEmpty ? _defaultCity : remote.city.trim();
         _birthDate = remote.birthDate.trim();
@@ -155,7 +175,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _avatarPath = avatar;
         _loading = false;
       });
-      _setLoadedSnapshot(remote);
+      _setLoadedSnapshot(
+        remote,
+        danceSchoolIdOverride: selectedSchoolId,
+        danceSchoolNameOverride: selectedSchoolName,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -355,6 +379,182 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ..._legacyDanceInterests,
     ];
     _danceInterestsCtrl.text = ordered.join(', ');
+  }
+
+  String _normalizeDanceSchoolKey(String raw) {
+    return raw
+        .trim()
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ş', 's')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  }
+
+  int? _resolveDanceSchoolIdByName(String rawName, List<DanceSchoolOption> schools) {
+    final key = _normalizeDanceSchoolKey(rawName);
+    if (key.isEmpty) return null;
+    for (final school in schools) {
+      if (_normalizeDanceSchoolKey(school.name) == key) {
+        return school.schoolId;
+      }
+    }
+    return null;
+  }
+
+  String _resolveDanceSchoolNameById(int? schoolId) {
+    if (schoolId == null || schoolId <= 0) return '';
+    for (final school in _danceSchools) {
+      if (school.schoolId == schoolId) return school.name;
+    }
+    return '';
+  }
+
+  Future<void> _pickDanceSchool() async {
+    final selected = await showModalBottomSheet<DanceSchoolOption>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF101522),
+      builder: (sheetContext) {
+        String query = '';
+        bool creating = false;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final normalizedQuery = _normalizeDanceSchoolKey(query);
+            final filtered = _danceSchools
+                .where(
+                  (school) => query.trim().isEmpty || _normalizeDanceSchoolKey(school.name).contains(normalizedQuery),
+                )
+                .toList();
+            final hasExactMatch = normalizedQuery.isNotEmpty &&
+                _danceSchools.any((school) => _normalizeDanceSchoolKey(school.name) == normalizedQuery);
+            return SafeArea(
+              top: false,
+              child: SizedBox(
+                height: MediaQuery.of(sheetContext).size.height * 0.72,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text(
+                        I18n.t('dance_school'),
+                        style: _selectorSheetTitleStyle,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        onChanged: (value) => setSheetState(() => query = value),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: const OutlineInputBorder(),
+                          hintText: 'Okul ara',
+                          prefixIcon: const Icon(Icons.search),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (normalizedQuery.isNotEmpty && !hasExactMatch)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: ListTile(
+                          tileColor: AppTheme.violet.withOpacity(0.12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          leading: creating
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.add_circle_outline, color: AppTheme.violet),
+                          title: Text(
+                            '"${query.trim()}" okulunu ekle',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: const Text(
+                            'Listede yoksa yeni okul olarak kaydedilir.',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          onTap: creating
+                              ? null
+                              : () async {
+                                  try {
+                                    setSheetState(() => creating = true);
+                                    final created = await ProfileApi.createDanceSchool(
+                                      sessionToken: widget.sessionToken,
+                                      name: query.trim(),
+                                    );
+                                    if (!mounted) return;
+                                    final updated = <DanceSchoolOption>[
+                                      ..._danceSchools.where((school) => school.schoolId != created.schoolId),
+                                      created,
+                                    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                                    setState(() => _danceSchools = updated);
+                                    if (sheetContext.mounted) {
+                                      Navigator.of(sheetContext).pop(created);
+                                    }
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(e.toString())),
+                                    );
+                                    setSheetState(() => creating = false);
+                                  }
+                                },
+                        ),
+                      ),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                normalizedQuery.isEmpty
+                                    ? 'Henüz okul listesi yüklenemedi.'
+                                    : 'Eşleşen dans okulu bulunamadı.',
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final school = filtered[index];
+                                final isSelected = school.schoolId == _selectedDanceSchoolId;
+                                return ListTile(
+                                  onTap: () => Navigator.of(sheetContext).pop(school),
+                                  title: Text(
+                                    school.name,
+                                    style: _selectorSheetItemStyle.copyWith(
+                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                                    ),
+                                  ),
+                                  trailing: isSelected ? const Icon(Icons.check, color: AppTheme.violet) : null,
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _selectedDanceSchoolId = selected.schoolId;
+      _danceSchoolCtrl.text = selected.name;
+    });
+  }
+
+  void _clearDanceSchool() {
+    setState(() {
+      _selectedDanceSchoolId = null;
+      _danceSchoolCtrl.clear();
+    });
   }
 
   void _toggleDanceInterest(String interest) {
@@ -698,6 +898,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         birthDate: _birthDate.trim(),
         gender: _gender.trim(),
         danceInterests: _danceInterestsCtrl.text.trim(),
+        danceSchoolId: _selectedDanceSchoolId ?? 0,
         danceSchool: _danceSchoolCtrl.text.trim(),
         about: _aboutCtrl.text.trim(),
         avatarUrl: _avatarUrl.trim(),
@@ -705,8 +906,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (!mounted) return false;
       setState(() {
         _avatarUrl = _resolveAvatarUrl(saved.avatarUrl, saved.updatedAt);
+        _selectedDanceSchoolId = saved.danceSchoolId;
+        _danceSchoolCtrl.text = saved.danceSchool;
       });
-      _setLoadedSnapshot(saved);
+      _setLoadedSnapshot(
+        saved,
+        danceSchoolIdOverride: saved.danceSchoolId,
+        danceSchoolNameOverride: saved.danceSchool,
+      );
       if (showSavedMessage) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(I18n.t('saved'))),
@@ -979,10 +1186,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         const SizedBox(height: 8),
                         TextField(
                           controller: _danceSchoolCtrl,
+                          readOnly: true,
+                          onTap: _saving ? null : _pickDanceSchool,
                           decoration: InputDecoration(
                             isDense: true,
                             border: const OutlineInputBorder(),
-                            hintText: t('dance_school_hint'),
+                            hintText: 'Listeden okul secin',
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_danceSchoolCtrl.text.trim().isNotEmpty)
+                                  IconButton(
+                                    tooltip: 'Secimi temizle',
+                                    onPressed: _saving ? null : _clearDanceSchool,
+                                    icon: const Icon(Icons.close),
+                                  ),
+                                IconButton(
+                                  tooltip: 'Okul sec',
+                                  onPressed: _saving ? null : _pickDanceSchool,
+                                  icon: const Icon(Icons.expand_more),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -1040,6 +1265,7 @@ class _ProfileDraftSnapshot {
   final String birthDate;
   final String gender;
   final String danceInterests;
+  final int danceSchoolId;
   final String danceSchool;
   final String about;
   final String avatarUrl;
@@ -1050,6 +1276,7 @@ class _ProfileDraftSnapshot {
     required this.birthDate,
     required this.gender,
     required this.danceInterests,
+    required this.danceSchoolId,
     required this.danceSchool,
     required this.about,
     required this.avatarUrl,
@@ -1063,6 +1290,7 @@ class _ProfileDraftSnapshot {
         other.birthDate == birthDate &&
         other.gender == gender &&
         other.danceInterests == danceInterests &&
+        other.danceSchoolId == danceSchoolId &&
         other.danceSchool == danceSchool &&
         other.about == about &&
         other.avatarUrl == avatarUrl;
@@ -1075,6 +1303,7 @@ class _ProfileDraftSnapshot {
         birthDate,
         gender,
         danceInterests,
+        danceSchoolId,
         danceSchool,
         about,
         avatarUrl,

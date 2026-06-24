@@ -10,6 +10,7 @@ GOOGLE_IOS_CLIENT_ID="${GOOGLE_IOS_CLIENT_ID:-715936767290-bfqnn4arpk5vkka6f703i
 SHA="$(git rev-parse --short HEAD)"
 OUT="$HOME/Desktop/dansmagazin-release-${SHA}.apk"
 
+./scripts/release_guard.sh
 flutter clean
 flutter pub get
 flutter build apk --release \

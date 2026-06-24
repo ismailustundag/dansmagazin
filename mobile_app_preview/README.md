@@ -22,6 +22,8 @@ Use these scripts to avoid `zsh` parse errors and `pull --rebase` blocks:
 ```bash
 ./scripts/safe_sync.sh
 ./scripts/safe_push.sh "feat: message"
+./scripts/build_android_appbundle.sh
 ./scripts/build_android_release.sh
+./scripts/prepare_ios_archive.sh
 ./scripts/run_ios_release.sh "Ismail Ustundag"
 ```

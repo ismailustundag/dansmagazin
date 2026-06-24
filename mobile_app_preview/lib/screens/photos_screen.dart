@@ -1857,7 +1857,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
         .map(_Photo.fromJson)
         .where((p) => p.url.isNotEmpty)
         .toList();
-    photos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    photos.sort((a, b) => b.sortEpochMs.compareTo(a.sortEpochMs));
     final subalbums = subalbumRows
         .whereType<Map<String, dynamic>>()
         .map(_Album.fromJson)
@@ -1937,6 +1937,7 @@ class _AlbumPhotosScreenState extends State<AlbumPhotosScreen> {
           albumSlug: widget.album.slug,
           albumName: widget.album.name,
           createdAt: photo.createdAt,
+          sortEpochMs: photo.sortEpochMs,
         ),
       );
     }
@@ -2354,6 +2355,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
           albumSlug: widget.album.slug,
           albumName: widget.album.name,
           createdAt: photo.createdAt,
+          sortEpochMs: photo.sortEpochMs,
         ),
       );
     }
@@ -2756,7 +2758,7 @@ class _FavoriteGrid extends StatelessWidget {
       return _InfoCard(text: I18n.t('no_favorite_photo'));
     }
 
-    final sorted = [...photos]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final sorted = [...photos]..sort((a, b) => b.sortEpochMs.compareTo(a.sortEpochMs));
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -2885,6 +2887,7 @@ class _Photo {
   final String gridThumbUrl;
   final String viewerUrl;
   final String createdAt;
+  final int sortEpochMs;
   final int likeCount;
   final bool likedByMe;
 
@@ -2895,11 +2898,13 @@ class _Photo {
     required this.gridThumbUrl,
     required this.viewerUrl,
     required this.createdAt,
+    required this.sortEpochMs,
     required this.likeCount,
     required this.likedByMe,
   });
 
   factory _Photo.fromJson(Map<String, dynamic> json) {
+    final rawCreatedAt = (json['created_at'] ?? json['date'] ?? '').toString();
     final url = _absUrl(
       json['url'] ?? json['file_url'] ?? json['file_path'] ?? json['image'] ?? json['photo_url'] ?? '',
     );
@@ -2918,7 +2923,8 @@ class _Photo {
       thumbUrl: thumb,
       gridThumbUrl: gridThumb,
       viewerUrl: viewerUrl,
-      createdAt: _fmtDate((json['created_at'] ?? json['date'] ?? '').toString()),
+      createdAt: _fmtDate(rawCreatedAt),
+      sortEpochMs: _sortEpochMs(rawCreatedAt),
       likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
       likedByMe: json['liked_by_me'] == true,
     );
@@ -2931,6 +2937,7 @@ class _Photo {
     String? gridThumbUrl,
     String? viewerUrl,
     String? createdAt,
+    int? sortEpochMs,
     int? likeCount,
     bool? likedByMe,
   }) {
@@ -2941,6 +2948,7 @@ class _Photo {
       gridThumbUrl: gridThumbUrl ?? this.gridThumbUrl,
       viewerUrl: viewerUrl ?? this.viewerUrl,
       createdAt: createdAt ?? this.createdAt,
+      sortEpochMs: sortEpochMs ?? this.sortEpochMs,
       likeCount: likeCount ?? this.likeCount,
       likedByMe: likedByMe ?? this.likedByMe,
     );
@@ -2954,6 +2962,7 @@ class _FavoritePhoto {
   final String albumSlug;
   final String albumName;
   final String createdAt;
+  final int sortEpochMs;
 
   const _FavoritePhoto({
     required this.id,
@@ -2962,6 +2971,7 @@ class _FavoritePhoto {
     required this.albumSlug,
     required this.albumName,
     required this.createdAt,
+    required this.sortEpochMs,
   });
 
   Map<String, dynamic> toJson() => {
@@ -2981,6 +2991,7 @@ class _FavoritePhoto {
       albumSlug: (json['album_slug'] ?? '').toString(),
       albumName: (json['album_name'] ?? '').toString(),
       createdAt: (json['created_at'] ?? '').toString(),
+      sortEpochMs: _sortEpochMs((json['created_at'] ?? '').toString()),
     );
   }
 }
@@ -3199,7 +3210,44 @@ String _absUrl(dynamic raw) {
 }
 
 String _fmtDate(String raw) {
-  return formatDateTimeDdMmYyyyHmDot(raw);
+  return formatDateTimeDdMmYyyyHmDot(_stripHiddenSortPrefix(raw));
+}
+
+const String _hiddenSortZero = '\u200B';
+const String _hiddenSortOne = '\u200C';
+const int _hiddenSortWidth = 64;
+
+bool _hasHiddenSortPrefix(String raw) {
+  if (raw.length < _hiddenSortWidth) return false;
+  for (var i = 0; i < _hiddenSortWidth; i++) {
+    final ch = raw[i];
+    if (ch != _hiddenSortZero && ch != _hiddenSortOne) return false;
+  }
+  return true;
+}
+
+String _stripHiddenSortPrefix(String raw) {
+  if (!_hasHiddenSortPrefix(raw)) return raw;
+  return raw.substring(_hiddenSortWidth);
+}
+
+int _sortEpochMs(String raw) {
+  final trimmed = raw.trim();
+  if (_hasHiddenSortPrefix(trimmed)) {
+    var value = 0;
+    for (var i = 0; i < _hiddenSortWidth; i++) {
+      value <<= 1;
+      if (trimmed[i] == _hiddenSortOne) value |= 1;
+    }
+    return value;
+  }
+  final cleaned = _stripHiddenSortPrefix(trimmed);
+  final direct = DateTime.tryParse(cleaned);
+  if (direct != null) return direct.millisecondsSinceEpoch;
+  final normalized = cleaned.replaceAll(' ', 'T');
+  final normalizedDt = DateTime.tryParse(normalized);
+  if (normalizedDt != null) return normalizedDt.millisecondsSinceEpoch;
+  return 0;
 }
 
 class _InfoCard extends StatelessWidget {
