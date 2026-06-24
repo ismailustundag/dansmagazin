@@ -1,0 +1,1630 @@
+{% macro render_request_row(s) %}
+  <details class="row-item">
+    <summary class="row-summary">
+      <div class="summary-title"><b>{{ s.event_name }}</b></div>
+      <div class="summary-owner">{{ s.submitter_name or '-' }}</div>
+      <div class="summary-email">{{ s.submitter_email or '-' }}</div>
+      <div class="summary-status">
+        <span class="{% if s.status=='approved' %}status-approved{% elif s.status=='rejected' %}status-rejected{% else %}status-pending{% endif %}">
+          {{ s.status }}
+        </span>
+      </div>
+      <div class="summary-id">#{{ s.id }}</div>
+    </summary>
+    <div class="row-detail">
+      <div class="muted" style="margin-top:6px;">Kaynak: <span class="badge">{{ s.source_table }}</span></div>
+      <div class="sub-meta muted">
+        <div><b>Etkinlik Tarihi:</b> {{ s.event_date|fmt_dt if s.event_date else "-" }}</div>
+        <div><b>Baslangic:</b> {{ s.start_at|fmt_dt if s.start_at else "-" }}</div>
+        <div><b>Bitis:</b> {{ s.end_at|fmt_dt if s.end_at else "-" }}</div>
+        <div><b>Sehir:</b> {{ s.city or "-" }}</div>
+        <div><b>Tur:</b> {{ s.event_kind or "-" }}</div>
+        <div><b>Konum:</b> {{ s.venue or "-" }}</div>
+        <div><b>Program:</b> {{ s.program_text or "-" }}</div>
+        <div><b>Foto Albümü:</b> {% if s.create_photo_album is defined and not s.create_photo_album %}Kapalı{% else %}Açık{% endif %}</div>
+        <div><b>Ucret:</b> {{ s.entry_fee or 0 }} TL</div>
+      </div>
+
+      {% if s.description %}<div style="margin-bottom:8px;"><b>Aciklama:</b> {{ s.description }}</div>{% endif %}
+      {% if s.organizer_name %}<div style="margin-bottom:8px;"><b>Organizator:</b> {{ s.organizer_name }}</div>{% endif %}
+      {% if s.admin_note %}<div class="muted" style="margin-bottom:8px;"><b>Admin notu:</b> {{ s.admin_note }}</div>{% endif %}
+      {% if s.cover_path %}
+        <div style="margin-bottom:8px;">
+          <a class="badge" href="{{ s.cover_path }}" target="_blank" rel="noopener" style="text-decoration:none;color:#9fb5ff;">Kapak Gorseli</a>
+        </div>
+      {% endif %}
+
+      {% if s.status == 'pending' %}
+        <div class="sub-actions">
+          <form method="post" action="/console/submissions/{{ s.id }}/approve" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input type="hidden" name="source_table" value="{{ s.source_table }}" />
+            <input class="sub-note" name="admin_note" placeholder="Opsiyonel admin notu">
+            <button type="submit">Onayla ve Etkinlik Ac</button>
+          </form>
+          <form method="post" action="/console/submissions/{{ s.id }}/reject" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input type="hidden" name="source_table" value="{{ s.source_table }}" />
+            <input class="sub-note" name="admin_note" placeholder="Red nedeni (opsiyonel)">
+            <button type="submit" style="background:#ef4444;">Reddet</button>
+          </form>
+        </div>
+      {% else %}
+        <div class="muted">Incelenme: {{ s.reviewed_at|fmt_dt if s.reviewed_at else "-" }} {% if s.reviewed_by_email %}· {{ s.reviewed_by_email }}{% endif %}</div>
+      {% endif %}
+
+      <div class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
+        <b>Etkinlik Bilgilerini Duzenle</b>
+        <form method="post" action="/admin/mobile/submissions/{{ s.id }}/update" enctype="multipart/form-data" data-event-datetime-form="update" class="editor-form" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="source_table" value="{{ s.source_table }}" />
+          {% set start_value = s.start_at or s.event_date or '' %}
+          {% set end_value = s.end_at or s.start_at or s.event_date or '' %}
+          <input type="hidden" name="event_date" value="{{ s.event_date or '' }}" />
+          <input type="hidden" name="start_at" value="{{ s.start_at or '' }}" />
+          <input type="hidden" name="end_at" value="{{ s.end_at or '' }}" />
+          <div class="editor-section">
+            <h4>Genel Bilgiler</h4>
+            <div class="editor-grid-2">
+              <div class="field-block field-span-2">
+                <label>Etkinlik Adı</label>
+                <input name="event_name" value="{{ s.event_name or '' }}" placeholder="Etkinlik adı" />
+              </div>
+              <div class="field-block field-span-2">
+                <label>Konum / Mekan</label>
+                <input name="venue" value="{{ s.venue or '' }}" placeholder="Konum / Mekan" />
+              </div>
+              <div class="field-block">
+                <label>Şehir</label>
+                <input name="city" value="{{ s.city or '' }}" placeholder="Şehir" />
+              </div>
+              <div class="field-block">
+                <label>Etkinlik Türü</label>
+                <select name="event_kind">
+                  <option value="dance_night" {% if (s.event_kind or '') == 'dance_night' %}selected{% endif %}>Dans Gecesi</option>
+                  <option value="festival" {% if (s.event_kind or '') == 'festival' %}selected{% endif %}>Festival</option>
+                  <option value="competition" {% if (s.event_kind or '') == 'competition' %}selected{% endif %}>Yarışma</option>
+                  <option value="promo_lesson" {% if (s.event_kind or '') == 'promo_lesson' %}selected{% endif %}>Tanıtım Dersi</option>
+                </select>
+              </div>
+              <div class="field-block">
+                <label>Organizatör</label>
+                <input name="organizer_name" value="{{ s.organizer_name or '' }}" placeholder="Organizator" />
+              </div>
+              <div class="field-block">
+                <label>Bilet Ücreti</label>
+                <input name="entry_fee" value="{{ s.entry_fee or 0 }}" placeholder="Bilet ücreti" />
+              </div>
+              <div class="field-block field-span-2">
+                <label>Konum Linki</label>
+                <input name="venue_map_url" value="{{ s.venue_map_url or '' }}" placeholder="Google/Apple Maps linki" />
+              </div>
+              <div class="field-block field-span-2">
+                <label>Etkinlik Afişi</label>
+                {% if s.cover_path %}
+                  <div class="muted" style="margin-bottom:8px;">
+                    <a href="{{ s.cover_path }}" target="_blank" rel="noopener" style="color:#9fb5ff;text-decoration:none;">Mevcut afişi aç</a>
+                  </div>
+                  <img src="{{ s.cover_path }}" alt="Etkinlik afişi" style="display:block;width:100%;max-width:280px;aspect-ratio:16/10;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.12);margin-bottom:10px;" />
+                {% endif %}
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <label for="cover_image_{{ s.id }}" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer;">
+                    Afişi Değiştir
+                  </label>
+                  <span class="muted">Yeni bir görsel seçersen mevcut etkinlik afişi güncellenir.</span>
+                </div>
+                <input id="cover_image_{{ s.id }}" name="cover_image" type="file" accept="image/*" style="margin-top:10px;" />
+              </div>
+            </div>
+          </div>
+          <div class="editor-section">
+            <h4>Tarih ve Saat</h4>
+            <div class="datetime-grid">
+              <div class="datetime-card">
+                <div class="datetime-title">Başlangıç</div>
+                <div class="editor-grid-2">
+                  <div class="field-block">
+                    <label>Başlangıç Tarihi</label>
+                    <input name="start_date_ui" type="date" value="{{ start_value[:10] if start_value else '' }}" required />
+                  </div>
+                  <div class="field-block">
+                    <label>Başlangıç Saati</label>
+                    <input name="start_time_ui" type="time" step="60" value="{{ start_value[11:16] if start_value and start_value|length >= 16 else '' }}" required />
+                  </div>
+                </div>
+              </div>
+              <div class="datetime-card">
+                <div class="datetime-title">Bitiş</div>
+                <div class="editor-grid-2">
+                  <div class="field-block">
+                    <label>Bitiş Tarihi</label>
+                    <input name="end_date_ui" type="date" value="{{ end_value[:10] if end_value else '' }}" required />
+                  </div>
+                  <div class="field-block">
+                    <label>Bitiş Saati</label>
+                    <input name="end_time_ui" type="time" step="60" value="{{ end_value[11:16] if end_value and end_value|length >= 16 else '' }}" required />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="editor-section">
+            <h4>İçerik</h4>
+            <div class="field-block">
+              <label>Program</label>
+              <textarea name="program_text" rows="2" placeholder="Program">{{ s.program_text or '' }}</textarea>
+            </div>
+            <div class="field-block" style="margin-top:10px;">
+              <label>Detaylar / Açıklama</label>
+              <textarea name="description" rows="3" placeholder="Detaylar / Açıklama">{{ s.description or '' }}</textarea>
+            </div>
+          </div>
+          <div class="form-actions"><button type="submit" data-save-label="Bilgileri Kaydet" style="background:#16a34a;">Bilgileri Kaydet</button></div>
+        </form>
+      </div>
+
+      <div class="sub-actions" style="margin-top:8px;">
+        <form method="post" action="/admin/mobile/submissions/{{ s.id }}/delete" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;" onsubmit="return confirm('Bu talep silinsin mi?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="source_table" value="{{ s.source_table }}" />
+          <label class="muted" style="display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" name="delete_linked_event" value="1">
+            Bagli fotograf etkinligini de sil
+          </label>
+          <button type="submit" style="background:#ef4444;">Talebi Sil</button>
+        </form>
+      </div>
+    </div>
+  </details>
+{% endmacro %}
+
+{% macro render_request_module(title, items, empty_text, helper_text='', collapsible=False, start_open=False) %}
+  <{% if collapsible %}details{% else %}div{% endif %} class="card" style="margin-top:12px;background:rgba(255,255,255,.03);"{% if collapsible and start_open %} open{% endif %}>
+    <{% if collapsible %}summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;list-style:none;"{% else %}div class="section-head" style="margin-top:0;"{% endif %}>
+      <div class="section-title">{{ title }}</div>
+      <span class="count-badge">{{ items|length }}</span>
+    </{% if collapsible %}summary{% else %}div{% endif %}>
+    {% if helper_text %}
+      <div class="muted" style="margin-top:10px;">{{ helper_text }}</div>
+    {% endif %}
+    <div class="compact-list">
+      {% for s in items %}
+        {{ render_request_row(s) }}
+      {% endfor %}
+      {% if items|length == 0 %}
+        <div class="muted">{{ empty_text }}</div>
+      {% endif %}
+    </div>
+  </{% if collapsible %}details{% else %}div{% endif %}>
+{% endmacro %}
+
+{% macro render_event_row(s, show_scan_permissions=False, current_view='active') %}
+  {% set ticket_control = event_ticket_controls_map.get(s.id, {}) if event_ticket_controls_map is defined else {} %}
+  {% set ticket_summary = ticket_control.get('summary', {}) if ticket_control else {} %}
+  {% set ticket_holders = ticket_control.get('holders', []) if ticket_control else [] %}
+  <details class="row-item">
+    <summary class="row-summary">
+      <div class="summary-title"><b>{{ s.event_name }}</b></div>
+      <div class="summary-owner">{{ s.city or s.submitter_name or '-' }}</div>
+      <div class="summary-email">{{ s.submitter_email or s.venue or '-' }}</div>
+      <div class="summary-status">
+        {% if s.event_is_active is defined and not s.event_is_active %}
+          <span class="status-rejected">pasif</span>
+        {% else %}
+          <span class="status-approved">{{ s.status }}</span>
+        {% endif %}
+        <div class="muted" style="margin-top:4px;font-size:11px;">
+          {{ ticket_summary.get('active_ticket_count') or 0 }} aktif bilet
+        </div>
+      </div>
+      <div class="summary-id">#{{ s.id }}</div>
+    </summary>
+    <div class="row-detail">
+      {% set loyalty_report = loyalty_reports_map.get(s.id, {}) if loyalty_reports_map is defined else {} %}
+      {% set loyalty_summary = loyalty_report.get('summary', {}) if loyalty_report else {} %}
+      {% set loyalty_schools = loyalty_report.get('schools', []) if loyalty_report else [] %}
+      {% set loyalty_users = loyalty_report.get('user_progress', []) if loyalty_report else [] %}
+      {% set loyalty_rewards = loyalty_report.get('reward_tickets', []) if loyalty_report else [] %}
+      <div class="muted" style="margin-top:6px;">Kaynak: <span class="badge">{{ s.source_table }}</span></div>
+      {% if s.approved_event_slug %}
+        <div style="margin:8px 0;"><b>Olusturulan slug:</b> <span class="badge">{{ s.approved_event_slug }}</span></div>
+      {% endif %}
+      <div class="sub-meta muted">
+        <div><b>Etkinlik Tarihi:</b> {{ s.event_date|fmt_dt if s.event_date else "-" }}</div>
+        <div><b>Baslangic:</b> {{ s.start_at|fmt_dt if s.start_at else "-" }}</div>
+        <div><b>Bitis:</b> {{ s.end_at|fmt_dt if s.end_at else "-" }}</div>
+        <div><b>Sehir:</b> {{ s.city or "-" }}</div>
+        <div><b>Tur:</b> {{ s.event_kind or "-" }}</div>
+        <div><b>Konum:</b> {{ s.venue or "-" }}</div>
+        <div><b>Program:</b> {{ s.program_text or "-" }}</div>
+        <div><b>Foto Albümü:</b> {% if s.photo_album_enabled %}Açık{% else %}Kapalı{% endif %}</div>
+        <div><b>Yayın Durumu:</b> {% if s.event_is_active is defined and not s.event_is_active %}Pasif{% else %}Aktif{% endif %}</div>
+        <div><b>Ucret:</b> {{ s.entry_fee or 0 }} TL</div>
+      </div>
+      <div class="muted">Incelenme: {{ s.reviewed_at|fmt_dt if s.reviewed_at else "-" }} {% if s.reviewed_by_email %}· {{ s.reviewed_by_email }}{% endif %}</div>
+
+      <div class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
+        <b>Etkinlik Bilgilerini Duzenle</b>
+        <form method="post" action="/admin/mobile/submissions/{{ s.id }}/update" enctype="multipart/form-data" data-event-datetime-form="update" class="editor-form" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="source_table" value="{{ s.source_table }}" />
+          {% set start_value = s.start_at or s.event_date or '' %}
+          {% set end_value = s.end_at or s.start_at or s.event_date or '' %}
+          <input type="hidden" name="event_date" value="{{ s.event_date or '' }}" />
+          <input type="hidden" name="start_at" value="{{ s.start_at or '' }}" />
+          <input type="hidden" name="end_at" value="{{ s.end_at or '' }}" />
+          <div class="editor-section">
+            <h4>Genel Bilgiler</h4>
+            <div class="editor-grid-2">
+              <div class="field-block field-span-2">
+                <label>Etkinlik Adı</label>
+                <input name="event_name" value="{{ s.event_name or '' }}" placeholder="Etkinlik adı" />
+              </div>
+              <div class="field-block field-span-2">
+                <label>Konum / Mekan</label>
+                <input name="venue" value="{{ s.venue or '' }}" placeholder="Konum / Mekan" />
+              </div>
+              <div class="field-block">
+                <label>Şehir</label>
+                <input name="city" value="{{ s.city or '' }}" placeholder="Şehir" />
+              </div>
+              <div class="field-block">
+                <label>Etkinlik Türü</label>
+                <select name="event_kind">
+                  <option value="dance_night" {% if (s.event_kind or '') == 'dance_night' %}selected{% endif %}>Dans Gecesi</option>
+                  <option value="festival" {% if (s.event_kind or '') == 'festival' %}selected{% endif %}>Festival</option>
+                  <option value="competition" {% if (s.event_kind or '') == 'competition' %}selected{% endif %}>Yarışma</option>
+                  <option value="promo_lesson" {% if (s.event_kind or '') == 'promo_lesson' %}selected{% endif %}>Tanıtım Dersi</option>
+                </select>
+              </div>
+              <div class="field-block">
+                <label>Organizatör</label>
+                <input name="organizer_name" value="{{ s.organizer_name or '' }}" placeholder="Organizator" />
+              </div>
+              <div class="field-block">
+                <label>Bilet Ücreti</label>
+                <input name="entry_fee" value="{{ s.entry_fee or 0 }}" placeholder="Bilet ücreti" />
+              </div>
+              <div class="field-block field-span-2">
+                <label>Konum Linki</label>
+                <input name="venue_map_url" value="{{ s.venue_map_url or '' }}" placeholder="Google/Apple Maps linki" />
+              </div>
+              <div class="field-block field-span-2">
+                <label>Etkinlik Afişi</label>
+                {% if s.cover_path %}
+                  <div class="muted" style="margin-bottom:8px;">
+                    <a href="{{ s.cover_path }}" target="_blank" rel="noopener" style="color:#9fb5ff;text-decoration:none;">Mevcut afişi aç</a>
+                  </div>
+                  <img src="{{ s.cover_path }}" alt="Etkinlik afişi" style="display:block;width:100%;max-width:280px;aspect-ratio:16/10;object-fit:cover;border-radius:14px;border:1px solid rgba(255,255,255,.12);margin-bottom:10px;" />
+                {% endif %}
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <label for="cover_image_existing_{{ s.id }}" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer;">
+                    Afişi Değiştir
+                  </label>
+                  <span class="muted">Yeni bir görsel seçersen mevcut etkinlik afişi güncellenir.</span>
+                </div>
+                <input id="cover_image_existing_{{ s.id }}" name="cover_image" type="file" accept="image/*" style="margin-top:10px;" />
+              </div>
+            </div>
+          </div>
+          <div class="editor-section">
+            <h4>Tarih ve Saat</h4>
+            <div class="datetime-grid">
+              <div class="datetime-card">
+                <div class="datetime-title">Başlangıç</div>
+                <div class="editor-grid-2">
+                  <div class="field-block">
+                    <label>Başlangıç Tarihi</label>
+                    <input name="start_date_ui" type="date" value="{{ start_value[:10] if start_value else '' }}" required />
+                  </div>
+                  <div class="field-block">
+                    <label>Başlangıç Saati</label>
+                    <input name="start_time_ui" type="time" step="60" value="{{ start_value[11:16] if start_value and start_value|length >= 16 else '' }}" required />
+                  </div>
+                </div>
+              </div>
+              <div class="datetime-card">
+                <div class="datetime-title">Bitiş</div>
+                <div class="editor-grid-2">
+                  <div class="field-block">
+                    <label>Bitiş Tarihi</label>
+                    <input name="end_date_ui" type="date" value="{{ end_value[:10] if end_value else '' }}" required />
+                  </div>
+                  <div class="field-block">
+                    <label>Bitiş Saati</label>
+                    <input name="end_time_ui" type="time" step="60" value="{{ end_value[11:16] if end_value and end_value|length >= 16 else '' }}" required />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="editor-section">
+            <h4>İçerik</h4>
+            <div class="field-block">
+              <label>Program</label>
+              <textarea name="program_text" rows="2" placeholder="Program">{{ s.program_text or '' }}</textarea>
+            </div>
+            <div class="field-block" style="margin-top:10px;">
+              <label>Detaylar / Açıklama</label>
+              <textarea name="description" rows="3" placeholder="Detaylar / Açıklama">{{ s.description or '' }}</textarea>
+            </div>
+          </div>
+          <div class="editor-section">
+            <h4>Bilet Satışı</h4>
+            <div class="toggle-grid">
+              <label class="toggle-card muted">
+                <input type="hidden" name="ticket_sales_enabled" value="0" />
+                <input type="checkbox" name="ticket_sales_enabled" value="1" {% if s.ticket_sales_enabled %}checked{% endif %} />
+                Bilet satışına aç
+              </label>
+            </div>
+            <div class="muted" style="margin-top:8px;">
+              Bu alan kapandığında mobil uygulamada bilet akışı gizlenir; bağlı Woo ürünü varsa WordPress tarafında da taslağa alınır.
+            </div>
+          </div>
+          <div class="editor-section">
+            <h4>Mevcut Woo Ürününe Bağla</h4>
+            {% if s.external_event_id or s.ticket_url %}
+              <div class="muted" style="margin-bottom:8px;">
+                Mevcut bağlantı:
+                {% if s.external_event_id %}<span class="badge">Woo ID: {{ s.external_event_id }}</span>{% endif %}
+                {% if s.ticket_url %}
+                  <a class="badge" href="{{ s.ticket_url }}" target="_blank" rel="noopener" style="text-decoration:none;color:#9fb5ff;">Ürünü Aç</a>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="muted" style="margin-bottom:8px;">Bu etkinlik için henüz bağlı bir Woo ürünü yok.</div>
+            {% endif %}
+            {% if woo_products_err %}
+              <div class="muted" style="margin-bottom:8px;color:#fca5a5;">{{ woo_products_err }}</div>
+            {% endif %}
+            <div class="editor-grid-2">
+              <div class="field-block field-span-2">
+                <label>Woo Ürün ID</label>
+                <input
+                  name="woo_product_id"
+                  class="woo-product-id-input"
+                  list="woo-product-candidates"
+                  value="{{ s.external_event_id or '' }}"
+                  placeholder="Woo ürün ID seçin veya yazın"
+                />
+              </div>
+              <div class="field-block field-span-2">
+                <label>Bilet Linki</label>
+                <input
+                  name="ticket_url"
+                  class="woo-ticket-url-input"
+                  value="{{ s.ticket_url or '' }}"
+                  placeholder="https://dansmagazin.net/urun/..."
+                />
+              </div>
+            </div>
+          </div>
+          <div class="editor-section">
+            <h4>Fotoğraf Albümü</h4>
+            <div class="muted" style="margin-bottom:10px;">
+              {% if s.photo_album_enabled %}
+                Bu etkinlik için fotoğraf albümü açık. Gerekirse albümü `Fotoğraf Albümleri` bölümünden silebilirsin.
+              {% else %}
+                Bu etkinlik şu an sadece etkinlik/bilet kaydı olarak duruyor. Fotoğraf albümünü sonradan açabilirsin.
+              {% endif %}
+            </div>
+            <div class="sub-actions">
+              {% if not s.photo_album_enabled %}
+                <button
+                  type="submit"
+                  formaction="/admin/mobile/submissions/{{ s.id }}/album/create"
+                  formmethod="post"
+                  style="background:#2563eb;"
+                >
+                  Albümü Oluştur
+                </button>
+              {% endif %}
+            </div>
+          </div>
+          <div class="form-actions"><button type="submit" data-save-label="Bilgileri Kaydet" style="background:#16a34a;">Bilgileri Kaydet</button></div>
+        </form>
+      </div>
+
+      <div class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
+        <div class="section-head" style="margin-top:0;">
+          <div class="section-title">Aktif Bilet Kontrolu</div>
+          <span class="count-badge">{{ ticket_summary.get('active_ticket_count') or 0 }}</span>
+        </div>
+        <div class="muted" style="margin-top:8px;">
+          {{ ticket_summary.get('summary_text') or '0 aktif bilet' }}
+          {% if ticket_summary.get('active_holder_count') %}
+            · {{ ticket_summary.get('active_holder_count') }} kullanici
+          {% endif %}
+        </div>
+        {% if ticket_holders and ticket_holders|length > 0 %}
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+            {% for holder in ticket_holders %}
+              <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03);">
+                <div style="display:flex;gap:10px;align-items:center;min-width:0;">
+                  {% if holder.avatar_url %}
+                    <img src="{{ holder.avatar_url }}" alt="{{ holder.name }}" style="width:42px;height:42px;border-radius:999px;object-fit:cover;border:1px solid rgba(255,255,255,.12);" />
+                  {% else %}
+                    <div style="width:42px;height:42px;border-radius:999px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.05);font-weight:800;">
+                      {{ (holder.name or '?')[:1]|upper }}
+                    </div>
+                  {% endif %}
+                  <div style="min-width:0;">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                      <b>{{ holder.name or '-' }}</b>
+                      <span class="badge">{{ holder.ticket_type_label or 'Bilet' }}</span>
+                      <span class="badge">{{ holder.ticket_count or 0 }} bilet</span>
+                      {% if holder.is_verified %}
+                        <span class="badge">Yon. / Dogrulanmis</span>
+                      {% endif %}
+                    </div>
+                    <div class="muted" style="margin-top:4px;word-break:break-word;">{{ holder.email or 'E-posta yok' }}</div>
+                    <div class="muted" style="margin-top:4px;">
+                      {% if holder.ticket_type == 'guest' %}
+                        {% if holder.source_guest_list_name %}
+                          {{ holder.source_guest_list_name }} listesinden davetli
+                        {% else %}
+                          Manuel davetli
+                        {% endif %}
+                      {% elif holder.ticket_type == 'paid' %}
+                        Satın alınmış bilet
+                      {% elif holder.ticket_type == 'loyalty_reward' %}
+                        Ücretsiz / ödül bileti
+                      {% else %}
+                        {{ holder.ticket_type_label or 'Bilet' }}
+                      {% endif %}
+                      {% if holder.last_created_at %}
+                        · {{ holder.last_created_at|fmt_dt }}
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="muted" style="margin-top:10px;">Bu etkinlikte aktif bekleyen bilet yok.</div>
+        {% endif %}
+      </div>
+
+      {% set invitees = event_invitees_map.get(s.id, []) if event_invitees_map is defined else [] %}
+      <div class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
+        <div class="section-head" style="margin-top:0;">
+          <div class="section-title">Davetli Yonetimi</div>
+          <a class="preview-action" href="/admin/mobile?tab=events&view=guest-lists">Davetli Listeleri</a>
+        </div>
+        <div class="muted" style="margin-top:8px;">
+          Profilde hazirlanan davetli listelerini sadece bu etkinlige elle aktarirsin. Aktarilan kullanicilarin `Biletlerim` alanina bu etkinlik icin QR bilet hazirlanir; tekrar serisinin diger gunlerine otomatik tasinmaz.
+        </div>
+
+        {% if guest_lists and guest_lists|length > 0 %}
+          <form method="post" action="/admin/mobile/submissions/{{ s.id }}/guest-lists/import" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input type="hidden" name="view" value="{{ current_view }}" />
+            <select name="guest_list_id" required style="min-width:280px;">
+              <option value="">Aktarilacak davetli listesi</option>
+              {% for item in guest_lists %}
+                <option value="{{ item.guest_list_id }}">{{ item.name }}{% if item.member_count is defined %} · {{ item.member_count }} kisi{% endif %}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" style="background:#2563eb;">Davetli Listesi Aktar</button>
+          </form>
+        {% else %}
+          <div class="muted" style="margin-top:12px;">Henuz kayitli davetli listesi yok. Once `Davetli Listeleri` sekmesinden bir liste olustur.</div>
+        {% endif %}
+
+        <div class="card" style="margin-top:12px;background:rgba(255,255,255,.02);box-shadow:none;">
+          <div class="section-head" style="margin-top:0;">
+            <div class="section-title">Mevcut Davetliler</div>
+            <span class="count-badge">{{ invitees|length }}</span>
+          </div>
+          {% if invitees and invitees|length > 0 %}
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+              {% for invitee in invitees %}
+                <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03);">
+                  <div style="display:flex;gap:10px;align-items:center;min-width:0;">
+                    {% if invitee.avatar_url %}
+                      <img src="{{ invitee.avatar_url }}" alt="{{ invitee.name }}" style="width:42px;height:42px;border-radius:999px;object-fit:cover;border:1px solid rgba(255,255,255,.12);" />
+                    {% else %}
+                      <div style="width:42px;height:42px;border-radius:999px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.05);font-weight:800;">
+                        {{ (invitee.name or '?')[:1]|upper }}
+                      </div>
+                    {% endif %}
+                    <div style="min-width:0;">
+                      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <b>{{ invitee.name or '-' }}</b>
+                        {% if invitee.is_verified %}
+                          <span class="badge">Yon. / Dogrulanmis</span>
+                        {% endif %}
+                        {% if invitee.ticket_id %}
+                          <span class="badge">QR hazir</span>
+                        {% endif %}
+                      </div>
+                      <div class="muted" style="margin-top:4px;word-break:break-word;">{{ invitee.email or 'E-posta yok' }}</div>
+                      <div class="muted" style="margin-top:4px;">
+                        {% if invitee.source_guest_list_name %}
+                          {{ invitee.source_guest_list_name }} listesinden aktarildi
+                        {% else %}
+                          Manuel davetli
+                        {% endif %}
+                        {% if invitee.invited_at %}
+                          · {{ invitee.invited_at|fmt_dt }}
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                  <form method="post" action="/admin/mobile/submissions/{{ s.id }}/invitees/{{ invitee.account_id }}/remove" onsubmit="return confirm('Bu davetli etkinikten kaldirilsin mi?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="view" value="{{ current_view }}" />
+                    <button type="submit" style="background:#ef4444;">Kaldir</button>
+                  </form>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="muted" style="margin-top:10px;">Bu etkinlikte henuz davetli yok.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if show_scan_permissions %}
+        <div class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
+          <b>Etkinlik Editör Yetkisi</b>
+          <form method="post" action="/admin/mobile/submissions/{{ s.id }}/scan-permissions/grant" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <select name="account_id" required style="min-width:280px;">
+              <option value="">Editör seçin</option>
+              {% for u in editor_candidates %}
+                <option value="{{ u.id }}">{{ u.name }} — {{ u.email }} ({{ u.role }})</option>
+              {% endfor %}
+            </select>
+            <button type="submit" style="background:#2563eb;">Editör Ata</button>
+          </form>
+
+          {% set perms = scan_permissions_map.get(s.id, []) %}
+          {% if perms and perms|length > 0 %}
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+              {% for p in perms %}
+                <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px;">
+                  <div>
+                    <div><b>{{ p.name or '-' }}</b></div>
+                    <div class="muted">{{ p.email or '-' }}</div>
+                  </div>
+                  <form method="post" action="/admin/mobile/submissions/{{ s.id }}/scan-permissions/revoke" onsubmit="return confirm('Bu yetki kaldırılsın mı?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="account_id" value="{{ p.account_id }}" />
+                    <button type="submit" style="background:#ef4444;">Kaldır</button>
+                  </form>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="muted" style="margin-top:8px;">Bu etkinlik için atanmış etkinlik editörü yok.</div>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <details class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
+        <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;">
+          <div>
+            <b>Okul ve Ucretsiz Bilet Takibi</b>
+            <div class="muted" style="margin-top:4px;">
+              {% if loyalty_report.get('thread_size', 1) > 1 %}
+                Tekrarlayan seri bazında toplanan okul girisleri ve ücretsiz bilet ilerlemesi.
+              {% else %}
+                Bu etkinlik için okutulan biletlerden gelen okul ve ücretsiz bilet özeti.
+              {% endif %}
+            </div>
+          </div>
+          <span class="badge">{{ loyalty_summary.get('series_accepted_scans') or loyalty_summary.get('current_accepted_scans') or 0 }} okutma</span>
+        </summary>
+        <div style="margin-top:12px;">
+          <div class="sub-meta muted">
+            <div><b>Bu Tarihte Okutulan:</b> {{ loyalty_summary.get('current_accepted_scans') or 0 }}</div>
+            <div><b>Bu Tarihte Kisi:</b> {{ loyalty_summary.get('current_unique_buyers') or 0 }}</div>
+            <div><b>Seri Toplam Giris:</b> {{ loyalty_summary.get('series_accepted_scans') or 0 }}</div>
+            <div><b>Seri Tekil Kisi:</b> {{ loyalty_summary.get('series_unique_buyers') or 0 }}</div>
+            <div><b>Okul Sayisi:</b> {{ loyalty_summary.get('school_count') or 0 }}</div>
+            <div><b>Hazir Ucretsiz Bilet:</b> {{ loyalty_summary.get('reward_ticket_active_count') or 0 }}</div>
+            <div><b>Kullanilan Ucretsiz:</b> {{ loyalty_summary.get('reward_ticket_used_count') or 0 }}</div>
+            <div><b>Toplam Ucretsiz:</b> {{ loyalty_summary.get('reward_ticket_count') or 0 }}</div>
+          </div>
+
+          {% if loyalty_report.get('thread_size', 1) > 1 %}
+            <div class="muted" style="margin-top:10px;">
+              Bu etkinlik, {{ loyalty_report.get('thread_size') or 1 }} kayitlik tekrar serisinin parcasi. Okul ve ücretsiz bilet kurali seri genelinde hesaplanir.
+            </div>
+          {% endif %}
+
+          {% if loyalty_summary.get('last_scan_at') %}
+            <div class="muted" style="margin-top:8px;">Son okutma: {{ loyalty_summary.get('last_scan_at')|fmt_dt }}</div>
+          {% endif %}
+
+          {% if (loyalty_summary.get('series_accepted_scans') or 0) == 0 and (loyalty_summary.get('current_accepted_scans') or 0) == 0 %}
+            <div class="muted" style="margin-top:12px;">Henüz bu etkinlik için okutulmus bilet kaydi yok.</div>
+          {% else %}
+            <div class="card" style="margin-top:12px;background:rgba(255,255,255,.02);box-shadow:none;">
+              <b>Okul Dagilimi</b>
+              {% if loyalty_schools and loyalty_schools|length > 0 %}
+                <div style="overflow-x:auto;margin-top:10px;">
+                  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                    <thead>
+                      <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,.1);">
+                        <th style="padding:8px 6px;">Okul</th>
+                        <th style="padding:8px 6px;">Giris</th>
+                        <th style="padding:8px 6px;">Tekil Kisi</th>
+                        <th style="padding:8px 6px;">Son Okutma</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for item in loyalty_schools %}
+                        <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
+                          <td style="padding:8px 6px;">{{ item.get('school_name') or 'Belirtilmedi' }}</td>
+                          <td style="padding:8px 6px;">{{ item.get('accepted_scans') or 0 }}</td>
+                          <td style="padding:8px 6px;">{{ item.get('unique_buyers') or 0 }}</td>
+                          <td style="padding:8px 6px;">{{ item.get('last_scan_at')|fmt_dt if item.get('last_scan_at') else '-' }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="muted" style="margin-top:8px;">Okul bilgisiyle kaydedilmis okutma bulunmuyor.</div>
+              {% endif %}
+            </div>
+
+            {% if loyalty_report.get('loyalty_enabled') %}
+              <div class="card" style="margin-top:12px;background:rgba(255,255,255,.02);box-shadow:none;">
+                <b>5 Giriste 1 Ucretsiz Takibi</b>
+                {% if loyalty_users and loyalty_users|length > 0 %}
+                  <div style="overflow-x:auto;margin-top:10px;">
+                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                      <thead>
+                        <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,.1);">
+                          <th style="padding:8px 6px;">Kullanici</th>
+                          <th style="padding:8px 6px;">Okul</th>
+                          <th style="padding:8px 6px;">Toplam Giris</th>
+                          <th style="padding:8px 6px;">Kalan</th>
+                          <th style="padding:8px 6px;">Kazanilan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for item in loyalty_users %}
+                          <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
+                            <td style="padding:8px 6px;">
+                              <div>{{ item.get('buyer_name') or '-' }}</div>
+                              {% if item.get('buyer_email') %}<div class="muted">{{ item.get('buyer_email') }}</div>{% endif %}
+                            </td>
+                            <td style="padding:8px 6px;">{{ item.get('school_name') or '-' }}</td>
+                            <td style="padding:8px 6px;">{{ item.get('qualifying_visits') or 0 }}</td>
+                            <td style="padding:8px 6px;">{{ item.get('next_remaining') or 0 }}</td>
+                            <td style="padding:8px 6px;">{{ item.get('earned_rewards') or 0 }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="muted" style="margin-top:8px;">Henüz ücretsiz bilet ilerlemesi oluşan kullanıcı yok.</div>
+                {% endif %}
+              </div>
+
+              <div class="card" style="margin-top:12px;background:rgba(255,255,255,.02);box-shadow:none;">
+                <b>Olusan Ucretsiz Biletler</b>
+                {% if loyalty_rewards and loyalty_rewards|length > 0 %}
+                  <div style="overflow-x:auto;margin-top:10px;">
+                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                      <thead>
+                        <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,.1);">
+                          <th style="padding:8px 6px;">Kullanici</th>
+                          <th style="padding:8px 6px;">Cycle</th>
+                          <th style="padding:8px 6px;">Hedef Etkinlik</th>
+                          <th style="padding:8px 6px;">Durum</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for item in loyalty_rewards %}
+                          <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
+                            <td style="padding:8px 6px;">
+                              <div>{{ item.get('buyer_name') or '-' }}</div>
+                              {% if item.get('buyer_email') %}<div class="muted">{{ item.get('buyer_email') }}</div>{% endif %}
+                            </td>
+                            <td style="padding:8px 6px;">#{{ item.get('reward_cycle') or 0 }}</td>
+                            <td style="padding:8px 6px;">{{ item.get('event_name') or '-' }}</td>
+                            <td style="padding:8px 6px;">
+                              {% if item.get('is_used') %}
+                                Kullanildi
+                              {% elif item.get('status') == 'cancelled' %}
+                                Iptal
+                              {% else %}
+                                Hazir
+                              {% endif %}
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="muted" style="margin-top:8px;">Henüz otomatik oluşturulmuş ücretsiz bilet yok.</div>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="muted" style="margin-top:12px;">
+                Bu etkinlikte okul bilgisi takip edilir; 5 giriste 1 ücretsiz kuralı ise sadece Vişnelik serileri için aktif.
+              </div>
+            {% endif %}
+          {% endif %}
+        </div>
+      </details>
+
+      <div class="sub-actions" style="margin-top:8px;">
+        <form method="post" action="/admin/mobile/submissions/{{ s.id }}/copy" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;" onsubmit="return confirm('Bu etkinliğin aynısından yeni bir talep oluşturulsun mu?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <button type="submit" style="background:#2563eb;">Etkinliği Kopyala</button>
+        </form>
+        <form method="post" action="/admin/mobile/submissions/{{ s.id }}/active" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;" onsubmit="return confirm('{% if s.event_is_active is defined and not s.event_is_active %}Bu etkinlik tekrar aktif edilsin mi?{% else %}Bu etkinlik uygulamada gizlenecek. Pasife alınsın mı?{% endif %}');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="source_table" value="{{ s.source_table }}" />
+          {% if s.event_is_active is defined and not s.event_is_active %}
+            <input type="hidden" name="is_active" value="1" />
+            <button type="submit" style="background:#2563eb;">Aktifleştir</button>
+          {% else %}
+            <input type="hidden" name="is_active" value="0" />
+            <button type="submit" style="background:#f59e0b;color:#111827;">Pasife Al</button>
+          {% endif %}
+        </form>
+        <form method="post" action="/admin/mobile/submissions/{{ s.id }}/delete" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;" onsubmit="return confirm('Bu kayıt silinsin mi?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="source_table" value="{{ s.source_table }}" />
+          <label class="muted" style="display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" name="delete_linked_event" value="1">
+            Bagli fotograf etkinligini de sil
+          </label>
+          <button type="submit" style="background:#ef4444;">Kaydi Sil</button>
+        </form>
+      </div>
+    </div>
+  </details>
+{% endmacro %}
+
+{% macro render_event_module(title, items, empty_text, helper_text='', show_scan_permissions=False, collapsible=False, start_open=False, current_view='active') %}
+  <{% if collapsible %}details{% else %}div{% endif %} class="card" style="margin-top:12px;background:rgba(255,255,255,.03);"{% if collapsible and start_open %} open{% endif %}>
+    <{% if collapsible %}summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;list-style:none;"{% else %}div class="section-head" style="margin-top:0;"{% endif %}>
+      <div class="section-title">{{ title }}</div>
+      <span class="count-badge">{{ items|length }}</span>
+    </{% if collapsible %}summary{% else %}div{% endif %}>
+    {% if helper_text %}
+      <div class="muted" style="margin-top:10px;">{{ helper_text }}</div>
+    {% endif %}
+    <div class="compact-list">
+      {% for s in items %}
+        {{ render_event_row(s, show_scan_permissions, current_view) }}
+      {% endfor %}
+      {% if items|length == 0 %}
+        <div class="muted">{{ empty_text }}</div>
+      {% endif %}
+    </div>
+  </{% if collapsible %}details{% else %}div{% endif %}>
+{% endmacro %}
+
+{% set requested_events_view = request.query_params.get('view') if request and request.query_params else '' %}
+{% set current_events_view = requested_events_view or events_view or 'overview' %}
+{% set counts = event_counts if event_counts is defined else {
+  'requests': request_items|length,
+  'old_requests': old_request_items|length,
+  'active': active_event_items|length,
+  'hidden': inactive_event_items|length,
+  'history': old_event_items|length
+} %}
+
+<div class="metric-grid">
+  <div class="metric-card">
+    <div class="metric-label">Onay Bekleyen</div>
+    <div class="metric-value">{{ counts.requests or 0 }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Eski Talepler</div>
+    <div class="metric-value">{{ counts.old_requests or 0 }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Aktif Etkinlik</div>
+    <div class="metric-value">{{ counts.active or 0 }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Gizli Etkinlik</div>
+    <div class="metric-value">{{ counts.hidden or 0 }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Geçmiş Etkinlik</div>
+    <div class="metric-value">{{ counts.history or 0 }}</div>
+  </div>
+</div>
+
+<div class="section-switch">
+  <a href="/admin/mobile?tab=events&view=overview" class="{% if current_events_view == 'overview' %}active{% endif %}">Genel Bakış</a>
+  <a href="/admin/mobile?tab=events&view=requests" class="{% if current_events_view == 'requests' %}active{% endif %}">Etkinlik Talepleri</a>
+  <a href="/admin/mobile?tab=events&view=active" class="{% if current_events_view == 'active' %}active{% endif %}">Aktif Etkinlikler</a>
+  <a href="/admin/mobile?tab=events&view=hidden" class="{% if current_events_view == 'hidden' %}active{% endif %}">Gizli Etkinlikler</a>
+  <a href="/admin/mobile?tab=events&view=history" class="{% if current_events_view == 'history' %}active{% endif %}">Geçmiş Kayıtlar</a>
+  <a href="/admin/mobile?tab=events&view=guest-lists" class="{% if current_events_view == 'guest-lists' %}active{% endif %}">Davetli Listeleri</a>
+  <a href="/admin/mobile?tab=events&view=create" class="{% if current_events_view == 'create' %}active{% endif %}">Yeni Etkinlik Oluştur</a>
+</div>
+
+{% if submissions_err %}
+  <div class="err">{{ submissions_err }}</div>
+{% endif %}
+
+{% if current_events_view in ['active', 'hidden', 'history'] and woo_product_candidates and woo_product_candidates|length > 0 %}
+  <datalist id="woo-product-candidates">
+    {% for p in woo_product_candidates %}
+      <option value="{{ p.id }}">{{ p.name }}{% if p.status %} · {{ p.status }}{% endif %}</option>
+    {% endfor %}
+  </datalist>
+{% endif %}
+
+{% if current_events_view == 'overview' %}
+  <div class="callout-grid">
+    <div class="card" style="margin-top:0;background:rgba(255,255,255,.03);">
+      <div class="section-head" style="margin-top:0;">
+        <div class="section-title">Hızlı Giriş: Onay Bekleyen Etkinlikler</div>
+        <a class="preview-action" href="/admin/mobile?tab=events&view=requests">Tüm Talepleri Aç</a>
+      </div>
+      <div class="muted" style="margin-top:8px;">Bekleyen talepler burada kısa liste halinde görünür. Tam düzenleme ekranı sadece ilgili bölüme girildiğinde açılır.</div>
+      <div class="preview-list">
+        {% for s in request_items[:5] %}
+          <div class="preview-item">
+            <div>
+              <div class="preview-title">{{ s.event_name or '-' }}</div>
+              <div class="preview-meta">
+                {{ s.submitter_name or '-' }}
+                {% if s.city %} · {{ s.city }}{% endif %}
+                {% if s.start_at %} · {{ s.start_at|fmt_dt }}{% endif %}
+              </div>
+            </div>
+            <span class="badge">{{ s.status }}</span>
+          </div>
+        {% endfor %}
+        {% if request_items|length == 0 %}
+          <div class="muted">Şu anda onay bekleyen yeni etkinlik talebi yok.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card" style="margin-top:0;background:rgba(255,255,255,.03);">
+      <div class="section-head" style="margin-top:0;">
+        <div class="section-title">Hızlı Giriş: Yayındaki Etkinlikler</div>
+        <a class="preview-action" href="/admin/mobile?tab=events&view=active">Aktif Etkinlikleri Aç</a>
+      </div>
+      <div class="muted" style="margin-top:8px;">Ana akışta yalnızca canlı etkinlikleri öne çıkarıyoruz. Ağır form alanları bu özet görünümde yüklenmez.</div>
+      <div class="preview-list">
+        {% for s in active_event_items[:5] %}
+          <div class="preview-item">
+            <div>
+              <div class="preview-title">{{ s.event_name or '-' }}</div>
+              <div class="preview-meta">
+                {{ s.city or '-' }}
+                {% if s.venue %} · {{ s.venue }}{% endif %}
+                {% if s.start_at %} · {{ s.start_at|fmt_dt }}{% endif %}
+              </div>
+            </div>
+            <span class="badge">{% if s.event_is_active is defined and not s.event_is_active %}pasif{% else %}aktif{% endif %}</span>
+          </div>
+        {% endfor %}
+        {% if active_event_items|length == 0 %}
+          <div class="muted">Yayında görünen aktif etkinlik bulunmuyor.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;background:rgba(255,255,255,.03);">
+    <div class="section-head" style="margin-top:0;">
+      <div class="section-title">Hızlı Aksiyonlar</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="preview-action" href="/admin/mobile?tab=events&view=guest-lists">Davetli Listeleri</a>
+        <a class="preview-action" href="/admin/mobile?tab=events&view=create">Yeni Etkinlik Oluştur</a>
+      </div>
+    </div>
+    <div class="muted" style="margin-top:8px;">
+      Yeni yapıdaki amaç, önce doğru modüle girmek. Talepleri, yayındaki etkinlikleri ve geçmiş kayıtları ayrı bölümlerden açtığında ekran daha temiz ve daha hızlı kalır.
+    </div>
+  </div>
+{% elif current_events_view == 'requests' %}
+  {{ render_request_module('Etkinlik İstekleri', request_items, 'Yeni etkinlik isteği yok.', 'Sadece yeni ve işlem bekleyen etkinlik talepleri burada görünür.') }}
+  {{ render_request_module('Eski İstekler', old_request_items, 'Eski istek yok.', 'Süresi geçen veya sonucu kesinleşen talepler ayrı tutulur.', True, False) }}
+{% elif current_events_view == 'active' %}
+  {{ render_event_module('Aktif Etkinlikler', active_event_items, 'Onaylanmış etkinlik yok.', 'Şu anda uygulamada aktif olan etkinlikler.', True, False, True, current_events_view) }}
+{% elif current_events_view == 'hidden' %}
+  {{ render_event_module('Gizli / Pasif Etkinlikler', inactive_event_items, 'Pasif etkinlik yok.', 'Uygulamada gizlenen ama silinmeyen etkinlikler.', True, False, True, current_events_view) }}
+{% elif current_events_view == 'history' %}
+  {{ render_event_module('Geçmiş Etkinlikler', old_event_items, 'Geçmiş etkinlik yok.', 'Süresi dolan veya tamamlanan etkinlik kayıtları.', False, False, True, current_events_view) }}
+  {{ render_request_module('Eski Talepler', old_request_items, 'Eski istek yok.', 'Reddedilen veya artık işlem gerektirmeyen talepler ayrı tutulur.', True, False) }}
+{% elif current_events_view == 'guest-lists' %}
+  {% set selected_list = selected_guest_list_detail if selected_guest_list_detail else None %}
+  {% set selected_members = selected_list.get('members') if selected_list else [] %}
+  <div class="callout-grid">
+    <div class="card" style="margin-top:0;background:rgba(255,255,255,.03);">
+      <div class="section-head" style="margin-top:0;">
+        <div class="section-title">Davetli Listeleri</div>
+        <span class="count-badge">{{ guest_lists|length if guest_lists else 0 }}</span>
+      </div>
+      <div class="muted" style="margin-top:8px;">
+        Burada sehir, okul, organizasyon veya gecelik ozel listeler hazirlayabilirsin. Sonra bir etkinige girdiginde bu listelerden birini elle aktarip o etkinige ozel QR biletler uretebilirsin.
+      </div>
+      <form method="post" action="/admin/mobile/guest-lists/create" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input name="name" placeholder="Orn: Ankara, Istanbul, Visnelik VIP" maxlength="80" required />
+        <button type="submit" style="background:#2563eb;">Liste Olustur</button>
+      </form>
+
+      <div class="compact-list" style="margin-top:14px;">
+        {% for item in guest_lists %}
+          <a
+            href="/admin/mobile?tab=events&view=guest-lists&guest_list_id={{ item.guest_list_id }}"
+            class="preview-item"
+            style="text-decoration:none;color:inherit;{% if selected_guest_list_id == item.guest_list_id %}border-color:rgba(91,134,255,.45);background:rgba(91,134,255,.08);{% endif %}"
+          >
+            <div>
+              <div class="preview-title">{{ item.name or '-' }}</div>
+              <div class="preview-meta">
+                {{ item.member_count or 0 }} kisi
+                {% if item.updated_at %} · Son guncelleme {{ item.updated_at|fmt_dt }}{% endif %}
+              </div>
+            </div>
+            <span class="badge">#{{ item.guest_list_id }}</span>
+          </a>
+        {% endfor %}
+        {% if not guest_lists or guest_lists|length == 0 %}
+          <div class="muted">Henuz davetli listesi yok. Ilk listenizi yukaridan olusturabilirsiniz.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:0;background:rgba(255,255,255,.03);">
+      {% if selected_list %}
+        <div class="section-head" style="margin-top:0;">
+          <div class="section-title">{{ selected_list.get('name') or 'Secili liste' }}</div>
+          <span class="count-badge">{{ selected_list.get('member_count') or 0 }} kisi</span>
+        </div>
+        <div class="muted" style="margin-top:8px;">
+          Bu listeyi etkinik kartlarindaki `Davetli Yonetimi` alanindan aktarirsin. Aynı kullanici ikinci kez aktarilmaya calisilirsa sistem tekrar eklemez.
+        </div>
+        <div class="sub-actions" style="margin-top:14px;">
+          <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/rename" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 360px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input name="name" value="{{ selected_list.get('name') or '' }}" maxlength="80" required />
+            <button type="submit" style="background:#16a34a;">Adi Kaydet</button>
+          </form>
+          <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/delete" onsubmit="return confirm('Bu davetli listesi silinsin mi?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <button type="submit" style="background:#ef4444;">Listeyi Sil</button>
+          </form>
+        </div>
+
+        <div class="card" style="margin-top:14px;background:rgba(255,255,255,.02);box-shadow:none;">
+          <div class="section-head" style="margin-top:0;">
+            <div class="section-title">Listeye Kullanici Ekle</div>
+            <span class="count-badge">{{ selected_members|length }}</span>
+          </div>
+          <form method="get" action="/admin/mobile" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;">
+            <input type="hidden" name="tab" value="events" />
+            <input type="hidden" name="view" value="guest-lists" />
+            <input type="hidden" name="guest_list_id" value="{{ selected_list.get('guest_list_id') }}" />
+            <input name="guest_user_q" value="{{ request.query_params.get('guest_user_q', '') if request and request.query_params else '' }}" placeholder="Kullanici adi veya e-posta ara" />
+            <button type="submit" style="background:#2563eb;">Ara</button>
+          </form>
+          <div class="muted" style="margin-top:8px;">
+            En az {{ guest_list_search_meta.get('min_query_length', 2) if guest_list_search_meta else 2 }} karakter yaz. Zaten listede olan kullanicilar arama sonucunda tekrar gosterilmez.
+          </div>
+
+          {% if request and request.query_params and request.query_params.get('guest_user_q') %}
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+              {% for user in guest_list_search_items %}
+                <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03);">
+                  <div style="min-width:0;">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                      <b>{{ user.name or '-' }}</b>
+                      {% if user.is_verified %}
+                        <span class="badge">Yon. / Dogrulanmis</span>
+                      {% endif %}
+                    </div>
+                    <div class="muted" style="margin-top:4px;word-break:break-word;">{{ user.email or 'E-posta yok' }}</div>
+                  </div>
+                  <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/members/add">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="account_id" value="{{ user.account_id }}" />
+                    <button type="submit" style="background:#16a34a;">Listeye Ekle</button>
+                  </form>
+                </div>
+              {% endfor %}
+              {% if guest_list_search_items|length == 0 %}
+                <div class="muted">Bu aramayla eklenebilecek yeni kullanici bulunamadi.</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="section-head" style="margin-top:0;">
+          <div class="section-title">Liste Sec</div>
+        </div>
+        <div class="muted" style="margin-top:8px;">
+          Soldaki listelerden birini sectiginde uye ekleme, ad degistirme ve silme islemleri burada gorunur.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if selected_list %}
+    <div class="card" style="margin-top:14px;background:rgba(255,255,255,.03);">
+      <div class="section-head" style="margin-top:0;">
+        <div class="section-title">Liste Uyeligi</div>
+        <span class="count-badge">{{ selected_members|length }}</span>
+      </div>
+      <div class="muted" style="margin-top:8px;">
+        Buradaki uyeler sadece secilen listeye aittir. Etkinlige aktarma yaptiginda QR biletler o etkinik icin ayrica olusturulur.
+      </div>
+      {% if selected_members and selected_members|length > 0 %}
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+          {% for member in selected_members %}
+            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03);">
+              <div style="display:flex;gap:10px;align-items:center;min-width:0;">
+                {% if member.avatar_url %}
+                  <img src="{{ member.avatar_url }}" alt="{{ member.name }}" style="width:42px;height:42px;border-radius:999px;object-fit:cover;border:1px solid rgba(255,255,255,.12);" />
+                {% else %}
+                  <div style="width:42px;height:42px;border-radius:999px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.05);font-weight:800;">
+                    {{ (member.name or '?')[:1]|upper }}
+                  </div>
+                {% endif %}
+                <div style="min-width:0;">
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <b>{{ member.name or '-' }}</b>
+                    {% if member.is_verified %}
+                      <span class="badge">Yon. / Dogrulanmis</span>
+                    {% endif %}
+                  </div>
+                  <div class="muted" style="margin-top:4px;word-break:break-word;">{{ member.email or 'E-posta yok' }}</div>
+                  {% if member.added_at %}
+                    <div class="muted" style="margin-top:4px;">Listeye eklenme: {{ member.added_at|fmt_dt }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/members/{{ member.account_id }}/remove" onsubmit="return confirm('Bu kullanici listeden cikarilsin mi?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <button type="submit" style="background:#ef4444;">Listeden Cikar</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted" style="margin-top:14px;">Bu listede henuz uye yok. Yukaridaki arama ile kullanici ekleyebilirsin.</div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endif %}
+
+{% if current_events_view == 'create' %}
+<div class="card" style="margin-top:12px;background:rgba(255,255,255,.03);">
+  <b>Panelden Etkinlik Oluştur</b>
+  <div class="muted" style="margin-top:6px;">Buradan oluşturulan etkinlik, mobil onay listesine düşer. Onay sonrası app tarafında görünür.</div>
+  <form method="post" action="/admin/mobile/events/create" enctype="multipart/form-data" data-event-datetime-form="create" data-event-create-draft="1" class="editor-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="event_date" />
+    <input type="hidden" name="start_at" />
+    <input type="hidden" name="end_at" />
+    <input type="hidden" name="repeat_weekly" value="0" />
+    <input type="hidden" name="repeat_selected_dates" value="" />
+    <div class="editor-section">
+      <h4>Genel Bilgiler</h4>
+      <div class="editor-grid-2">
+        <div class="field-block field-span-2">
+          <label>Etkinlik Adı</label>
+          <input name="event_name" placeholder="Etkinlik adı" required />
+        </div>
+        <div class="field-block">
+          <label>Etkinlik Türü</label>
+          <select name="event_kind">
+            <option value="dance_night">Dans Gecesi</option>
+            <option value="festival">Festival</option>
+            <option value="competition">Yarışma</option>
+            <option value="promo_lesson">Tanıtım Dersi</option>
+          </select>
+        </div>
+        <div class="field-block">
+          <label>Şehir</label>
+          <input name="city" placeholder="Şehir" required />
+        </div>
+        <div class="field-block">
+          <label>Organizatör</label>
+          <input name="organizer_name" placeholder="Organizatör" />
+        </div>
+        <div class="field-block">
+          <label>Bilet Ücreti</label>
+          <input name="entry_fee" placeholder="Bilet ücreti (örn: 0 veya 250)" value="0" />
+        </div>
+        <div class="field-block field-span-2">
+          <label>Mekan / Konum</label>
+          <input name="venue" placeholder="Mekan / Konum" required />
+        </div>
+        <div class="field-block field-span-2">
+          <label>Konum Linki</label>
+          <input name="venue_map_url" placeholder="Google/Apple Maps linki (opsiyonel)" />
+        </div>
+      </div>
+    </div>
+    <div class="editor-section">
+      <h4>Tarih ve Saat</h4>
+      <div class="datetime-grid">
+        <div class="datetime-card" style="grid-column:1 / -1;">
+          <div class="datetime-title">Etkinlik Zamanı</div>
+          <div class="editor-grid-3">
+            <div class="field-block">
+              <label>Etkinlik Tarihi</label>
+              <input name="start_date_ui" type="date" required />
+            </div>
+            <div class="field-block">
+              <label>Başlangıç Saati</label>
+              <input name="start_time_ui" type="time" step="60" required />
+            </div>
+            <div class="field-block">
+              <label>Bitiş Saati</label>
+              <input name="end_time_ui" type="time" step="60" required />
+            </div>
+          </div>
+          <div class="muted" style="margin-top:8px;">
+            Bitiş saati başlangıçtan erken seçilirse etkinlik otomatik olarak ertesi güne taşınır.
+          </div>
+        </div>
+      </div>
+      <div class="toggle-grid" style="margin-top:10px;">
+        <label class="toggle-card muted">
+          <input type="hidden" name="ticket_sales_enabled" value="0" />
+          <input type="checkbox" name="ticket_sales_enabled" value="1" />
+          Bilet satışına aç
+        </label>
+        <label class="toggle-card muted">
+          <input type="checkbox" name="create_photo_album" value="1" checked />
+          Fotoğraf albümü oluştur
+        </label>
+      </div>
+      <div class="field-block" style="margin-top:12px;">
+        <label>Tekrar Modeli</label>
+        <select name="repeat_mode" data-repeat-mode-select>
+          <option value="none">Tek etkinlik</option>
+          <option value="weekly_fixed">Her hafta aynı gün</option>
+          <option value="selected_dates">Değişken günleri toplu oluştur</option>
+        </select>
+        <div class="muted" style="margin-top:8px;">
+          Düzen sabitse tek gün seç; farklı günlerdeyse seçtiğin tarihler için ayrı etkinlik talepleri oluştur.
+        </div>
+      </div>
+    </div>
+    <div id="repeatWeekdayRow" style="display:none;margin-top:10px;">
+      <select name="repeat_weekday" disabled>
+        <option value="">Tekrar günü seç</option>
+        <option value="0">Her Pazartesi</option>
+        <option value="1">Her Salı</option>
+        <option value="2">Her Çarşamba</option>
+        <option value="3">Her Perşembe</option>
+        <option value="4">Her Cuma</option>
+        <option value="5">Her Cumartesi</option>
+        <option value="6">Her Pazar</option>
+      </select>
+    </div>
+    <div id="repeatSelectedDatesRow" style="display:none;margin-top:10px;">
+      <div class="field-block">
+        <label>Toplu Tarih Seçimi</label>
+        <div class="muted" style="margin-bottom:8px;">
+          Ay seçip o ay içindeki günlere dokun. Seçilen her tarih için ayrı bir etkinlik talebi açılır.
+        </div>
+        <div class="editor-grid-2">
+          <div class="field-block">
+            <label>Ay</label>
+            <input type="month" data-repeat-month />
+          </div>
+          <div class="field-block">
+            <label>Hızlı Ekle</label>
+            <button
+              type="button"
+              data-add-start-repeat-date
+              style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(37,99,235,.14);color:#dbeafe;font-weight:700;cursor:pointer;"
+            >
+              Seçili tarihi listeye ekle
+            </button>
+          </div>
+        </div>
+        <div
+          data-repeat-days-grid
+          style="display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr));gap:8px;margin-top:12px;"
+        ></div>
+        <div class="muted" data-repeat-selected-summary style="margin-top:10px;">Henüz tarih seçilmedi.</div>
+        <div data-repeat-selected-chips style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+      </div>
+    </div>
+    <div class="editor-section">
+      <h4>İçerik ve Medya</h4>
+      <div class="field-block">
+        <label>Kapak Görseli</label>
+        <label for="create_cover_image" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer;width:max-content;">
+          Afiş Seç
+        </label>
+        <input id="create_cover_image" type="file" name="cover_image" accept="image/*" style="margin-top:10px;" />
+        <div class="muted" style="margin-top:6px;">Form hata verirse yazdıkların korunur. Güvenlik nedeniyle kapak görselini yeniden seçmen gerekebilir.</div>
+      </div>
+      <div class="field-block" style="margin-top:10px;">
+        <label>Program</label>
+        <textarea name="program_text" rows="2" placeholder="Program"></textarea>
+      </div>
+      <div class="field-block" style="margin-top:10px;">
+        <label>Detaylar / Açıklama</label>
+        <textarea name="description" rows="3" placeholder="Detaylar / Açıklama"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" style="background:#2563eb;">Etkinlik Talebi Oluştur</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<script>
+  window.__wooProducts = {
+    {% for p in woo_product_candidates %}
+      "{{ p.id }}": {
+        id: "{{ p.id }}",
+        name: {{ (p.name or '')|tojson }},
+        ticket_url: {{ (p.ticket_url or '')|tojson }},
+        status: {{ (p.status or '')|tojson }}
+      }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+
+  (function(){
+    function bindWooFields(scope){
+      const roots = (scope || document).querySelectorAll('.woo-product-id-input');
+      roots.forEach(function(input){
+        if (input.dataset.wooBound === '1') return;
+        input.dataset.wooBound = '1';
+        const form = input.closest('form');
+        if (!form) return;
+        const urlInput = form.querySelector('.woo-ticket-url-input');
+        if (!urlInput) return;
+
+        function syncFromId(){
+          const value = (input.value || '').trim();
+          const item = window.__wooProducts && window.__wooProducts[value];
+          if (!item) return;
+          if (item.ticket_url) {
+            urlInput.value = item.ticket_url;
+          }
+        }
+
+        input.addEventListener('change', syncFromId);
+        input.addEventListener('blur', syncFromId);
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function(){ bindWooFields(document); });
+    } else {
+      bindWooFields(document);
+    }
+  })();
+
+  (function(){
+    const form = document.querySelector('form[action="/admin/mobile/events/create"]');
+    if (!form) return;
+    const startDate = form.querySelector('input[name="start_date_ui"]');
+    const startTime = form.querySelector('input[name="start_time_ui"]');
+    const endDate = form.querySelector('input[name="end_date_ui"]') || startDate;
+    const endTime = form.querySelector('input[name="end_time_ui"]');
+    const eventDate = form.querySelector('input[name="event_date"]');
+    const startAt = form.querySelector('input[name="start_at"]');
+    const endAt = form.querySelector('input[name="end_at"]');
+    const repeatModeSelect = form.querySelector('select[name="repeat_mode"]');
+    const repeatWeeklyField = form.querySelector('input[name="repeat_weekly"]');
+    const repeatRow = form.querySelector('#repeatWeekdayRow');
+    const repeatSelect = form.querySelector('select[name="repeat_weekday"]');
+    const repeatSelectedDatesField = form.querySelector('input[name="repeat_selected_dates"]');
+    const repeatSelectedDatesRow = form.querySelector('#repeatSelectedDatesRow');
+    const repeatMonthInput = form.querySelector('[data-repeat-month]');
+    const repeatDaysGrid = form.querySelector('[data-repeat-days-grid]');
+    const repeatSelectedSummary = form.querySelector('[data-repeat-selected-summary]');
+    const repeatSelectedChips = form.querySelector('[data-repeat-selected-chips]');
+    const addStartRepeatDateBtn = form.querySelector('[data-add-start-repeat-date]');
+    let selectedDateKeys = new Set();
+
+    function combineDateAndTime(dateValue, timeValue){
+      const day = (dateValue || '').trim().slice(0, 10);
+      const tm = (timeValue || '').trim();
+      if (!day || !tm) return '';
+      return `${day} ${tm}:00`;
+    }
+
+    function toIsoDate(value){
+      const v = (value || '').trim().slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+    }
+
+    function weekdayValueFromIso(isoDate){
+      const dt = new Date(`${isoDate}T12:00:00`);
+      return ((dt.getDay() + 6) % 7).toString();
+    }
+
+    function formatDateLabel(isoDate){
+      const parts = (isoDate || '').split('-');
+      if (parts.length !== 3) return isoDate;
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+
+    function loadSelectedDateKeys(){
+      selectedDateKeys = new Set();
+      const raw = (repeatSelectedDatesField && repeatSelectedDatesField.value ? repeatSelectedDatesField.value : '').trim();
+      if (!raw) return;
+      raw.split(',').forEach((item) => {
+        const iso = toIsoDate(item);
+        if (iso) selectedDateKeys.add(iso);
+      });
+    }
+
+    function emitFieldChange(input){
+      if (!input) return;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function persistSelectedDateKeys(){
+      const ordered = Array.from(selectedDateKeys).sort();
+      if (repeatSelectedDatesField) {
+        repeatSelectedDatesField.value = ordered.join(',');
+        emitFieldChange(repeatSelectedDatesField);
+      }
+      renderSelectedDateSummary();
+      renderMonthDays();
+    }
+
+    function renderSelectedDateSummary(){
+      const ordered = Array.from(selectedDateKeys).sort();
+      if (repeatSelectedSummary) {
+        repeatSelectedSummary.textContent = ordered.length
+          ? `${ordered.length} tarih seçildi`
+          : 'Henüz tarih seçilmedi.';
+      }
+      if (!repeatSelectedChips) return;
+      repeatSelectedChips.innerHTML = '';
+      ordered.forEach((iso) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.textContent = `${formatDateLabel(iso)} ×`;
+        chip.style.border = '1px solid rgba(255,255,255,.12)';
+        chip.style.borderRadius = '999px';
+        chip.style.padding = '8px 12px';
+        chip.style.background = 'rgba(37,99,235,.18)';
+        chip.style.color = '#dbeafe';
+        chip.style.cursor = 'pointer';
+        chip.addEventListener('click', function(){
+          selectedDateKeys.delete(iso);
+          persistSelectedDateKeys();
+        });
+        repeatSelectedChips.appendChild(chip);
+      });
+    }
+
+    function renderMonthDays(){
+      if (!repeatDaysGrid || !repeatMonthInput) return;
+      const monthValue = (repeatMonthInput.value || '').trim();
+      repeatDaysGrid.innerHTML = '';
+      if (!/^\d{4}-\d{2}$/.test(monthValue)) return;
+      const parts = monthValue.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      if (!year || !month) return;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const iso = `${parts[0]}-${parts[1]}-${String(day).padStart(2, '0')}`;
+        const isPicked = selectedDateKeys.has(iso);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = String(day);
+        btn.style.minHeight = '44px';
+        btn.style.borderRadius = '12px';
+        btn.style.border = isPicked ? '1px solid rgba(251,191,36,.55)' : '1px solid rgba(255,255,255,.1)';
+        btn.style.background = isPicked ? 'rgba(251,191,36,.22)' : 'rgba(255,255,255,.04)';
+        btn.style.color = isPicked ? '#fde68a' : '#e5e7eb';
+        btn.style.fontWeight = isPicked ? '700' : '600';
+        btn.style.cursor = 'pointer';
+        btn.addEventListener('click', function(){
+          if (selectedDateKeys.has(iso)) {
+            selectedDateKeys.delete(iso);
+          } else {
+            selectedDateKeys.add(iso);
+          }
+          persistSelectedDateKeys();
+        });
+        repeatDaysGrid.appendChild(btn);
+      }
+    }
+
+    function syncWeekdayFromStartDate(){
+      const iso = toIsoDate(startDate ? startDate.value : '');
+      if (!iso || !repeatSelect) return;
+      if ((repeatModeSelect && repeatModeSelect.value === 'weekly_fixed') && !repeatSelect.value) {
+        repeatSelect.value = weekdayValueFromIso(iso);
+      }
+    }
+
+    function ensureMonthValue(){
+      if (!repeatMonthInput) return;
+      if ((repeatMonthInput.value || '').trim()) return;
+      const iso = toIsoDate(startDate ? startDate.value : '');
+      if (iso) {
+        repeatMonthInput.value = iso.slice(0, 7);
+        return;
+      }
+      const now = new Date();
+      repeatMonthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function syncRepeatUi(){
+      const mode = repeatModeSelect ? (repeatModeSelect.value || 'none') : 'none';
+      const isWeekly = mode === 'weekly_fixed';
+      const isSelectedDates = mode === 'selected_dates';
+      if (repeatWeeklyField) {
+        repeatWeeklyField.value = isWeekly ? '1' : '0';
+        emitFieldChange(repeatWeeklyField);
+      }
+      if (repeatRow) repeatRow.style.display = isWeekly ? '' : 'none';
+      if (repeatSelect) {
+        repeatSelect.disabled = !isWeekly;
+        if (!isWeekly) repeatSelect.value = '';
+      }
+      if (repeatSelectedDatesRow) repeatSelectedDatesRow.style.display = isSelectedDates ? '' : 'none';
+      if (isWeekly) syncWeekdayFromStartDate();
+      if (isSelectedDates) {
+        ensureMonthValue();
+        if (!selectedDateKeys.size) {
+          const iso = toIsoDate(startDate ? startDate.value : '');
+          if (iso) selectedDateKeys.add(iso);
+        }
+        persistSelectedDateKeys();
+      }
+    }
+
+    if (repeatModeSelect) repeatModeSelect.addEventListener('change', syncRepeatUi);
+    if (repeatMonthInput) repeatMonthInput.addEventListener('change', renderMonthDays);
+    if (startDate) {
+      startDate.addEventListener('change', function(){
+        syncWeekdayFromStartDate();
+        if (repeatModeSelect && repeatModeSelect.value === 'selected_dates') {
+          ensureMonthValue();
+          renderMonthDays();
+        }
+      });
+    }
+    if (addStartRepeatDateBtn) {
+      addStartRepeatDateBtn.addEventListener('click', function(){
+        const iso = toIsoDate(startDate ? startDate.value : '');
+        if (!iso) return;
+        selectedDateKeys.add(iso);
+        if (repeatMonthInput) repeatMonthInput.value = iso.slice(0, 7);
+        persistSelectedDateKeys();
+      });
+    }
+
+    form.__syncCreateRepeatUi = function(){
+      loadSelectedDateKeys();
+      renderSelectedDateSummary();
+      syncRepeatUi();
+      renderMonthDays();
+    };
+    form.__syncCreateRepeatUi();
+
+    form.addEventListener('submit', function(evt){
+      if (eventDate) eventDate.value = startDate ? startDate.value : '';
+      if (startAt) startAt.value = combineDateAndTime(startDate ? startDate.value : '', startTime ? startTime.value : '');
+      if (endAt) endAt.value = combineDateAndTime(endDate ? endDate.value : '', endTime ? endTime.value : '');
+      if (repeatModeSelect && repeatModeSelect.value === 'selected_dates' && !selectedDateKeys.size) {
+        evt.preventDefault();
+        window.alert('Toplu oluşturma için en az bir tarih seçin.');
+      }
+    });
+  })();
+</script>
+<script>
+  (function(){
+    const form = document.querySelector('form[data-event-create-draft="1"]');
+    if (!form) return;
+    const storageKey = 'dm_admin_mobile_event_create_draft_v1';
+    const params = new URLSearchParams(window.location.search);
+    const err = (params.get('err') || '').trim();
+    const msg = (params.get('msg') || '').trim().toLowerCase();
+
+    function snapshot(){
+      const data = {};
+      const hiddenAllow = new Set(['repeat_weekly', 'repeat_selected_dates']);
+      form.querySelectorAll('input[name], textarea[name], select[name]').forEach((el) => {
+        const name = (el.getAttribute('name') || '').trim();
+        if (!name || name === 'csrf_token') return;
+        const type = (el.getAttribute('type') || '').toLowerCase();
+        if (type === 'file' || (type === 'hidden' && !hiddenAllow.has(name))) return;
+        if (type === 'checkbox') {
+          data[name] = !!el.checked;
+          return;
+        }
+        data[name] = el.value;
+      });
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    }
+
+    function restore(){
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw);
+        const hiddenAllow = new Set(['repeat_weekly', 'repeat_selected_dates']);
+        form.querySelectorAll('input[name], textarea[name], select[name]').forEach((el) => {
+          const name = (el.getAttribute('name') || '').trim();
+          if (!name || !(name in data)) return;
+          const type = (el.getAttribute('type') || '').toLowerCase();
+          if (type === 'file' || (type === 'hidden' && !hiddenAllow.has(name))) return;
+          if (type === 'checkbox') {
+            el.checked = !!data[name];
+            return;
+          }
+          el.value = data[name] ?? '';
+        });
+      } catch (_) {}
+    }
+
+    function clearDraft(){
+      localStorage.removeItem(storageKey);
+    }
+
+    form.querySelectorAll('input[name], textarea[name], select[name]').forEach((el) => {
+      const type = (el.getAttribute('type') || '').toLowerCase();
+      const eventName = type === 'checkbox' ? 'change' : 'input';
+      el.addEventListener(eventName, snapshot);
+      if (type !== 'checkbox') {
+        el.addEventListener('change', snapshot);
+      }
+    });
+
+    if (msg.includes('etkinlik talebi oluşturuldu')) {
+      clearDraft();
+    } else if (err) {
+      restore();
+      if (typeof form.__syncCreateRepeatUi === 'function') {
+        form.__syncCreateRepeatUi();
+      }
+    }
+  })();
+</script>
+<script>
+  (function(){
+    function combineDateAndTime(dateValue, timeValue){
+      const day = (dateValue || '').trim().slice(0, 10);
+      const tm = (timeValue || '').trim();
+      if (!day || !tm) return '';
+      return `${day} ${tm}:00`;
+    }
+
+    document.querySelectorAll('form[data-event-datetime-form="update"]').forEach((form) => {
+      form.addEventListener('submit', function(){
+        const startDate = form.querySelector('input[name="start_date_ui"]');
+        const startTime = form.querySelector('input[name="start_time_ui"]');
+        const endDate = form.querySelector('input[name="end_date_ui"]');
+        const endTime = form.querySelector('input[name="end_time_ui"]');
+        const eventDate = form.querySelector('input[name="event_date"]');
+        const startAt = form.querySelector('input[name="start_at"]');
+        const endAt = form.querySelector('input[name="end_at"]');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (eventDate) eventDate.value = startDate ? startDate.value : '';
+        if (startAt) startAt.value = combineDateAndTime(startDate ? startDate.value : '', startTime ? startTime.value : '');
+        if (endAt) endAt.value = combineDateAndTime(endDate ? endDate.value : '', endTime ? endTime.value : '');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Kaydediliyor...';
+        }
+      });
+    });
+  })();
+</script>

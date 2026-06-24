@@ -5,6 +5,8 @@
 - Local working copy: `~/dansmagazin`
 - Remote source of truth: `origin/main`
 - Production server: deployment target only, not a development workspace
+- Mobile backend source: `~/dansmagazin/mobil_backend`
+- Photo/panel backend source: `~/dansmagazin/foto_backend`
 
 Do not work from `dansmagazin_repo`, `projects/dansmagazin`, copied build
 folders, or production directories.

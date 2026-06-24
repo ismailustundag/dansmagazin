@@ -1,0 +1,336 @@
+{% set report = reports_data or {} %}
+{% set disk = report.get('disk') or {} %}
+{% set regs = report.get('registrations') or {} %}
+{% set msgs = report.get('messages') or {} %}
+{% set devices = report.get('devices') or {} %}
+{% set content = report.get('content') or {} %}
+{% set message_filters = msgs.get('filters') or {} %}
+{% set message_thread = msgs.get('selected_thread') or {} %}
+
+{% if report.get('errors') %}
+  <div class="err" style="margin-top:12px;">
+    {% for line in report.get('errors') %}
+      <div>{{ line }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<div class="report-section">
+  <h3>Hızlı Özet</h3>
+  <div class="report-grid">
+    <div class="report-card accent-blue">
+      <div class="report-label">Boş Disk</div>
+      <div class="report-value">{{ disk.get('server_free_text') or '-' }}</div>
+      <div class="report-sub">Sunucu toplamı {{ disk.get('server_total_text') or '-' }}</div>
+    </div>
+    <div class="report-card accent-green">
+      <div class="report-label">Bugün Yeni Kullanıcı</div>
+      <div class="report-value">{{ regs.get('today_users') or 0 }}</div>
+      <div class="report-sub">Son 7 gün: {{ regs.get('last_7_days') or 0 }}</div>
+    </div>
+    <div class="report-card accent-orange">
+      <div class="report-label">Bugün Mesaj</div>
+      <div class="report-value">{{ msgs.get('today_messages') or 0 }}</div>
+      <div class="report-sub">Toplam mesaj: {{ msgs.get('total_messages') or 0 }}</div>
+    </div>
+    <div class="report-card accent-pink">
+      <div class="report-label">Teslim Edilebilir Cihaz</div>
+      <div class="report-value">{{ devices.get('deliverable_tokens') or 0 }}</div>
+      <div class="report-sub">iPhone {{ devices.get('ios_tokens') or 0 }} · Android {{ devices.get('android_tokens') or 0 }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="report-section">
+  <h3>Disk Kullanımı</h3>
+  <div class="report-grid">
+    <div class="report-card">
+      <div class="report-label">Sunucu Kullanımı</div>
+      <div class="report-value">{{ disk.get('server_used_text') or '-' }}</div>
+      <div class="report-sub">Boş: {{ disk.get('server_free_text') or '-' }} · Doluluk %{{ disk.get('server_used_pct') or 0 }}</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Panel Medya</div>
+      <div class="report-value">{{ disk.get('panel_media_text') or '-' }}</div>
+      <div class="report-sub">/home/ubuntu/etkinlik_fotograf_projesi/media</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Backend Medya</div>
+      <div class="report-value">{{ disk.get('backend_media_text') or '-' }}</div>
+      <div class="report-sub">/home/ubuntu/mobil_backend/media</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">En Büyük Klasör</div>
+      <div class="report-value">{{ (disk.get('items') or [{}])[0].get('size_text') if disk.get('items') else '-' }}</div>
+      <div class="report-sub">{{ (disk.get('items') or [{}])[0].get('label') if disk.get('items') else 'Veri yok' }}</div>
+    </div>
+  </div>
+  {% if disk.get('items') %}
+    <div class="table-wrap" style="margin-top:12px;">
+      <table class="soft-table">
+        <thead>
+          <tr>
+            <th>Klasör</th>
+            <th>Boyut</th>
+            <th>Yol</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in disk.get('items') %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td><span class="pill">{{ item.size_text }}</span></td>
+              <td><code>{{ item.path }}</code></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+
+<div class="report-section">
+  <h3>Kullanıcı Kayıtları</h3>
+  <div class="report-grid">
+    <div class="report-card">
+      <div class="report-label">Toplam Kullanıcı</div>
+      <div class="report-value">{{ regs.get('total_users') or 0 }}</div>
+      <div class="report-sub">Mobil kullanıcı toplamı</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Bugün</div>
+      <div class="report-value">{{ regs.get('today_users') or 0 }}</div>
+      <div class="report-sub">Günlük kayıt</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Son 7 Gün</div>
+      <div class="report-value">{{ regs.get('last_7_days') or 0 }}</div>
+      <div class="report-sub">Haftalık yeni kullanıcı</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Son 30 Gün</div>
+      <div class="report-value">{{ regs.get('last_30_days') or 0 }}</div>
+      <div class="report-sub">Aylık yeni kullanıcı</div>
+    </div>
+  </div>
+  {% if regs.get('daily_rows') %}
+    <div class="bars">
+      {% for row in regs.get('daily_rows') %}
+        {% set max_count = regs.get('max_daily_count') or 1 %}
+        {% set pct = ((row.count / max_count) * 100) if max_count > 0 else 0 %}
+        <div class="bar-row">
+          <div class="note-line">{{ row.day }}</div>
+          <div class="bar-track"><div class="bar-fill" style="width: {{ '%.2f'|format(pct) }}%;"></div></div>
+          <div class="pill">{{ row.count }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<div class="report-section">
+  <h3>Mesaj Aktivitesi</h3>
+  <div class="report-grid">
+    <div class="report-card">
+      <div class="report-label">Toplam Mesaj</div>
+      <div class="report-value">{{ msgs.get('total_messages') or 0 }}</div>
+      <div class="report-sub">Tüm zamanlar</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Bugün</div>
+      <div class="report-value">{{ msgs.get('today_messages') or 0 }}</div>
+      <div class="report-sub">Bugün gönderilen mesaj</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Son 7 Gün</div>
+      <div class="report-value">{{ msgs.get('last_7_days') or 0 }}</div>
+      <div class="report-sub">Son haftadaki toplam mesaj</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Konuşma Sayısı</div>
+      <div class="report-value">{{ msgs.get('conversation_count') or 0 }}</div>
+      <div class="report-sub">Benzersiz kullanıcı eşleşmesi</div>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-top:12px;">
+    <table class="soft-table">
+      <thead>
+        <tr>
+          <th>Kullanıcı</th>
+          <th>Gönderdi</th>
+          <th>Aldı</th>
+          <th>Son Mesaj</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if msgs.get('top_users') %}
+          {% for item in msgs.get('top_users') %}
+            <tr>
+              <td>
+                <div>{{ item.display_name }}</div>
+                {% if item.email %}<div class="note-line">{{ item.email }}</div>{% endif %}
+              </td>
+              <td>{{ item.sent_count }}</td>
+              <td>{{ item.received_count }}</td>
+              <td>{{ item.last_message_at or '-' }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="4">Mesaj hareketi bulunamadı.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-wrap" style="margin-top:12px;">
+    <table class="soft-table">
+      <thead>
+        <tr>
+          <th>Gönderen</th>
+          <th>Alan</th>
+          <th>Son 7 Gün Mesajı</th>
+          <th>Son Mesaj Zamanı</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if msgs.get('recent_pairs') %}
+          {% for item in msgs.get('recent_pairs') %}
+            <tr>
+              <td>{{ item.sender_name }}</td>
+              <td>{{ item.receiver_name }}</td>
+              <td>{{ item.message_count }}</td>
+              <td>{{ item.last_message_at or '-' }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="4">Son 7 gün için mesaj hareketi bulunamadı.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="report-section" id="message-log">
+  <h3>Mesaj İçeriği Logu</h3>
+  <div class="note-line">Bu bölüm yalnızca super admin erişiminde görünür. Hukuki ve operasyonel inceleme için son mesaj içerikleri burada filtrelenebilir.</div>
+  <details class="row-item" style="margin-top:12px;" open>
+    <summary class="row-summary" style="grid-template-columns:1fr auto;">
+      <div class="summary-title">Konuşmalar ve Mesaj Geçmişi</div>
+      <div class="pill">{{ (msgs.get('conversations') or [])|length }} konuşma</div>
+    </summary>
+    <div class="row-detail">
+      <form method="get" action="/admin/mobile#message-log" class="editor-form" style="margin-top:10px;">
+        <input type="hidden" name="tab" value="reports">
+        <div class="editor-grid-3">
+          <div class="field-block field-span-2">
+            <label>Kullanıcı / E-posta / Mesaj Ara</label>
+            <input type="text" name="message_q" value="{{ message_filters.get('q') or '' }}" placeholder="Kullanıcı adı, e-posta, hesap id veya mesaj içeriği">
+          </div>
+          <div class="field-block">
+            <label>Kayıt Limiti</label>
+            <select name="message_limit">
+              {% for option in [50, 100, 150, 200] %}
+                <option value="{{ option }}" {% if (message_filters.get('limit') or 100)|int == option %}selected{% endif %}>{{ option }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit">Mesajları Filtrele</button>
+        </div>
+      </form>
+      <div class="message-report-layout" style="margin-top:14px;">
+        <div class="message-report-conversations">
+          {% if msgs.get('conversations') %}
+            {% for item in msgs.get('conversations') %}
+              <a
+                href="/admin/mobile?tab=reports&message_limit={{ message_filters.get('limit') or 100 }}{% if message_filters.get('q') %}&message_q={{ message_filters.get('q')|urlencode }}{% endif %}&conversation_a={{ item.a_id }}&conversation_b={{ item.b_id }}#message-log"
+                class="message-conversation-item{% if (message_thread.get('a_id') or 0)|int == item.a_id|int and (message_thread.get('b_id') or 0)|int == item.b_id|int %} active{% endif %}"
+              >
+                <div class="message-conversation-top">
+                  <div class="message-conversation-title">{{ item.a_name }} - {{ item.b_name }}</div>
+                  <div class="pill">{{ item.message_count }}</div>
+                </div>
+                <div class="note-line">#{{ item.a_id }} · {{ item.a_email or '-' }}</div>
+                <div class="note-line">#{{ item.b_id }} · {{ item.b_email or '-' }}</div>
+                <div class="message-conversation-time">{{ item.last_message_at or '-' }}</div>
+              </a>
+            {% endfor %}
+          {% else %}
+            <div class="report-card">
+              <div class="report-sub">Filtreye uygun konuşma bulunamadı.</div>
+            </div>
+          {% endif %}
+        </div>
+        <div class="message-report-thread">
+          {% if message_thread.get('messages') %}
+            <div class="message-thread-header">
+              <div class="message-thread-title">{{ message_thread.get('title') or 'Konuşma' }}</div>
+              <div class="note-line">{{ (message_thread.get('messages') or [])|length }} mesaj</div>
+            </div>
+            <div class="message-thread-list">
+              {% for item in message_thread.get('messages') or [] %}
+                <div class="message-bubble-row {% if item.is_left %}left{% else %}right{% endif %}">
+                  <div class="message-bubble {% if item.is_left %}left{% else %}right{% endif %}">
+                    <div class="message-bubble-author">{{ item.sender_name }}</div>
+                    <div class="message-bubble-body">{{ item.body or '-' }}</div>
+                    <div class="message-bubble-meta">{{ item.created_at or '-' }}</div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="report-card">
+              <div class="report-sub">Bir konuşma seçtiğinde mesaj geçmişi burada sohbet akışı olarak görünecek.</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div class="report-section">
+  <h3>Cihaz ve İçerik Özeti</h3>
+  <div class="report-grid">
+    <div class="report-card">
+      <div class="report-label">Push Cihazları</div>
+      <div class="report-value">{{ devices.get('total_tokens') or 0 }}</div>
+      <div class="report-sub">Aktif {{ devices.get('active_tokens') or 0 }} · Dağıtılabilir {{ devices.get('deliverable_tokens') or 0 }}</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Etkinlikler</div>
+      <div class="report-value">{{ content.get('active_events') or 0 }}</div>
+      <div class="report-sub">Geçmiş etkinlik {{ content.get('past_events') or 0 }}</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Açık Albümler</div>
+      <div class="report-value">{{ content.get('open_albums') or 0 }}</div>
+      <div class="report-sub">Aktif mağaza ürünü {{ content.get('store_products') or 0 }}</div>
+    </div>
+    <div class="report-card">
+      <div class="report-label">Bekleyen İşler</div>
+      <div class="report-value">{{ content.get('pending_friend_requests') or 0 }}</div>
+      <div class="report-sub">Açık kullanıcı raporu {{ content.get('open_user_reports') or 0 }}</div>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-top:12px;">
+    <table class="soft-table">
+      <thead>
+        <tr>
+          <th>Metri̇k</th>
+          <th>Değer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Onaylı haber</td><td>{{ content.get('approved_news') or 0 }}</td></tr>
+        <tr><td>Bugün oluşturulan bildirim kaydı</td><td>{{ content.get('notifications_today') or 0 }}</td></tr>
+        <tr><td>iPhone dağıtılabilir cihaz</td><td>{{ devices.get('ios_tokens') or 0 }}</td></tr>
+        <tr><td>Android dağıtılabilir cihaz</td><td>{{ devices.get('android_tokens') or 0 }}</td></tr>
+        <tr><td>Web dağıtılabilir cihaz</td><td>{{ devices.get('web_tokens') or 0 }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

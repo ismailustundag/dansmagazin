@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Super Admin - {% if active_tab == 'reports' %}Raporlar{% else %}Etkinlik Yönetimi{% endif %}</title>
+  <style>
+    :root{
+      --bg:#0a1120;
+      --surface:#10192d;
+      --surface-soft:#121f38;
+      --line:rgba(255,255,255,.08);
+      --line-strong:rgba(255,255,255,.14);
+      --text:#e8eefc;
+      --muted:#9fb0d6;
+      --accent:#5b86ff;
+      --accent-soft:rgba(91,134,255,.14);
+      --ok:#7bffb2;
+      --danger:#ff7b7b;
+    }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:radial-gradient(circle at top, #12203d 0%, var(--bg) 42%); color:var(--text); margin:0;}
+    header{display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 18px; border-bottom:1px solid var(--line); background:rgba(10,17,32,.92); backdrop-filter:blur(16px); position:sticky; top:0; z-index:20;}
+    .wrap{max-width:1360px; margin:0 auto; padding:20px;}
+    .card{background:linear-gradient(180deg, rgba(18,31,56,.96), rgba(16,25,45,.96)); border:1px solid var(--line); border-radius:18px; padding:18px; margin-top:14px; box-shadow:0 18px 42px rgba(0,0,0,.18);}
+    .hero{padding:24px; background:linear-gradient(135deg, rgba(91,134,255,.22), rgba(16,25,45,.95));}
+    .hero-eyebrow{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#9fb5ff; margin-bottom:10px;}
+    .hero-title{font-size:28px; font-weight:800; line-height:1.1; margin:0;}
+    .hero-copy{max-width:720px; margin-top:10px; color:var(--muted); line-height:1.55;}
+    .muted{opacity:.85}
+    .err{color:var(--danger); margin-top:10px; font-size:13px}
+    .ok{color:var(--ok); margin-top:10px; font-size:13px}
+    .nav{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+    .nav a{padding:8px 12px; border-radius:12px; border:1px solid var(--line); background:rgba(255,255,255,.04); color:#9fb5ff; text-decoration:none; font-weight:600}
+    .nav a.active{border-color:rgba(159,181,255,.45); background:rgba(159,181,255,.10)}
+    .subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .subtabs a{padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#c9d6ff;text-decoration:none}
+    .subtabs a.active{border-color:rgba(159,181,255,.45);background:rgba(159,181,255,.12)}
+    .metric-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:16px}
+    .metric-card{padding:14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+    .metric-label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#b7c5ea}
+    .metric-value{font-size:28px;font-weight:800;line-height:1.1;margin-top:8px}
+    .section-switch{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+    .section-switch a{padding:9px 12px;border-radius:999px;border:1px solid var(--line-strong);background:rgba(255,255,255,.04);color:#d8e2ff;text-decoration:none;font-size:13px;font-weight:700}
+    .section-switch a.active{border-color:rgba(91,134,255,.55);background:var(--accent-soft);color:#fff}
+    .callout-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+    .preview-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+    .preview-item{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+    .preview-title{font-size:14px;font-weight:700;line-height:1.35}
+    .preview-meta{font-size:12px;color:#b9c7e8;margin-top:5px;line-height:1.45}
+    .preview-action{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border-radius:12px;border:1px solid rgba(91,134,255,.45);background:var(--accent-soft);color:#fff;text-decoration:none;font-weight:700}
+    .users-tools{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:6px 0 8px}
+    .users-tools input{max-width:340px}
+    .users-mini-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .users-mini-actions button{padding:6px 10px;border-radius:8px;font-size:12px;background:#223252}
+    .users-pick{display:grid;grid-template-columns:1fr;gap:8px;max-height:320px;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;background:#0f172a}
+    .users-pick .user-item{display:grid;grid-template-columns:20px 1fr;gap:10px;align-items:flex-start;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;background:rgba(255,255,255,.03)}
+    .users-pick .user-item input{margin-top:2px}
+    .users-pick .user-name{font-size:13px;font-weight:600;line-height:1.25}
+    .users-pick .user-email{font-size:12px;opacity:.8;line-height:1.2;word-break:break-all}
+    button{padding:10px 12px; border-radius:12px; border:0; background:#4f7cff; color:white; font-weight:600; cursor:pointer}
+    button:hover{opacity:.95}
+    .sub-list{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+    .sub-item{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px;background:rgba(255,255,255,.02)}
+    .sub-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr auto;gap:10px}
+    .sub-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .sub-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}
+    .sub-note{width:100%;min-height:64px}
+    .status-pending{color:#fcd34d}
+    .status-approved{color:#6ee7b7}
+    .status-rejected{color:#fca5a5}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06)}
+    input,textarea,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0f172a;color:#e8eefc}
+    input[type="checkbox"]{width:auto;padding:0;border:0;background:transparent}
+    textarea{resize:vertical}
+    .compact-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    details.row-item{border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.02)}
+    details.row-item[open]{background:rgba(255,255,255,.03)}
+    .row-summary{list-style:none;display:grid;grid-template-columns:2fr 1.1fr 1.4fr auto auto;gap:10px;align-items:center;padding:12px;cursor:pointer}
+    .row-summary::-webkit-details-marker{display:none}
+    .summary-title{font-size:15px;line-height:1.3}
+    .summary-owner,.summary-email{font-size:13px;color:#c8d4ef}
+    .summary-status,.summary-id{text-align:right}
+    .row-detail{padding:0 12px 12px}
+    .section-head{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+    .section-title{font-weight:700}
+    .count-badge{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.16)}
+    .editor-form{display:grid;gap:12px;margin-top:10px}
+    .editor-section{padding:14px;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02))}
+    .editor-section h4{margin:0 0 10px;font-size:14px;letter-spacing:.01em}
+    .editor-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .editor-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .field-block{display:flex;flex-direction:column;gap:6px}
+    .field-block label{font-size:12px;font-weight:600;color:#b9c7e8}
+    .field-span-2{grid-column:span 2}
+    .datetime-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .datetime-card{padding:12px;border-radius:14px;background:rgba(12,18,32,.7);border:1px solid rgba(255,255,255,.10)}
+    .datetime-title{font-size:12px;font-weight:700;color:#9fb5ff;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
+    .toggle-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .toggle-card{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03)}
+    .form-actions{display:flex;justify-content:flex-end;gap:8px}
+    .report-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
+    .report-card{padding:14px;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02))}
+    .report-card.accent-blue{background:linear-gradient(180deg, rgba(79,124,255,.18), rgba(79,124,255,.05))}
+    .report-card.accent-green{background:linear-gradient(180deg, rgba(46,204,113,.16), rgba(46,204,113,.05))}
+    .report-card.accent-orange{background:linear-gradient(180deg, rgba(255,177,66,.16), rgba(255,177,66,.05))}
+    .report-card.accent-pink{background:linear-gradient(180deg, rgba(255,107,157,.16), rgba(255,107,157,.05))}
+    .report-label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#b6c7ef}
+    .report-value{font-size:30px;font-weight:800;line-height:1.1;margin-top:6px}
+    .report-sub{font-size:13px;color:#bfd0f7;margin-top:8px}
+    .report-section{margin-top:18px;padding-top:6px}
+    .report-section h3{margin:0 0 10px;font-size:16px}
+    .table-wrap{overflow:auto;border:1px solid rgba(255,255,255,.10);border-radius:14px;background:rgba(255,255,255,.02)}
+    .soft-table{width:100%;border-collapse:collapse;min-width:680px}
+    .soft-table th,.soft-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left;font-size:13px;vertical-align:top}
+    .soft-table th{font-size:12px;color:#9fb5ff;text-transform:uppercase;letter-spacing:.04em;background:rgba(255,255,255,.02)}
+    .soft-table tr:last-child td{border-bottom:0}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);font-size:12px}
+    .bars{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+    .bar-row{display:grid;grid-template-columns:94px 1fr auto;gap:10px;align-items:center}
+    .bar-track{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+    .bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg, #4f7cff, #72e7ff)}
+    .note-line{font-size:12px;color:#b9c7e8}
+    .message-report-layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px;align-items:start}
+    .message-report-conversations{display:flex;flex-direction:column;gap:10px;max-height:720px;overflow:auto;padding-right:2px}
+    .message-conversation-item{display:block;padding:12px 13px;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);text-decoration:none;color:#e8eefc}
+    .message-conversation-item.active{border-color:rgba(114,231,255,.45);background:linear-gradient(180deg, rgba(79,124,255,.16), rgba(79,124,255,.05))}
+    .message-conversation-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+    .message-conversation-title{font-size:14px;font-weight:700;line-height:1.35}
+    .message-conversation-time{margin-top:8px;font-size:12px;color:#9fb5ff}
+    .message-report-thread{min-height:420px;padding:14px;border-radius:18px;border:1px solid rgba(255,255,255,.10);background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02))}
+    .message-thread-header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:12px}
+    .message-thread-title{font-size:16px;font-weight:800}
+    .message-thread-list{display:flex;flex-direction:column;gap:12px;max-height:720px;overflow:auto;padding-right:2px}
+    .message-bubble-row{display:flex}
+    .message-bubble-row.left{justify-content:flex-start}
+    .message-bubble-row.right{justify-content:flex-end}
+    .message-bubble{max-width:min(78%, 560px);padding:12px 14px;border-radius:18px;border:1px solid rgba(255,255,255,.10)}
+    .message-bubble.left{background:rgba(255,255,255,.05);border-top-left-radius:8px}
+    .message-bubble.right{background:linear-gradient(180deg, rgba(79,124,255,.22), rgba(79,124,255,.08));border-top-right-radius:8px}
+    .message-bubble-author{font-size:12px;font-weight:700;color:#9fb5ff;margin-bottom:6px}
+    .message-bubble-body{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.45}
+    .message-bubble-meta{margin-top:8px;font-size:11px;color:#b9c7e8}
+    @media (max-width: 900px){
+      header{align-items:flex-start;flex-direction:column}
+      .wrap{padding:12px}
+      .nav,.subtabs{flex-wrap:nowrap;overflow:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+      .nav a,.subtabs a{flex:0 0 auto}
+      .metric-grid,.callout-grid,.sub-grid,.sub-meta,.editor-grid-2,.editor-grid-3,.datetime-grid,.toggle-grid,.report-grid{grid-template-columns:1fr}
+      .message-report-layout{grid-template-columns:1fr}
+      .message-report-conversations,.message-thread-list{max-height:none}
+      .message-bubble{max-width:100%}
+      .field-span-2{grid-column:auto}
+      .row-summary{grid-template-columns:1fr auto;gap:6px 10px}
+      .summary-title{grid-column:1 / -1}
+      .summary-owner{grid-column:1 / 2}
+      .summary-email{display:none}
+      .summary-status,.summary-id{font-size:12px}
+      .row-detail{padding:0 10px 10px}
+      .form-actions{justify-content:stretch}
+      .form-actions button{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div><b>Super Admin</b> - {% if active_tab == 'reports' %}Raporlar{% else %}Etkinlik Yönetimi{% endif %}</div>
+    <div class="nav">
+      <a href="/admin/users">Kullanici Yonetimi</a>
+      <a href="/admin/mobile?tab=events" class="{% if active_tab != 'reports' %}active{% endif %}">Etkinlik Yönetimi</a>
+      <a href="/admin/mobile?tab=reports" class="{% if active_tab == 'reports' %}active{% endif %}">Raporlar</a>
+      <a href="/console">Fotoğraf Albümleri</a>
+      <a href="/logout">Cikis</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card hero">
+      <div class="hero-eyebrow">Dans Magazin Super Admin</div>
+      <h1 class="hero-title">
+        {% if active_tab == 'news' %}Haber Yönetimi{% elif active_tab == 'notifications' %}Bildirim Yönetimi{% elif active_tab == 'reports' %}Operasyon Raporları{% else %}Etkinlik Operasyon Paneli{% endif %}
+      </h1>
+      <div class="hero-copy">
+        {% if active_tab == 'news' %}
+          Haber taleplerini, yayın durumlarını ve panelden açılan içerikleri tek akışta yönetebilirsin.
+        {% elif active_tab == 'notifications' %}
+          Bildirim gönderimi, açılış popupı ve geçmiş kayıtları daha kontrollü bir akışla bu modülde tutulur.
+        {% elif active_tab == 'reports' %}
+          Kayıt, içerik, cihaz ve mesaj trafiğini tek bakışta izlemek için operasyon raporları burada toplanır.
+        {% else %}
+          Etkinlik panelini daha hafif hale getirmek için akışı bölümlere ayırdık. Önce ihtiyacın olan bölüme gir, ağır formlar sadece gerektiğinde açılsın.
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+
+      {% if error %}<div class="err">{{ error }}</div>{% endif %}
+      {% if message %}<div class="ok">{{ message }}</div>{% endif %}
+      {% if scan_permissions_err and active_tab == 'events' %}<div class="err">{{ scan_permissions_err }}</div>{% endif %}
+      {% if loyalty_reports_err and active_tab == 'events' %}<div class="err">{{ loyalty_reports_err }}</div>{% endif %}
+      {% if guest_lists_err and active_tab == 'events' %}<div class="err">{{ guest_lists_err }}</div>{% endif %}
+      {% if notifications_err and active_tab == 'notifications' %}<div class="err">{{ notifications_err }}</div>{% endif %}
+
+      {% if active_tab != 'reports' %}
+        <div class="subtabs">
+          <a href="/admin/mobile?tab=events" class="{% if active_tab == 'events' %}active{% endif %}">Etkinlik Yönetimi</a>
+          <a href="/admin/mobile?tab=news" class="{% if active_tab == 'news' %}active{% endif %}">Haber Yönetimi</a>
+          <a href="/admin/mobile?tab=notifications" class="{% if active_tab == 'notifications' %}active{% endif %}">Bildirim Yönetimi</a>
+        </div>
+      {% endif %}
+
+      {% if active_tab == 'reports' %}
+        {% include '_admin_mobile_reports_tab.html' %}
+      {% elif active_tab == 'notifications' %}
+        {% include '_admin_mobile_notifications_tab.html' %}
+      {% elif active_tab == 'news' %}
+        {% include '_admin_mobile_news_tab.html' %}
+      {% else %}
+        {% include '_admin_mobile_events_tab.html' %}
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

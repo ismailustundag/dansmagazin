@@ -1,0 +1,26 @@
+{% extends "panel_layout.html" %}
+{% set active = 'overview' %}
+{% set header = 'Genel Bakış' %}
+{% block content %}
+  <div class="card" style="display:flex;align-items:center;gap:16px;justify-content:space-between;">
+    <div>
+      <div class="muted">Mevcut Kredi</div>
+      <div style="font-size:28px;font-weight:800;">{{ photo_credit }}</div>
+      <div class="muted" style="margin-top:6px;">Kredi Satın Al</div>
+    </div>
+    <a class="btn" href="/panel/credits">Kredi Satın Al</a>
+  </div>
+
+  <div class="grid-2" style="margin-top:16px;">
+    <div class="card">
+      <div class="muted">Toplam Etkinlik</div>
+      <div style="font-size:28px;font-weight:800;margin-top:6px;">{{ total_events }}</div>
+      <div class="muted" style="margin-top:6px;">Geçen ay toplamı {{ total_events }}</div>
+    </div>
+    <div class="card">
+      <div class="muted">Toplam Fotoğraf</div>
+      <div style="font-size:28px;font-weight:800;margin-top:6px;">{{ total_photos }}</div>
+      <div class="muted" style="margin-top:6px;">Geçen ay toplamı {{ total_photos }}</div>
+    </div>
+  </div>
+{% endblock %}

@@ -17,6 +17,19 @@ mobil_backend/*.db
 mobil_backend/*.db.*
 mobil_backend/uvicorn.pid
 
+# Photo backend runtime and private data
+foto_backend/.env
+foto_backend/.venv/
+foto_backend/venv/
+foto_backend/media/
+foto_backend/uploads/
+foto_backend/static/uploads/
+foto_backend/*.db
+foto_backend/*.db.*
+foto_backend/*.log
+foto_backend/*.pid
+foto_backend/backup_*.tar.gz
+
 # OS
 .DS_Store
 

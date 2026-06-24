@@ -1,0 +1,325 @@
+<div class="card" style="margin-top:12px;background:rgba(255,255,255,.03);">
+  <b>Yeni Bildirim Gönder</b>
+  <form method="post" action="/admin/mobile/notifications/send" style="display:grid;gap:8px;margin-top:10px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input name="title" placeholder="Başlık" required maxlength="160" />
+    <textarea name="body" rows="4" placeholder="Bildirim içeriği" required maxlength="2000"></textarea>
+    <input type="hidden" id="manualEventSubmissionId" name="event_submission_id" value="" />
+    <input type="hidden" id="targetRouteInput" name="target_route" value="" />
+    <div style="display:grid;grid-template-columns:minmax(180px,.8fr) minmax(0,1.6fr);gap:8px;">
+      <select id="targetKind">
+        <option value="">Yönlendirme ekleme</option>
+        <option value="event">Etkinlik</option>
+        <option value="news">Haber</option>
+        <option value="store">Mağaza</option>
+        <option value="product">Ürün</option>
+        <option value="album">Albüm</option>
+        <option value="poll">Anket</option>
+      </select>
+      <div>
+        <select id="targetEvent" class="target-select" style="display:none;">
+          <option value="">Etkinlik seç</option>
+          {% for item in notification_event_targets %}
+            <option value="{{ item.value }}" data-submission-id="{{ item.submission_id }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+        <select id="targetNews" class="target-select" style="display:none;">
+          <option value="">Haber seç</option>
+          {% for item in notification_news_targets %}
+            <option value="{{ item.value }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+        <select id="targetStore" class="target-select" style="display:none;">
+          <option value="">Mağaza seç</option>
+          {% for item in notification_store_targets %}
+            <option value="{{ item.value }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+        <select id="targetProduct" class="target-select" style="display:none;">
+          <option value="">Ürün seç</option>
+          {% for item in notification_product_targets %}
+            <option value="{{ item.value }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+        <select id="targetAlbum" class="target-select" style="display:none;">
+          <option value="">Albüm seç</option>
+          {% for item in notification_album_targets %}
+            <option value="{{ item.value }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+        <select id="targetPoll" class="target-select" style="display:none;">
+          <option value="">Anket seç</option>
+          {% for item in notification_poll_targets %}
+            <option value="{{ item.value }}">{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="muted" style="margin-top:-2px;">Yönlendirme türünü seçtiğinde mevcut içerikler listelenir. Bildirime tıklanınca seçtiğin ekran açılır.</div>
+    <label style="display:inline-flex;align-items:center;gap:8px;width:max-content;">
+      <input id="sendAll" type="checkbox" name="send_to_all" value="1" checked />
+      Tüm kullanıcılara gönder
+    </label>
+    <input type="hidden" id="targetCsv" name="target_account_ids_csv" value="" />
+    <div id="targetsWrap">
+      <div class="muted" style="margin:4px 0 8px;">Kullanıcı seçimi (Tüm kullanıcılar kapalıysa zorunlu):</div>
+      <div class="users-tools">
+        <input id="userSearch" type="text" placeholder="Kullanıcı ara (isim veya e-posta)" />
+        <div class="users-mini-actions">
+          <button id="pickAllBtn" type="button">Tümünü Seç</button>
+          <button id="pickNoneBtn" type="button">Temizle</button>
+        </div>
+      </div>
+      <div class="users-pick">
+        {% for u in notification_users %}
+          <label class="user-item" data-user-name="{{ (u.name or '-')|lower }}" data-user-email="{{ (u.email or '-')|lower }}">
+            <input class="pickUser" type="checkbox" value="{{ u.id }}" />
+            <span>
+              <div class="user-name">{{ u.name or '-' }}</div>
+              <div class="user-email">{{ u.email or '-' }}</div>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div><button type="submit">Bildirimi Gönder</button></div>
+  </form>
+</div>
+
+<div class="card" style="margin-top:12px;background:rgba(255,255,255,.03);">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+    <b>Otomatik Etkinlik Bildirim İçeriği</b>
+    <span class="badge">Etkinlik bazlı düzenlenebilir</span>
+  </div>
+  <div class="muted" style="margin-top:6px;">
+    Otomatik etkinlik hatırlatma bildirimlerinin başlık ve içeriğini buradan düzenleyebilirsin.
+    Desteklenen alanlar: <code>{event_name}</code>, <code>{city}</code>
+  </div>
+  <form method="post" action="/admin/mobile/notifications/auto-event/save" style="display:grid;gap:8px;margin-top:10px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <select id="autoEventSelect" name="event_submission_id">
+      <option value="">Etkinlik seç</option>
+      {% for item in notification_event_targets %}
+        <option
+          value="{{ item.submission_id }}"
+          data-title-template="{{ (item.auto_title_template or '')|replace('\n', '&#10;')|e }}"
+          data-body-template="{{ (item.auto_body_template or '')|replace('\n', '&#10;')|e }}"
+        >
+          {{ item.label }}
+        </option>
+      {% endfor %}
+    </select>
+    <input
+      id="autoEventTitleInput"
+      name="title_template"
+      placeholder="Başlık şablonu"
+      maxlength="160"
+      value="{{ auto_event_notification_defaults.title }}"
+    />
+    <textarea
+      id="autoEventBodyInput"
+      name="body_template"
+      rows="4"
+      placeholder="Bildirim içeriği şablonu"
+      maxlength="2000"
+    >{{ auto_event_notification_defaults.body }}</textarea>
+    <label style="display:inline-flex;align-items:center;gap:8px;width:max-content;">
+      <input id="autoEventApplyAll" type="checkbox" name="apply_all" value="1" />
+      Tümüne uygula
+    </label>
+    <div class="muted">Örnek başlık: <code>Bu akşam: {event_name}</code></div>
+    <div><button type="submit">İçeriği Kaydet</button></div>
+  </form>
+</div>
+
+<div class="card" style="margin-top:12px;background:rgba(255,255,255,.03);">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+    <b>Açılış Popupı</b>
+    {% if current_popup %}
+      <span class="badge">Aktif popup var</span>
+    {% else %}
+      <span class="badge">Aktif popup yok</span>
+    {% endif %}
+  </div>
+  <div class="muted" style="margin-top:6px;">Güncelleme, önemli duyuru veya yönlendirme için uygulama açılışında gösterilecek popupı buradan yönetebilirsin.</div>
+  <form id="popupSaveForm" method="post" action="/admin/mobile/popup/save" style="display:grid;gap:8px;margin-top:10px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input name="title" placeholder="Popup başlığı" required maxlength="160" value="{{ (current_popup.title if current_popup else '') or '' }}" />
+    <textarea name="body" rows="4" placeholder="Popup içeriği" required maxlength="2000">{{ (current_popup.body if current_popup else '') or '' }}</textarea>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+      <input name="cta_label" placeholder="Buton metni (opsiyonel)" maxlength="60" value="{{ (current_popup.cta_label if current_popup else '') or '' }}" />
+      <input name="minimum_app_version" placeholder="Minimum sürüm (örn: 1.0.9+10)" maxlength="40" value="{{ (current_popup.minimum_app_version if current_popup else '') or '' }}" />
+    </div>
+    <input name="cta_target" placeholder="Buton hedefi: https://... veya /profile/notifications" maxlength="500" value="{{ (current_popup.cta_target if current_popup else '') or '' }}" />
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" name="dismissible" value="1" {% if not current_popup or current_popup.dismissible %}checked{% endif %} />
+        Kapatılabilir
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" name="show_to_guests" value="1" {% if current_popup and current_popup.show_to_guests %}checked{% endif %} />
+        Misafirlere de göster
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" name="force_update" value="1" {% if current_popup and current_popup.force_update %}checked{% endif %} />
+        Zorunlu güncelleme
+      </label>
+    </div>
+  </form>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <button type="submit" form="popupSaveForm">Popupı Kaydet</button>
+    {% if current_popup %}
+      <form method="post" action="/admin/mobile/popup/deactivate" onsubmit="return confirm('Aktif popup kapatılsın mı?');" style="margin:0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit" style="background:#3a1313;border-color:#7a2e2e;">Popupı Kapat</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px;background:rgba(255,255,255,.03);">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+    <b>Gönderilen Bildirimler</b>
+    <form method="post" action="/admin/mobile/notifications/delete-all" onsubmit="return confirm('Tüm gönderilen bildirim geçmişi silinsin mi?');" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" style="background:#3a1313;border-color:#7a2e2e;">Tümünü Sil</button>
+    </form>
+  </div>
+  {% if sent_notifications and sent_notifications|length > 0 %}
+    <div class="compact-list" style="margin-top:10px;">
+      {% for n in sent_notifications %}
+        <div class="sub-item">
+          <div style="display:grid;grid-template-columns:1.05fr 1.25fr 1.2fr .8fr .6fr;gap:10px;align-items:start;">
+            <div>
+              <div class="muted" style="font-size:12px;">Başlık</div>
+              <div><b>{{ n.title or 'Bildirim' }}</b></div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:12px;">İçerik</div>
+              <div>{{ n.body or '' }}</div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:12px;">Gönderilen Kullanıcılar</div>
+              <div>
+                {{ n.recipients_text or '-' }}
+                {% if n.recipient_count %}<span class="muted">({{ n.recipient_count }})</span>{% endif %}
+              </div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:12px;">Gönderim Tarihi</div>
+              <div>{{ n.created_at|fmt_dt }}</div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:12px;">İşlem</div>
+              <form method="post" action="/admin/mobile/notifications/delete" onsubmit="return confirm('Bu gönderim kaydı silinsin mi?');" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="batch_id" value="{{ n.batch_id or '' }}" />
+                <button type="submit" style="padding:4px 8px;">Sil</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="muted" style="margin-top:10px;">Henüz gönderilmiş bildirim yok.</div>
+  {% endif %}
+</div>
+
+<script>
+  (function(){
+    const sendAll = document.getElementById('sendAll');
+    const wrap = document.getElementById('targetsWrap');
+    const csv = document.getElementById('targetCsv');
+    const search = document.getElementById('userSearch');
+    const pickAllBtn = document.getElementById('pickAllBtn');
+    const pickNoneBtn = document.getElementById('pickNoneBtn');
+    const targetKind = document.getElementById('targetKind');
+    const targetRouteInput = document.getElementById('targetRouteInput');
+    const manualEventSubmissionId = document.getElementById('manualEventSubmissionId');
+    const autoEventSelect = document.getElementById('autoEventSelect');
+    const autoEventTitleInput = document.getElementById('autoEventTitleInput');
+    const autoEventBodyInput = document.getElementById('autoEventBodyInput');
+    const autoEventDefaults = {
+      title: {{ auto_event_notification_defaults.title|tojson }},
+      body: {{ auto_event_notification_defaults.body|tojson }},
+    };
+    const targetMap = {
+      event: document.getElementById('targetEvent'),
+      news: document.getElementById('targetNews'),
+      store: document.getElementById('targetStore'),
+      product: document.getElementById('targetProduct'),
+      album: document.getElementById('targetAlbum'),
+      poll: document.getElementById('targetPoll'),
+    };
+    const userItems = () => Array.from(document.querySelectorAll('.user-item'));
+    const visibleItems = () => userItems().filter(el => el.style.display !== 'none');
+    const picks = () => Array.from(document.querySelectorAll('.pickUser:checked')).map(x => x.value);
+
+    function syncUi(){
+      const all = !!(sendAll && sendAll.checked);
+      if (wrap) wrap.style.display = all ? 'none' : 'block';
+      if (csv) csv.value = all ? '' : picks().join(',');
+    }
+
+    function syncTarget(){
+      const kind = (targetKind && targetKind.value) || '';
+      Object.entries(targetMap).forEach(([key, el]) => {
+        if (!el) return;
+        el.style.display = key === kind ? '' : 'none';
+      });
+      if (manualEventSubmissionId) {
+        manualEventSubmissionId.value = '';
+      }
+      if (targetRouteInput) {
+        const current = kind && targetMap[kind] ? (targetMap[kind].value || '') : '';
+        targetRouteInput.value = current;
+      }
+      if (kind === 'event' && targetMap.event && manualEventSubmissionId) {
+        const selected = targetMap.event.options[targetMap.event.selectedIndex];
+        manualEventSubmissionId.value = (selected && selected.dataset && selected.dataset.submissionId) || '';
+      }
+    }
+
+    function syncAutoEventTemplate(){
+      if (!autoEventTitleInput || !autoEventBodyInput) return;
+      const selected = autoEventSelect && autoEventSelect.options[autoEventSelect.selectedIndex];
+      const title = (selected && selected.dataset && selected.dataset.titleTemplate) || autoEventDefaults.title || '';
+      const body = (selected && selected.dataset && selected.dataset.bodyTemplate) || autoEventDefaults.body || '';
+      autoEventTitleInput.value = title;
+      autoEventBodyInput.value = body;
+    }
+
+    function syncFilter(){
+      const q = ((search && search.value) || '').toLowerCase().trim();
+      userItems().forEach(el => {
+        const txt = `${el.dataset.userName || ''} ${el.dataset.userEmail || ''}`;
+        el.style.display = !q || txt.includes(q) ? '' : 'none';
+      });
+    }
+
+    if (search) search.addEventListener('input', syncFilter);
+    if (pickAllBtn) pickAllBtn.addEventListener('click', () => {
+      visibleItems().forEach(el => {
+        const cb = el.querySelector('.pickUser');
+        if (cb) cb.checked = true;
+      });
+      syncUi();
+    });
+    if (pickNoneBtn) pickNoneBtn.addEventListener('click', () => {
+      document.querySelectorAll('.pickUser').forEach(el => el.checked = false);
+      syncUi();
+    });
+    if (sendAll) sendAll.addEventListener('change', syncUi);
+    document.querySelectorAll('.pickUser').forEach(el => el.addEventListener('change', syncUi));
+    if (targetKind) targetKind.addEventListener('change', syncTarget);
+    Object.values(targetMap).forEach(el => {
+      if (el) el.addEventListener('change', syncTarget);
+    });
+    if (autoEventSelect) autoEventSelect.addEventListener('change', syncAutoEventTemplate);
+    syncFilter();
+    syncUi();
+    syncTarget();
+    syncAutoEventTemplate();
+  })();
+</script>

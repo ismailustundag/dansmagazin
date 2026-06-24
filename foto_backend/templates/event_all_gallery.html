@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="{{ 'en' if lang == 'en' else 'tr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{% if lang == 'en' %}All Photos{% else %}Tüm Fotoğraflar{% endif %}</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --card:#121821;
+      --line:rgba(255,255,255,.10);
+      --text:#e7eef8;
+      --muted:#9aa7b7;
+      --btn:#8a1f2d;
+      --btn2:#a32638;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:0 auto;padding:14px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+    .title{font-size:22px;font-weight:800;margin:0}
+    .sub{color:var(--muted);font-size:13px;margin-top:4px}
+    .btn{
+      text-decoration:none;color:#fff;background:linear-gradient(135deg,var(--btn),var(--btn2));
+      border-radius:12px;padding:10px 14px;font-weight:700;display:inline-block
+    }
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+    .item{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+    .item img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+    .meta{padding:8px 10px;font-size:12px;color:var(--muted)}
+    .pager{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:14px}
+    .pager a{color:#fff;text-decoration:none;padding:8px 12px;border:1px solid var(--line);border-radius:10px}
+    .empty{padding:18px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1 class="title">{% if lang == 'en' %}All Photos{% else %}Tüm Fotoğraflar{% endif %}</h1>
+        <div class="sub">{{ event_name }} · {{ total }} {% if lang == 'en' %}photos{% else %}fotoğraf{% endif %}</div>
+      </div>
+      <a class="btn" href="/e/{{ event_id }}?lang={{ 'en' if lang == 'en' else 'tr' }}">
+        {% if lang == 'en' %}Back{% else %}Geri Dön{% endif %}
+      </a>
+    </div>
+
+    {% if photos %}
+      <div class="grid">
+        {% for p in photos %}
+          <a class="item" href="{{ p.url }}" target="_blank" rel="noopener">
+            <img src="{{ p.url }}" alt="photo-{{ p.id }}">
+            <div class="meta">#{{ p.id }}</div>
+          </a>
+        {% endfor %}
+      </div>
+      <div class="pager">
+        {% if page > 1 %}
+          <a href="/e/{{ event_id }}/all?page={{ page-1 }}&lang={{ 'en' if lang == 'en' else 'tr' }}">{% if lang == 'en' %}Previous{% else %}Önceki{% endif %}</a>
+        {% endif %}
+        <span>{{ page }} / {{ total_pages }}</span>
+        {% if page < total_pages %}
+          <a href="/e/{{ event_id }}/all?page={{ page+1 }}&lang={{ 'en' if lang == 'en' else 'tr' }}">{% if lang == 'en' %}Next{% else %}Sonraki{% endif %}</a>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="empty">
+        {% if lang == 'en' %}No uploaded photos yet.{% else %}Henüz yüklenmiş fotoğraf yok.{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

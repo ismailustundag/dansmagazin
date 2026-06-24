@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Kullanici Detay</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#0b1220;color:#e8eefc;margin:0}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08);background:#0e1627}
+    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    .card{background:#121a2b;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-top:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row>*{flex:1;min-width:210px}
+    input,select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0b1220;color:#e8eefc}
+    button{padding:9px 11px;border-radius:10px;border:0;background:#4f7cff;color:#fff;font-weight:600;cursor:pointer}
+    .danger{background:#ef4444}
+    .muted{opacity:.82}
+    .tag{display:inline-block;padding:4px 8px;border:1px solid rgba(255,255,255,.14);border-radius:999px;font-size:12px}
+    .ok{color:#7bffb2;margin-top:8px;font-size:13px}
+    .err{color:#ff7b7b;margin-top:8px;font-size:13px}
+    a{color:#9fb5ff;text-decoration:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div><b>Kullanici Detay</b> - {% if user['app_username'] %}{{ user['app_username'] }}{% else %}{{ (user['email'] or '').split('@')[0] }}{% endif %}</div>
+    <div><a href="/admin/users">Kullanici listesine don</a></div>
+  </header>
+
+  <div class="wrap">
+    {% if message %}<div class="ok">{{ message }}</div>{% endif %}
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+    <div class="card">
+      <div class="row">
+        <div><div class="muted">Kullanici ID</div><div><b>{{ user['id'] }}</b></div></div>
+        <div><div class="muted">Kullanıcı Adı</div><div><b>{% if user['app_username'] %}{{ user['app_username'] }}{% else %}{{ (user['email'] or '').split('@')[0] }}{% endif %}</b></div></div>
+        <div><div class="muted">Email</div><div><b>{{ user['email'] }}</b></div></div>
+        <div><div class="muted">Rol</div><div><span class="tag">{{ user['role'] }}</span></div></div>
+        <div><div class="muted">WP Eslesme</div><div>{% if user['mapped_wp_user_id'] %}<span class="tag">wp:{{ user['mapped_wp_user_id'] }}</span>{% else %}<span class="tag">eslesmemis</span>{% endif %}</div></div>
+        <div><div class="muted">Durum</div><div>{% if user['is_active']==1 %}<span class="tag">aktif</span>{% else %}<span class="tag">pasif</span>{% endif %}</div></div>
+        <div><div class="muted">Editor</div><div>{% if user['can_create_mobile_event']==1 %}<span class="tag">acik</span>{% else %}<span class="tag">kapali</span>{% endif %}</div></div>
+        <div><div class="muted">Onaylı Kullanıcı</div><div>{% if user['is_verified'] %}<span class="tag">acik</span>{% else %}<span class="tag">kapali</span>{% endif %}{% if user.get('is_auto_verified') %} <span class="tag">otomatik</span>{% endif %}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>Kullanıcı Adı Güncelle</b>
+      <form method="post" action="/admin/users/{{ user['id'] }}/set_username" style="margin-top:10px" class="row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+        <div><input name="username" type="text" minlength="3" maxlength="40" value="{% if user['app_username'] %}{{ user['app_username'] }}{% else %}{{ (user['email'] or '').split('@')[0] }}{% endif %}" required></div>
+        <div><button type="submit">Kullanıcı Adını Kaydet</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <b>Kredi Guncelle</b>
+      <form method="post" action="/admin/users/{{ user['id'] }}/set_credit" style="margin-top:10px" class="row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+        <div><input name="photo_credit" type="number" min="0" value="{{ user['photo_credit'] }}" required></div>
+        <div><button type="submit">Kredi Guncelle</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <b>Hesap Durumu</b>
+      <form method="post" action="/admin/users/{{ user['id'] }}/toggle" style="margin-top:10px" class="row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+        <div><button type="submit">{% if user['is_active']==1 %}Hesabi Pasife Al{% else %}Hesabi Aktiflestir{% endif %}</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <b>Editor Yetkisi</b>
+      <div class="muted" style="margin-top:6px">Bu islem app + WP/Woo rolunu birlikte gunceller.</div>
+      <form method="post" action="/admin/users/{{ user['id'] }}/toggle_mobile_event" style="margin-top:10px" class="row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+        <div><button type="submit">{% if user['can_create_mobile_event']==1 %}Editor Yetkisini Kaldir{% else %}Editor Yetkisi Ver{% endif %}</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <b>Onaylı Kullanıcı</b>
+      {% if user.get('is_auto_verified') %}
+        <div class="muted" style="margin-top:6px">Bu kullanıcı <b>{{ user['role'] }}</b> rolü nedeniyle otomatik olarak onaylıdır. Mobil uygulamada adının ve avatarının yanında büyük bir 💫 işareti görünür.</div>
+      {% else %}
+        <div class="muted" style="margin-top:6px">Açık olduğunda mobil uygulamada kullanıcının adının ve avatarının yanında büyük bir 💫 işareti görünür.</div>
+        <form method="post" action="/admin/users/{{ user['id'] }}/toggle_verified" style="margin-top:10px" class="row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+          <div><button type="submit">{% if user['is_verified'] %}Onaylı Kullanıcıyı Kaldır{% else %}Onaylı Kullanıcı Olarak İşaretle{% endif %}</button></div>
+        </form>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <b>Yeni Parola Belirle</b>
+      <form method="post" action="/admin/users/{{ user['id'] }}/set_password" style="margin-top:10px" class="row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+        <div><input name="password" type="text" minlength="6" placeholder="en az 6 karakter" required></div>
+        <div><button type="submit">Parolayi Guncelle</button></div>
+      </form>
+    </div>
+
+    {% if user['role'] == 'customer' %}
+      <div class="card">
+        <b>Kullaniciyi Birlestir</b>
+        <div class="muted" style="margin-top:6px">Bu kullaniciyi sececegin hedef hesaba birlestirir.</div>
+        <form method="post" action="/admin/users/merge" style="margin-top:10px" class="row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+          <input type="hidden" name="source_user_id" value="{{ user['id'] }}" />
+          <div>
+            <select name="target_user_id" required>
+              <option value="">Hedef hesap sec</option>
+              {% for u in merge_candidates %}
+              <option value="{{ u['id'] }}">{{ u['id'] }} - {% if u['app_username'] %}{{ u['app_username'] }}{% else %}-{% endif %} - {{ u['email'] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div><input name="target_new_password" type="text" minlength="6" placeholder="Hedef yeni parola (opsiyonel)"></div>
+          <div><button class="danger" type="submit">Bu kullaniciyi birlestir</button></div>
+        </form>
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <b>Kullaniciyi Sil</b>
+      <div class="muted" style="margin-top:6px">Bagli event/job kaydi varsa silinmez; once birlestirme yapman gerekir.</div>
+      <form method="post" action="/admin/users/{{ user['id'] }}/delete" style="margin-top:10px" class="row" onsubmit="return confirm('Bu kullaniciyi silmek istiyor musun?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="redirect_to" value="/admin/users/{{ user['id'] }}" />
+        <div><button class="danger" type="submit">Kullaniciyi Sil</button></div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

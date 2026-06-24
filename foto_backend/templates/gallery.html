@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Fotoğraflarım</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Arial, sans-serif; margin: 0; padding: 16px; background:#0b0f14; color:#e7eef8; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    .logo { height:24px; opacity:.95; }
+    h1 { font-size: 20px; margin: 10px 0 8px; }
+    .sub { color:#9aa7b7; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .card { background:#121821; border-radius: 10px; padding: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+    .card img { width: 100%; height: auto; border-radius: 8px; display:block; }
+    .actions { margin-top: 8px; display:flex; gap:8px; }
+    .btn { display:inline-block; padding:8px 10px; border-radius:8px; text-decoration:none; background:#8a1f2d; color:#fff; font-size: 13px; }
+    .empty { background:#121821; padding:14px; border-radius:10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img class="logo" src="/static/DMlogo.PNG" alt="Dans Magazin">
+    <h1>{{ user_name }} için fotoğraflar</h1>
+    <div class="sub">Aşağıdaki görseller size ait olarak eşleştirildi.</div>
+
+    {% if photos and photos|length > 0 %}
+      <div class="grid">
+        {% for p in photos %}
+          <div class="card">
+            <a href="{{ p['url'] }}" target="_blank">
+              <img src="{{ p['url'] }}" alt="fotoğraf">
+            </a>
+            <div class="actions">
+              <a class="btn" href="{{ p['url'] }}" target="_blank">Büyüt</a>
+              <a class="btn" href="/gallery/{{ token }}/download/{{ p['id'] }}">İndir</a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">
+        Henüz sizin için eşleşen fotoğraf bulunamadı.
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

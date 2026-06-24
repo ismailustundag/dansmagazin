@@ -1,0 +1,28 @@
+[Unit]
+Description=DansMagazin Photo App (Uvicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/etkinlik_fotograf_projesi
+EnvironmentFile=-/etc/default/foto-app
+Environment=PYTHONPATH=/usr/lib/python3/dist-packages
+Environment=DATABASE_URL=postgresql://dansmagazin_user:dansmagazin@localhost:5432/dansmagazin_db
+
+ExecStartPre=/home/ubuntu/etkinlik_fotograf_projesi/venv/bin/python3 /home/ubuntu/etkinlik_fotograf_projesi/ensure_postgres_schema.py
+
+ExecStart=/home/ubuntu/etkinlik_fotograf_projesi/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+TimeoutStartSec=120
+TimeoutStopSec=30
+KillMode=control-group
+
+StandardOutput=append:/home/ubuntu/etkinlik_fotograf_projesi/uvicorn.log
+StandardError=append:/home/ubuntu/etkinlik_fotograf_projesi/uvicorn.log
+
+[Install]
+WantedBy=multi-user.target

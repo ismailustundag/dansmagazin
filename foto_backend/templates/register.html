@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="{{ 'en' if lang == 'en' else 'tr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{% if lang == 'en' %}Event Registration{% else %}Etkinlik Kaydı{% endif %}</title>
+
+  <style>
+    :root{
+      --bg:#f2f4f7;
+      --card:#f2f4f7;
+      --muted:#677284;
+      --text:#1f2430;
+      --line:rgba(31,36,48,.16);
+      --btn:#7f48ff;
+      --btn2:#8f5bff;
+      --btnText:#ffffff;
+      --danger:#d64444;
+      --ok:#1f9f57;
+    }
+
+    *{box-sizing:border-box}
+    html,body{
+      margin:0; padding:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      background:var(--bg);
+      color:var(--text);
+    }
+    body{font-size:16px; line-height:1.35; overflow:hidden;}
+
+    .wrap{
+      max-width:520px;
+      height:100dvh;
+      margin:0 auto;
+      padding:10px 14px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .card{
+      background:var(--card);
+      border:0;
+      border-radius:18px;
+      padding:8px 4px 10px;
+      box-shadow:none;
+    }
+    .title{font-size:19px;margin:0 0 6px;font-weight:800}
+    .sub{color:var(--muted);font-size:14px;line-height:1.35;margin:0 0 10px;}
+
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:6px 4px 0 4px;
+    }
+    .brand{
+      display:flex; align-items:center; gap:8px;
+      font-weight:800; letter-spacing:.3px; font-size:20px; color:var(--text);
+    }
+    .brand img{height:56px; width:auto; opacity:.98}
+    .brand span{display:none}
+    .lang{
+      display:flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px; background:#ffffff;
+      border:1px solid var(--line); font-size:13px; color:var(--text);
+    }
+
+    .sectionTitle{font-size:18px;margin:10px 0 8px;}
+    .hint{color:var(--muted);font-size:13px;line-height:1.35;margin-top:10px;}
+    .divider{height:1px;background:var(--line);margin:14px 0;}
+
+    .grid{display:grid;gap:12px;}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px;}
+    input[type="text"], input[type="email"]{
+      width:100%;
+      padding:12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:#ffffff;
+      color:#111827;
+      outline:none;
+      font-size:16px; /* iPhone zoom engeli */
+    }
+    input::placeholder{color:#6b7280}
+
+    .btnWide{
+      width:100%;
+      border:0;
+      border-radius:18px;
+      padding:16px 16px;
+      background:linear-gradient(135deg, var(--btn), var(--btn2));
+      color:var(--btnText);
+      font-weight:800;
+      font-size:18px;
+      cursor:pointer;
+    }
+    .btnWide:active{transform:scale(.99)}
+    .btnWide[disabled]{opacity:.55; cursor:not-allowed;}
+
+    /* KVKK */
+    .kvkkRow{
+      display:flex; gap:12px; align-items:flex-start;
+      padding:10px 10px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:#ffffff;
+    }
+    .kvkkRow input{margin-top:4px; min-width:20px}
+    .kvkkRow span{line-height:1.35; word-break:break-word; font-size:13px; color:var(--text);}
+
+    .okLine{margin-top:10px;font-size:14px;}
+    .okLine b{color:var(--ok)}
+    .errLine{margin-top:10px;font-size:13px;color:var(--danger);display:none;}
+
+    /* Inline camera */
+    .camBox{
+      position:relative;
+      border-radius:999px;
+      overflow:hidden;
+      background:#e5e7eb;
+      width:clamp(220px, 70vw, 330px);
+      height:clamp(220px, 70vw, 330px);
+      margin:10px auto 0;
+    }
+    #liveVideo, #capturedPhoto{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    #capturedPhoto{display:none;}
+
+    /* Kullanici aynada gorsun diye video + foto aynalansin */
+    #liveVideo{transform:scaleX(-1);}
+    #capturedPhoto{transform:scaleX(-1);}
+
+    .ovalMask{display:none;}
+    .camTopHint{display:none;}
+    .camStatus{margin-top:10px;color:var(--muted);font-size:13px;min-height:18px;text-align:center;}
+    .okLine,.errLine{min-height:18px;}
+
+    .tabs{display:none;}
+    .footer{
+      margin-top:10px;
+      text-align:center;
+      font-size:13px;
+      color:var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+  {% set is_en = (lang == 'en') %}
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <img src="/static/DMlogo.PNG" alt="Dans Magazin">
+        <span>Dans Magazin</span>
+      </div>
+      <div class="lang">
+        <a href="/e/{{ event_id }}/{{ 'lookup' if tab == 'lookup' else 'register' }}?lang=tr" style="color:{{ '#111827' if not is_en else '#9aa7b7' }};text-decoration:none;font-weight:700;">Türkçe</a>
+        <span style="opacity:.55;">|</span>
+        <a href="/e/{{ event_id }}/{{ 'lookup' if tab == 'lookup' else 'register' }}?lang=en" style="color:{{ '#111827' if is_en else '#9aa7b7' }};text-decoration:none;font-weight:700;">English</a>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1; display:flex; flex-direction:column;">
+      <h1 class="title">{% if is_en %}Event Photo Registration{% else %}Etkinlik Fotoğraf Kaydı{% endif %}</h1>
+      <p class="sub">
+        {% if is_en %}
+          Take a selfie and enter your details. We'll send your gallery by email when matches are found.
+        {% else %}
+          Selfie çek, bilgilerini gir. Eşleşme olduğunda galerini e-posta ile göndereceğiz.
+        {% endif %}
+      </p>
+
+      <div class="tabs">
+        <a class="tab {% if tab != 'lookup' %}active{% endif %}" href="/e/{{ event_id }}/register?lang={{ 'en' if is_en else 'tr' }}">{% if is_en %}Register{% else %}Kayıt Ol{% endif %}</a>
+        <a class="tab {% if tab == 'lookup' %}active{% endif %}" href="/e/{{ event_id }}/lookup?lang={{ 'en' if is_en else 'tr' }}">{% if is_en %}Lookup{% else %}Sorgula{% endif %}</a>
+      </div>
+
+      {% if tab == 'lookup' %}
+        <form method="post" action="/lookup" class="grid">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="hidden" name="event_id" value="{{ event_id }}" />
+          <input type="hidden" name="lang" value="{{ 'en' if is_en else 'tr' }}" />
+
+          <h3 class="sectionTitle">{% if is_en %}Find My Album{% else %}Albüm Sorgula{% endif %}</h3>
+          <div>
+            <label>{% if is_en %}Email{% else %}E-posta{% endif %}</label>
+            <input type="email" name="email" placeholder="ornek@mail.com" required>
+          </div>
+
+          <button class="btnWide" type="submit">{% if is_en %}Search{% else %}Sorgula{% endif %}</button>
+
+          {% if lookup_error %}
+            <div class="errLine" style="display:block;">{{ lookup_error }}</div>
+          {% endif %}
+
+          {% if lookup_results is not none %}
+            <div class="divider"></div>
+            <h3 class="sectionTitle">{% if is_en %}Albums Found{% else %}Bulunan Albümler{% endif %}</h3>
+
+            {% if lookup_results|length == 0 %}
+              <div class="hint">{% if is_en %}No matched album found for this email yet.{% else %}Bu e-posta için henüz eşleşmiş albüm bulunamadı.{% endif %}</div>
+            {% else %}
+              <div class="grid">
+                {% for r in lookup_results %}
+                  <div class="card" style="padding:12px;">
+                    <div style="font-weight:700;">{{ r.event_name }}</div>
+                    <div class="hint">{% if is_en %}Event{% else %}Etkinlik{% endif %}: <b>{{ r.event_id }}</b></div>
+                    <div class="hint">{% if is_en %}Name{% else %}Ad{% endif %}: {{ r.attendee_name }}</div>
+                    {% if r.gallery_url %}
+                      <div style="margin-top:10px;">
+                        <a class="btnWide" style="display:block;text-align:center;text-decoration:none;" href="{{ r.gallery_url }}" target="_blank" rel="noopener">{% if is_en %}Open Gallery{% else %}Galeriyi Aç{% endif %}</a>
+                      </div>
+                    {% else %}
+                      <div class="hint">{% if is_en %}No match yet. Please try again later.{% else %}Henüz eşleşme yok. Daha sonra tekrar deneyin.{% endif %}</div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endif %}
+        </form>
+      {% else %}
+        <form method="post" action="/register" id="regForm" class="grid" style="flex:1;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <!-- Backend'in bekledigi isimler -->
+          <input type="hidden" id="selfieData" name="selfie_data">
+          <input type="hidden" name="event_id" value="{{ event_id }}">
+          <input type="hidden" name="lang" value="{{ 'en' if is_en else 'tr' }}">
+          {% if auto_redirect %}
+            <input type="hidden" name="redirect_external" value="1">
+            <input type="hidden" name="email" value="{{ email_prefill }}">
+            <input type="hidden" name="name" value="{{ name_prefill if name_prefill else (email_prefill.split('@')[0] if email_prefill else 'Guest') }}">
+            <input type="hidden" name="kvkk_consent" value="1">
+          {% endif %}
+
+          <div id="selfieSection">
+            <h3 class="sectionTitle">{% if is_en %}Let's Start!{% else %}Haydi Başlayalım!{% endif %}</h3>
+            <div class="sub" style="margin-top:-4px;">{% if is_en %}Please center your face in the frame.{% else %}Lütfen yüzünüzü belirtilen alana göre ortalayın!{% endif %}</div>
+
+            <div id="liveCamWrap">
+              <div class="camBox">
+                <video id="liveVideo" autoplay playsinline muted></video>
+                <img id="capturedPhoto" alt="Selfie">
+              </div>
+
+              <div class="camStatus" id="camStatus">{% if is_en %}Waiting for camera permission...{% else %}Kamera izni bekleniyor...{% endif %}</div>
+
+              <div class="okLine" id="selfieOk" style="display:none;">
+                {% if is_en %}Selfie accepted <b>&#10003;</b> You can continue with your details.{% else %}Selfie uygun <b>&#10003;</b> Bilgilerini girip devam edebilirsin.{% endif %}
+              </div>
+
+              <div class="errLine" id="selfieErr">{% if is_en %}Selfie could not be captured. Please try again.{% else %}Selfie alınamadı. Lütfen tekrar deneyin.{% endif %}</div>
+
+              <button class="btnWide" type="button" id="takeBtn">
+                {% if auto_redirect %}
+                  {% if is_en %}Take Selfie and Continue{% else %}Selfie Çek ve Devam Et{% endif %}
+                {% else %}
+                  {% if is_en %}Take Selfie{% else %}Selfie Çek{% endif %}
+                {% endif %}
+              </button>
+            </div>
+          </div>
+
+          {% if not auto_redirect %}<div class="divider"></div>{% endif %}
+
+          {% if not auto_redirect %}
+          <div id="infoSection" style="display:none;">
+            <h3 class="sectionTitle">{% if is_en %}Enter Your Details{% else %}Bilgilerini Gir{% endif %}</h3>
+            <div class="sub" style="margin-top:-4px;">
+              {% if is_en %}
+                All photos may not have been uploaded yet. Leave your details and we will notify you when your photos are found.
+              {% else %}
+                Tüm fotoğrafların yüklenmesi henüz tamamlanmamış olabilir. Fotoğraflarınız bulunduğunda sizi
+                bilgilendirmemiz için bize kayıt bırakabilir ya da daha sonra yeniden tarama yapabilirsiniz.
+              {% endif %}
+            </div>
+
+            <div>
+              <label>{% if is_en %}Full Name{% else %}Ad Soyad{% endif %}</label>
+              <input type="text" name="name" placeholder="{% if is_en %}Full Name{% else %}Ad Soyad{% endif %}" required>
+            </div>
+
+            <div>
+              <label>{% if is_en %}Email{% else %}E-posta{% endif %}</label>
+              <input type="email" name="email" placeholder="ornek@mail.com" required>
+            </div>
+
+            <div class="kvkkRow">
+              <input type="checkbox" id="kvkk" name="kvkk_consent" value="1" required>
+              <span>
+                {% if is_en %}
+                  <b>Privacy Consent:</b> I consent to processing my selfie and event photos to create my personal gallery.
+                  <a href="/privacy" target="_blank" rel="noopener">Privacy Notice</a>
+                {% else %}
+                  <b>KVKK Onayı:</b> Selfie ve etkinlik fotoğraflarının, sana özel galeri oluşturmak için işlenmesini kabul ediyorum.
+                  <a href="/privacy" target="_blank" rel="noopener">Aydınlatma Metni</a>
+                {% endif %}
+              </span>
+            </div>
+
+            <button class="btnWide" type="submit" id="submitBtn" disabled>{% if is_en %}Complete Registration{% else %}Kaydı Tamamla{% endif %}</button>
+          </div>
+          {% endif %}
+
+          <div class="footer">V1.0.2 Dans Magazin</div>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+{% if tab != 'lookup' %}
+<script>
+(function(){
+  const isEn = {{ "true" if is_en else "false" }};
+  const autoRedirect = {{ "true" if auto_redirect else "false" }};
+  const video = document.getElementById('liveVideo');
+  const img = document.getElementById('capturedPhoto');
+  const status = document.getElementById('camStatus');
+  const takeBtn = document.getElementById('takeBtn');
+  const okLine = document.getElementById('selfieOk');
+  const errLine = document.getElementById('selfieErr');
+  const hidden = document.getElementById('selfieData');
+  const submitBtn = document.getElementById('submitBtn');
+  const regForm = document.getElementById('regForm');
+  const selfieSection = document.getElementById('selfieSection');
+  const infoSection = document.getElementById('infoSection');
+
+  let stream = null;
+  let captured = false;
+
+  function setErr(msg){
+    errLine.textContent = msg || errLine.textContent;
+    errLine.style.display = "block";
+    setTimeout(() => errLine.style.display = "none", 2500);
+  }
+
+  function scoreImage(canvas){
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    const img = ctx.getImageData(0, 0, w, h).data;
+    let sum = 0;
+    let sumSq = 0;
+    const n = w * h;
+    for(let i=0;i<img.length;i+=4){
+      const r = img[i], g = img[i+1], b = img[i+2];
+      const y = 0.2126*r + 0.7152*g + 0.0722*b;
+      sum += y;
+      sumSq += y*y;
+    }
+    const mean = sum / n;
+    const variance = (sumSq / n) - (mean * mean);
+    const std = Math.sqrt(Math.max(0, variance));
+    return {mean, std};
+  }
+
+  async function startCam(){
+    try{
+      status.textContent = isEn ? "Waiting for camera permission..." : "Kamera izni bekleniyor...";
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio:false,
+        video:{ facingMode:"user", width:{ideal:1280}, height:{ideal:720} }
+      });
+      video.srcObject = stream;
+      await video.play().catch(()=>{});
+      status.textContent = isEn ? "Ready. Center your face in the frame." : "Hazir. Yuzunu ovalin icine hizala.";
+    }catch(e){
+      status.textContent = isEn ? "Camera could not start. Please check browser permissions." : "Kamera acilamadi. Safari izinlerini kontrol et.";
+      setErr((isEn ? "Camera error: " : "Kamera acilamadi: ") + (e && e.message ? e.message : (isEn ? "Unknown error" : "Bilinmeyen hata")));
+    }
+  }
+
+  function stopCam(){
+    if(stream){
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+  }
+
+  function snap(){
+    try{
+      if(!video.videoWidth || !video.videoHeight){
+        status.textContent = isEn ? "Camera is preparing... wait 1 second and try again." : "Kamera hazirlaniyor... 1 saniye bekleyip tekrar dene.";
+        setErr(isEn ? "Camera is not ready yet. Please try again." : "Kamera hazir degil. Biraz bekleyip tekrar deneyin.");
+        return;
+      }
+
+      const w = video.videoWidth, h = video.videoHeight;
+
+      // boyutlari makul tut
+      const targetW = 720;
+      const scale = targetW / w;
+      const targetH = Math.round(h * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+
+      // Video zaten CSS ile aynali gorunuyor.
+      // Foto da aynali gorunsun diye canvas'a da aynali ciziyoruz.
+      ctx.save();
+      ctx.translate(targetW, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, targetW, targetH);
+      ctx.restore();
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      const score = scoreImage(canvas);
+
+      // Bilgilendirici kalite kontrol: çekimi engellemez
+      const okLight = score.mean > 40 && score.mean < 235;
+      const okContrast = score.std > 15;
+      if(!okLight || !okContrast){
+        status.textContent = isEn ? "Low light detected, you can still continue." : "Işık düşük görünüyor, yine de devam edebilirsiniz.";
+      }
+      hidden.value = dataUrl;
+
+      img.src = dataUrl;
+      img.style.display = "block";
+      video.style.display = "none";
+
+      captured = true;
+      okLine.style.display = "block";
+      if(submitBtn) submitBtn.disabled = false;
+      if(selfieSection) selfieSection.style.display = "none";
+      if(infoSection) infoSection.style.display = "block";
+
+      takeBtn.textContent = isEn ? "Retake" : "Yeniden Cek";
+      status.textContent = isEn ? "Selfie captured." : "Selfie alindi.";
+
+      stopCam();
+      if(autoRedirect && regForm){
+        regForm.submit();
+      }
+    }catch(e){
+      setErr(isEn ? "Selfie could not be captured. Try again." : "Selfie alinamadi. Tekrar deneyin.");
+    }
+  }
+
+  async function retake(){
+    captured = false;
+    hidden.value = "";
+    img.style.display = "none";
+    video.style.display = "block";
+    okLine.style.display = "none";
+    if(submitBtn) submitBtn.disabled = true;
+
+    takeBtn.textContent = isEn ? "Take Selfie" : "Selfie Cek";
+    if(selfieSection) selfieSection.style.display = "block";
+    if(infoSection) infoSection.style.display = "none";
+    await startCam();
+  }
+
+  takeBtn.addEventListener('click', function(e){
+    e.preventDefault();
+    if(!captured) snap();
+    else retake();
+  });
+
+  document.addEventListener('DOMContentLoaded', startCam);
+  window.addEventListener('beforeunload', stopCam);
+})();
+</script>
+{% endif %}
+
+</body>
+</html>

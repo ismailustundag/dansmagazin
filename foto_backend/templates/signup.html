@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Kayıt Ol</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card:#121a2b;
+      --border:rgba(255,255,255,.10);
+      --muted:rgba(232,238,252,.70);
+      --text:#e8eefc;
+      --primary:#4f7cff;
+      --primary2:#2f5dff;
+      --danger:#ff7b7b;
+      --success:#7bffb2;
+      --shadow:0 18px 45px rgba(0,0,0,.45);
+      --radius:16px;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(79,124,255,.20), transparent 60%),
+                  radial-gradient(900px 500px at 120% 10%, rgba(123,255,178,.10), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+      display:flex;
+      min-height:100vh;
+      align-items:center;
+      justify-content:center;
+      margin:0;
+      padding:18px;
+    }
+
+    .card{
+      width:100%;
+      max-width:430px;
+      background: linear-gradient(180deg, rgba(255,255,255,.03), transparent 60%), var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:20px;
+      box-shadow:var(--shadow);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .logo{
+      width:42px;height:42px;border-radius:12px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.18), transparent 60%),
+                  linear-gradient(135deg, rgba(79,124,255,.85), rgba(47,93,255,.65));
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow: 0 10px 22px rgba(79,124,255,.18);
+      display:flex;align-items:center;justify-content:center;
+      font-size:18px;
+    }
+    h1{margin:0; font-size:18px; letter-spacing:.2px}
+    p{margin:2px 0 0 0; opacity:.85; font-size:13px; line-height:1.45; color:var(--muted)}
+
+    .tabs{
+      margin-top:14px;
+      background: rgba(255,255,255,.04);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:6px;
+      display:flex;
+      gap:6px;
+    }
+    .tab{
+      flex:1;
+      text-align:center;
+      padding:10px 12px;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:650;
+      font-size:13px;
+      color:rgba(232,238,252,.85);
+      border:1px solid transparent;
+      transition: all .18s ease;
+      background: transparent;
+    }
+    .tab:hover{
+      background: rgba(255,255,255,.05);
+      border-color: rgba(255,255,255,.08);
+    }
+    .tab.active{
+      background: linear-gradient(135deg, rgba(79,124,255,.95), rgba(47,93,255,.70));
+      color:#fff;
+      border-color: rgba(255,255,255,.10);
+      box-shadow: 0 10px 22px rgba(79,124,255,.20);
+    }
+
+    form{margin-top:14px}
+
+    label{
+      display:block;
+      font-size:12.5px;
+      margin:12px 0 6px 0;
+      color:rgba(232,238,252,.86);
+    }
+    .input{
+      width:100%;
+      padding:12px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(11,18,32,.75);
+      color:var(--text);
+      outline:none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .input:focus{
+      border-color: rgba(79,124,255,.55);
+      box-shadow: 0 0 0 4px rgba(79,124,255,.12);
+    }
+
+    .btn{
+      margin-top:14px;
+      width:100%;
+      padding:12px;
+      border-radius:12px;
+      border:0;
+      background: linear-gradient(135deg, var(--primary), var(--primary2));
+      color:white;
+      font-weight:700;
+      cursor:pointer;
+      transition: transform .06s ease, filter .18s ease;
+      box-shadow: 0 14px 28px rgba(79,124,255,.22);
+    }
+    .btn:active{transform: translateY(1px)}
+    .btn:hover{filter: brightness(1.06)}
+
+    .note{
+      margin-top:12px;
+      font-size:12px;
+      color:rgba(232,238,252,.62);
+      text-align:center;
+      line-height:1.5;
+    }
+
+    .alert{
+      margin-top:14px;
+      padding:12px 12px;
+      border-radius:12px;
+      font-size:13px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+    }
+    .alert.err{
+      border-color: rgba(255,123,123,.25);
+      color: var(--danger);
+      background: rgba(255,123,123,.06);
+    }
+    .alert.ok{
+      border-color: rgba(123,255,178,.20);
+      color: var(--success);
+      background: rgba(123,255,178,.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div style="display:flex;gap:10px;align-items:center;">
+        <div class="logo">📸</div>
+        <div>
+          <h1>Hesap Oluştur</h1>
+          <p>Yeni hesap oluşturun. (Rol: customer, Kredi: 0)</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <a class="tab" href="/login">Giriş</a>
+      <a class="tab active" href="/signup">Kayıt Ol</a>
+    </div>
+
+    <form method="post" action="/signup">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label>E-posta</label>
+      <input class="input" type="email" name="email" required placeholder="ornek@mail.com" />
+
+      <label>Şifre</label>
+      <input class="input" type="password" name="password" required placeholder="En az 6 karakter" minlength="6" />
+
+      <label>Şifre (Tekrar)</label>
+      <input class="input" type="password" name="password2" required placeholder="Tekrar girin" minlength="6" />
+
+      <button class="btn" type="submit">Hesap Oluştur</button>
+    </form>
+
+    <div class="note">
+      Kayıt olan herkes <b>customer</b> rolü ile başlar ve <b>kredi 0</b> olur.<br/>
+      Krediyi daha sonra super admin tanımlar.
+    </div>
+
+    {% if error %}
+      <div class="alert err">{{ error }}</div>
+    {% endif %}
+    {% if message %}
+      <div class="alert ok">{{ message }}</div>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<div class="card" style="margin-top:12px;background:rgba(255,255,255,.03);">
+  <b>Panelden Haber Oluştur</b>
+  <div class="muted" style="margin-top:6px;">Buradan oluşturulan haber, mobil onay listesine düşer. Super admin onayında WP'ye yayınlanır.</div>
+  <form method="post" action="/admin/mobile/news/create" enctype="multipart/form-data" style="display:grid;gap:8px;margin-top:10px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input name="title" placeholder="Haber başlığı" required />
+    <textarea name="body_text" rows="5" placeholder="Haber metni" required></textarea>
+    <input name="source_link" placeholder="Kaynak linki (opsiyonel)" />
+    <input type="file" name="cover_image" accept="image/*" />
+    <div><button type="submit" style="background:#2563eb;">Haber Talebi Oluştur</button></div>
+  </form>
+</div>
+
+<div class="card" style="margin-top:12px;background:rgba(255,255,255,.03);">
+  <div class="section-head" style="margin-top:0;">
+    <div class="section-title">Haber Onayları</div>
+    <span class="count-badge">{{ news_submissions|length if news_submissions else 0 }}</span>
+  </div>
+  <div class="muted" style="margin-top:6px;">Bekleyen ve işlem görmüş haber taleplerini bu modülden yönetebilirsin.</div>
+
+  {% if news_submissions_err %}
+    <div class="err">{{ news_submissions_err }}</div>
+  {% elif news_submissions and news_submissions|length > 0 %}
+    <div class="compact-list">
+      {% for n in news_submissions %}
+        <details class="row-item">
+          <summary class="row-summary">
+            <div><b>{{ n.title or '-' }}</b></div>
+            <div>{{ n.submitter_name or '-' }}</div>
+            <div>{{ n.submitter_email or '-' }}</div>
+            <div>
+              <span class="{% if n.status=='approved' %}status-approved{% elif n.status=='rejected' %}status-rejected{% else %}status-pending{% endif %}">
+                {{ n.status }}
+              </span>
+            </div>
+            <div>#{{ n.id }}</div>
+          </summary>
+          <div class="row-detail">
+            <div class="sub-meta muted">
+              <div><b>Oluşturulma:</b> {{ n.created_at|fmt_dt if n.created_at else "-" }}</div>
+              <div><b>Güncelleme:</b> {{ n.updated_at|fmt_dt if n.updated_at else "-" }}</div>
+              <div><b>Onay:</b> {{ n.approved_at|fmt_dt if n.approved_at else "-" }}</div>
+            </div>
+            {% if n.cover_url %}
+              <div style="margin-bottom:8px;">
+                <a class="badge" href="{{ n.cover_url }}" target="_blank" rel="noopener" style="text-decoration:none;color:#9fb5ff;">Haber Görseli</a>
+              </div>
+            {% endif %}
+            {% if n.source_link %}
+              <div style="margin-bottom:8px;"><b>Kaynak:</b> <a href="{{ n.source_link }}" target="_blank" rel="noopener" style="color:#9fb5ff;">{{ n.source_link }}</a></div>
+            {% endif %}
+            {% if n.wp_post_url %}
+              <div style="margin-bottom:8px;"><b>WP Yazısı:</b> <a href="{{ n.wp_post_url }}" target="_blank" rel="noopener" style="color:#9fb5ff;">{{ n.wp_post_url }}</a></div>
+            {% endif %}
+            {% if n.body_text %}
+              <div style="margin-bottom:8px;white-space:pre-wrap;"><b>Haber Metni:</b> {{ n.body_text }}</div>
+            {% endif %}
+            {% if n.admin_note %}
+              <div class="muted" style="margin-bottom:8px;"><b>Admin notu:</b> {{ n.admin_note }}</div>
+            {% endif %}
+
+            {% if n.status == 'pending' %}
+              <div class="sub-actions">
+                <form method="post" action="/admin/mobile/news/{{ n.id }}/approve" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <input class="sub-note" name="admin_note" placeholder="Opsiyonel admin notu">
+                  <button type="submit">Onayla ve WP'de Yayınla</button>
+                </form>
+                <form method="post" action="/admin/mobile/news/{{ n.id }}/reject" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <input class="sub-note" name="admin_note" placeholder="Red nedeni (opsiyonel)">
+                  <button type="submit" style="background:#ef4444;">Reddet</button>
+                </form>
+                <form method="post" action="/admin/mobile/news/{{ n.id }}/delete" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;" onsubmit="return confirm('Bu haber uygulama + panel kaydından silinsin ve WP yazısı da kaldırılıp kalıcı silinsin mi?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <button type="submit" style="background:#b91c1c;">Haberi Sil</button>
+                </form>
+              </div>
+            {% else %}
+              <div class="sub-actions">
+                <div class="muted">Bu haber için işlem tamamlandı.</div>
+                <form method="post" action="/admin/mobile/news/{{ n.id }}/delete" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;" onsubmit="return confirm('Bu haber uygulama + panel kaydından silinsin ve WP yazısı da kaldırılıp kalıcı silinsin mi?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <button type="submit" style="background:#b91c1c;">Haberi Sil</button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="muted" style="margin-top:10px;">Henüz haber talebi yok.</div>
+  {% endif %}
+</div>

@@ -1,0 +1,89 @@
+{% extends "console_layout.html" %}
+
+{% block content %}
+<style>
+  .section-title{font-size:14px;font-weight:700;margin:0 0 10px 0;}
+  .muted-small{color:#6b7280;font-size:12px;}
+  .tag{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:rgba(255,255,255,.05);color:var(--text);}
+  .thumb{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line);}
+  .table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .table-wrap table{min-width:900px;}
+  .ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#166534;border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .inline-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+
+{% if message %}<div class="ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div>
+      <div class="muted" style="font-size:12px;">Albüm</div>
+      <div style="font-weight:700;">{{ event_name }}</div>
+      <div class="muted-small mono">{{ event_slug }}</div>
+    </div>
+    <a class="btn secondary" href="/console/event/{{ event_slug }}">Yükleme Paketlerine Dön</a>
+  </div>
+  <div class="inline-actions" style="margin-top:10px;">
+    <span class="tag">Paket ID: {{ job['id'] }}</span>
+    {% if job['pid'] %}<span class="tag">PID: {{ job['pid'] }}</span>{% endif %}
+    <span class="tag">Durum: {{ job['status'] or '-' }}</span>
+    <span class="tag">Fotoğraf: {{ total_photos }}</span>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="section-title">Paket Fotoğrafları</div>
+  {% if photos and photos|length > 0 %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Önizleme</th>
+            <th>Dosya</th>
+            <th>Yüklenme</th>
+            <th>Boyut</th>
+            <th>İşlem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in photos %}
+            <tr>
+              <td>
+                <a href="{{ p['url'] }}" target="_blank" rel="noopener">
+                  <img class="thumb" src="{{ p['url'] }}" alt="thumb">
+                </a>
+              </td>
+              <td>
+                <div><span class="tag">#{{ p['id'] }}</span></div>
+                <div class="muted-small">{{ p['filename'] }}</div>
+              </td>
+              <td class="muted-small">{{ p['created_at']|fmt_dt }}</td>
+              <td class="muted-small">{{ p['size_human'] }}</td>
+              <td>
+                <form method="post" action="/console/photo/{{ p['id'] }}/delete" style="display:inline;" onsubmit="return confirm('Fotoğraf silinsin mi?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <input type="hidden" name="redirect_to" value="/console/event/{{ event_slug }}/batch/{{ job['id'] }}" />
+                  <button class="btn danger" type="submit">Sil</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if total_photos and total_photos > per_page %}
+      {% set total_pages = (total_photos // per_page) + (1 if (total_photos % per_page) > 0 else 0) %}
+      <div class="inline-actions" style="margin-top:12px;">
+        {% if page > 1 %}<a class="btn secondary" href="/console/event/{{ event_slug }}/batch/{{ job['id'] }}?page={{ page - 1 }}">Önceki</a>{% endif %}
+        <span class="muted-small">Sayfa {{ page }} / {{ total_pages }}</span>
+        {% if page < total_pages %}<a class="btn secondary" href="/console/event/{{ event_slug }}/batch/{{ job['id'] }}?page={{ page + 1 }}">Sonraki</a>{% endif %}
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="muted-small">Bu pakette fotoğraf bulunamadı.</div>
+  {% endif %}
+</div>
+{% endblock %}

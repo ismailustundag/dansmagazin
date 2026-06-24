@@ -1,0 +1,56 @@
+{% extends "panel_layout.html" %}
+{% set active = 'profile' %}
+{% set header = 'Profil' %}
+{% block content %}
+  <div class="grid-2">
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Profil Bilgileri</div>
+      {% if avatar_path %}
+        {% set ap = avatar_path.replace("\\", "/") %}
+        {% if ap.startswith("media/") %}{% set ap = ap[6:] %}{% endif %}
+        <div style="margin-bottom:10px;">
+          <img src="/media/{{ ap }}" alt="Profil" style="width:72px;height:72px;border-radius:14px;object-fit:cover;border:1px solid #e5e7eb;">
+        </div>
+      {% endif %}
+      <form method="post" action="/panel/profile/update" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <div style="margin-bottom:10px;">
+          <label class="muted" style="font-size:12px;">Ad Soyad</label>
+          <input name="name" value="{{ profile_name or '' }}" required>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="muted" style="font-size:12px;">Telefon</label>
+          <input name="phone" value="{{ phone or '' }}" placeholder="05xx xxx xx xx">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="muted" style="font-size:12px;">Profil Fotoğrafı</label>
+          <input type="file" name="avatar" accept="image/*">
+        </div>
+        <button class="btn" type="submit">Güncelle</button>
+      </form>
+
+      {% if error %}<div class="muted" style="color:#b91c1c;margin-top:8px;">{{ error }}</div>{% endif %}
+      {% if message %}<div class="muted" style="color:#15803d;margin-top:8px;">{{ message }}</div>{% endif %}
+    </div>
+
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Şifre Değiştir</div>
+      <form method="post" action="/panel/password/change">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <div style="margin-bottom:10px;">
+          <label class="muted" style="font-size:12px;">Mevcut Şifre</label>
+          <input name="current_password" type="password" required>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="muted" style="font-size:12px;">Yeni Şifre</label>
+          <input name="new_password" type="password" required>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="muted" style="font-size:12px;">Yeni Şifre (Tekrar)</label>
+          <input name="new_password2" type="password" required>
+        </div>
+        <button class="btn secondary" type="submit">Şifreyi Değiştir</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}

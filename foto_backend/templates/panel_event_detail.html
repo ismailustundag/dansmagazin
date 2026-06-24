@@ -1,0 +1,600 @@
+{% extends "panel_layout.html" %}
+
+{% block content %}
+<style>
+  .section-title{font-size:14px; font-weight:700; margin:0 0 10px 0;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .tag{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid #e5e7eb; font-size:12px; background:#fff;}
+  .qrimg{width:220px; max-width:100%; border-radius:14px; background:#fff; border:1px solid #e5e7eb; padding:10px;}
+  .thumb{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;}
+  .progressWrap{margin-top:12px; display:none}
+  .progressBar{height:12px; width:100%; background:#f3f4f6; border:1px solid #e5e7eb; border-radius:999px; overflow:hidden;}
+  .progressFill{height:100%; width:0%; background:linear-gradient(135deg, #7c3aed, #8b5cf6); transition: width .15s ease;}
+  .progressMeta{margin-top:8px; font-size:13px; color:#475569}
+  .progressMeta b{color:#111827}
+  .inline-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .pill-mini{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;font-size:12px;}
+  .muted-small{color:#6b7280;font-size:12px;}
+  .subgrid{display:block;margin-top:16px;}
+  .subnav{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:10px;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .subnav a{padding:10px 12px;border-radius:12px;text-decoration:none;color:#111827;border:1px solid transparent;}
+  .subnav a.active{background:rgba(124,58,237,.08);border-color:rgba(124,58,237,.25);color:#5b21b6;}
+  .table-wrap{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  .table-wrap table{min-width:980px;}
+  .break-cell{white-space:normal; word-break:break-word;}
+  .uploads-table{table-layout:fixed; min-width:1280px;}
+  .uploads-table th,.uploads-table td{vertical-align:top; word-break:normal; overflow-wrap:normal; white-space:nowrap;}
+  .uploads-table td.action-cell{white-space:normal; overflow-wrap:break-word; line-height:1.35;}
+  .uploads-table td.msg-cell{white-space:normal; overflow-wrap:break-word; line-height:1.45;}
+  .uploads-table .pid-cell{white-space:nowrap;}
+  .detail-hero{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}
+  .hero-panel{padding:22px;border-radius:20px;border:1px solid #e5e7eb;background:linear-gradient(135deg, rgba(124,58,237,.1), rgba(255,255,255,1))}
+  .hero-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;font-weight:700}
+  .hero-title{margin:8px 0 0;font-size:30px;line-height:1.05;font-weight:800}
+  .hero-copy{margin-top:10px;color:#64748b;line-height:1.55;max-width:640px}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid #e5e7eb;background:#fff}
+  .status-pill.ok{border-color:rgba(34,197,94,.28);background:rgba(34,197,94,.08);color:#166534}
+  .status-pill.warn{border-color:rgba(245,158,11,.28);background:rgba(245,158,11,.1);color:#92400e}
+  .stat-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+  .stat-card{padding:14px;border-radius:18px;border:1px solid #e5e7eb;background:#fff;box-shadow:0 6px 20px rgba(15,23,42,.05)}
+  .stat-label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#64748b}
+  .stat-value{font-size:24px;font-weight:800;line-height:1.1;margin-top:8px}
+  @media(max-width: 980px){
+    .detail-hero,.stat-strip{grid-template-columns:1fr;}
+    .subnav{display:flex;overflow:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch;}
+    .subnav a{flex:0 0 auto;}
+    .inline-actions{align-items:stretch;}
+    .inline-actions .btn, .inline-actions button{width:100%;}
+    .qrimg{width:180px;}
+  }
+</style>
+
+{% set current = tab or 'media' %}
+
+<div class="detail-hero">
+  <div class="hero-panel">
+    <div class="hero-eyebrow">Etkinlik Yönetimi</div>
+    <h1 class="hero-title">{{ event["name"] }}</h1>
+    <div class="hero-copy">
+      Bu ekran artık bölüm bölüm çalışır. Sadece açtığın sekmenin verisi yüklenir; böylece özellikle büyük etkiniklerde detay sayfası daha hızlı açılır.
+    </div>
+    <div class="hero-meta">
+      <span class="status-pill">{{ event["slug"] }}</span>
+      <span class="status-pill {% if event['is_active'] == 1 or event['is_active'] == true %}ok{% else %}warn{% endif %}">
+        {% if event['is_active'] == 1 or event['is_active'] == true %}Aktif{% else %}Pasif{% endif %}
+      </span>
+      <span class="status-pill">{{ current|capitalize }} Bölümü</span>
+    </div>
+    <form method="post" action="/panel/events/{{ event['id'] }}/rename" class="inline-actions" style="margin-top:16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <input name="name" value="{{ event['name'] }}" required style="min-width:240px;" />
+      <button class="btn" type="submit">Adı Güncelle</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Etkinlik Linki</div>
+    <div class="muted-small">Katilimcilar bu linkten etkinlik fotograflarina ulasir.</div>
+    <div style="margin-top:8px;" class="mono">{{ qr_target }}</div>
+    <div class="inline-actions" style="margin-top:12px;">
+      <a class="btn secondary" href="/e/{{ event['slug'] }}" target="_blank" rel="noopener">Etkinlik Sayfasını Aç</a>
+      <button type="button" class="btn secondary" onclick="copyText('{{ qr_target }}')">Linki Kopyala</button>
+    </div>
+    {% if qr_img %}
+      <div style="margin-top:16px;">
+        <img class="qrimg" src="{{ qr_img }}" alt="QR">
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="stat-strip">
+  <div class="stat-card">
+    <div class="stat-label">Kalan Kredi</div>
+    <div class="stat-value">{{ photo_credit }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Etkinlik Kodu</div>
+    <div class="stat-value" style="font-size:18px;word-break:break-word;">{{ event["slug"] }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Aktif Bölüm</div>
+    <div class="stat-value" style="font-size:18px;">{{ current|capitalize }}</div>
+  </div>
+</div>
+
+<div class="subgrid">
+  <aside class="subnav">
+    <a href="/panel/events/{{ event['id'] }}?tab=media" class="{% if current=='media' %}active{% endif %}">Görsel Yükle - Yönet</a>
+    <a href="/panel/events/{{ event['id'] }}?tab=uploads" class="{% if current=='uploads' %}active{% endif %}">Yükleme Geçmişi</a>
+    <a href="/panel/events/{{ event['id'] }}?tab=users" class="{% if current=='users' %}active{% endif %}">Kayıtlı Kullanıcılar</a>
+    <a href="/panel/events/{{ event['id'] }}?tab=mail" class="{% if current=='mail' %}active{% endif %}">Mail Bildirimleri</a>
+    <a href="/panel/events/{{ event['id'] }}?tab=reports" class="{% if current=='reports' %}active{% endif %}">Raporlar</a>
+    <a href="/panel/events/{{ event['id'] }}?tab=sales" class="{% if current=='sales' %}active{% endif %}">Satışlar</a>
+  </aside>
+
+  <section>
+    {% if current=='media' %}
+      <div class="card">
+        <div class="section-title">Görsel Yükle</div>
+        <div class="muted-small">Yükleme biter bitmez otomatik eşleştirme çalışır. Tek partta en fazla {{ upload_batch_max_files }} fotoğraf yükleyin.</div>
+        <form method="post" action="/panel/events/{{ event['id'] }}/subalbums/create" class="inline-actions" style="margin-top:10px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input type="text" name="subalbum_name" placeholder="Yeni alt albüm adı" style="min-width:220px;" />
+          <button class="btn secondary" type="submit">Alt Albüm Oluştur</button>
+        </form>
+        {% if subalbums %}
+          <div class="muted-small" style="margin-top:8px;">Mevcut alt albümler:
+            {% for s in subalbums %}
+              <span style="display:inline-block;margin-right:8px;">{{ s['name'] }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+        <form id="uploadForm" method="post" action="/panel/events/{{ event['id'] }}/upload_photos" enctype="multipart/form-data" style="margin-top:12px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <select name="subalbum_id" style="margin-bottom:10px;display:block;min-width:240px;">
+            <option value="">Ana Albüm / Tüm Fotoğraflar</option>
+            {% for s in subalbums %}
+              <option value="{{ s['id'] }}">{{ s['name'] }}</option>
+            {% endfor %}
+          </select>
+          <input id="photoInput" type="file" name="photos" accept="image/*" multiple required />
+          <div style="height:10px;"></div>
+          <button id="uploadBtn" class="btn" type="submit">Fotoğrafları Yükle</button>
+        </form>
+
+        <div id="uploadProgress" class="progressWrap">
+          <div class="progressBar"><div class="progressFill" id="progressFill"></div></div>
+          <div class="progressMeta">
+            Yüklenen: <b id="countDone">0</b> /
+            <b id="countTotal">0</b>
+            <span style="margin-left:10px;">%<b id="percent">0</b></span>
+          </div>
+        </div>
+
+        {% if message %}<div class="muted-small" style="color:#16a34a; margin-top:10px;">{{ message }}</div>{% endif %}
+        {% if error %}<div class="muted-small" style="color:#dc2626; margin-top:10px;">{{ error }}</div>{% endif %}
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Çerçeve Yükle (PNG)</div>
+        <div class="muted-small" style="margin-bottom:6px;">Bu çerçeveler sadece sizin hesabınız için geçerlidir.</div>
+        <div class="muted-small">Desteklenen oranlar: 1:1, 3:2 yatay, 4:3 yatay, 2:3 dikey ve 3:4 dikey. Şeffaf PNG önerilir. Sistem fotoğraf oranına en yakın çerçeveyi seçer ve çerçeveyi esnetmez.</div>
+        <div class="inline-actions" style="margin-top:10px;">
+          {% if frame_ratio_1_1 %}
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">1:1 Önizleme</div>
+              <img class="thumb" src="/{{ frame_ratio_1_1 }}" alt="1:1 Çerçeve">
+              <form method="post" action="/panel/events/{{ event['id'] }}/frames/delete" style="margin-top:6px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="kind" value="ratio_1_1" />
+                <button type="submit" class="btn secondary">Sil</button>
+              </form>
+            </div>
+          {% endif %}
+          {% if frame_ratio_3_2 %}
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">3:2 Yatay Önizleme</div>
+              <img class="thumb" src="/{{ frame_ratio_3_2 }}" alt="3:2 Çerçeve">
+              <form method="post" action="/panel/events/{{ event['id'] }}/frames/delete" style="margin-top:6px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="kind" value="ratio_3_2" />
+                <button type="submit" class="btn secondary">Sil</button>
+              </form>
+            </div>
+          {% endif %}
+          {% if frame_ratio_2_3 %}
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">2:3 Dikey Önizleme</div>
+              <img class="thumb" src="/{{ frame_ratio_2_3 }}" alt="2:3 Çerçeve">
+              <form method="post" action="/panel/events/{{ event['id'] }}/frames/delete" style="margin-top:6px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="kind" value="ratio_2_3" />
+                <button type="submit" class="btn secondary">Sil</button>
+              </form>
+            </div>
+          {% endif %}
+          {% if frame_ratio_3_4 %}
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">3:4 Dikey Önizleme</div>
+              <img class="thumb" src="/{{ frame_ratio_3_4 }}" alt="3:4 Çerçeve">
+              <form method="post" action="/panel/events/{{ event['id'] }}/frames/delete" style="margin-top:6px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="kind" value="ratio_3_4" />
+                <button type="submit" class="btn secondary">Sil</button>
+              </form>
+            </div>
+          {% endif %}
+          {% if frame_ratio_4_3 %}
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">4:3 Yatay Önizleme</div>
+              <img class="thumb" src="/{{ frame_ratio_4_3 }}" alt="4:3 Çerçeve">
+              <form method="post" action="/panel/events/{{ event['id'] }}/frames/delete" style="margin-top:6px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="kind" value="ratio_4_3" />
+                <button type="submit" class="btn secondary">Sil</button>
+              </form>
+            </div>
+          {% endif %}
+          {% if not frame_ratio_1_1 and not frame_ratio_3_2 and not frame_ratio_2_3 and not frame_ratio_3_4 and not frame_ratio_4_3 %}
+            <span class="muted-small">Henüz çerçeve yüklenmedi.</span>
+          {% endif %}
+        </div>
+        <form method="post" action="/panel/events/{{ event['id'] }}/frames" enctype="multipart/form-data" style="margin-top:12px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <div class="grid-2" style="gap:12px;">
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">1:1 Kare Çerçeve</div>
+              <input type="file" name="frame_ratio_1_1" accept="image/png">
+            </div>
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">3:2 Yatay Çerçeve</div>
+              <input type="file" name="frame_ratio_3_2" accept="image/png">
+            </div>
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">2:3 Dikey Çerçeve</div>
+              <input type="file" name="frame_ratio_2_3" accept="image/png">
+            </div>
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">3:4 Dikey Çerçeve</div>
+              <input type="file" name="frame_ratio_3_4" accept="image/png">
+            </div>
+            <div>
+              <div class="muted-small" style="margin-bottom:6px;">4:3 Yatay Çerçeve</div>
+              <input type="file" name="frame_ratio_4_3" accept="image/png">
+            </div>
+          </div>
+          <div style="height:10px;"></div>
+          <button type="submit" class="btn">Çerçeveleri Kaydet</button>
+        </form>
+
+        <form method="post" action="/panel/events/{{ event['id'] }}/reprocess" style="margin-top:10px;" onsubmit="return confirm('Mevcut tüm fotoğraflar yeniden işlenecek. Devam edilsin mi?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <button type="submit" class="btn secondary">Eski Fotoğraflara Çerçeve Uygula</button>
+        </form>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Görsel Yönetimi</div>
+        <div class="muted-small">Yüklenen fotoğraflar listesi (silme dahil).</div>
+        <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Önizleme</th>
+              <th>Dosya</th>
+              <th>Yüklenme</th>
+              <th>Boyut</th>
+              <th>Eşleşme</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in photos %}
+            <tr>
+              <td>
+                <a href="{{ p['url'] }}" target="_blank" rel="noopener">
+                  <img class="thumb" src="{{ p['url'] }}" />
+                </a>
+              </td>
+              <td>
+                <div><span class="tag">#{{ p["id"] }}</span></div>
+                <div class="muted-small" style="margin-top:4px;">{{ p["filename"] }}</div>
+              </td>
+              <td class="muted-small">{{ p["created_at"]|fmt_dt }}</td>
+              <td class="muted-small">{{ p["size_human"] }}</td>
+              <td><span class="pill-mini"><b>{{ p["match_count"] or 0 }}</b></span></td>
+              <td>
+                <form method="post" action="/panel/photos/{{ p['id'] }}/delete" style="display:inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <input type="hidden" name="event_id" value="{{ event['id'] }}">
+                  <button class="btn danger" type="submit" onclick="return confirm('Fotoğraf silinsin mi?')">Sil</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          {% if photos|length == 0 %}
+          <tr><td colspan="6" class="muted-small">Henüz fotoğraf yok.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+      </div>
+      {% if total_photos_all and total_photos_all > per_page %}
+        {% set total_pages = (total_photos_all // per_page) + (1 if (total_photos_all % per_page) > 0 else 0) %}
+        <div class="inline-actions" style="margin-top:12px;">
+          {% if page > 1 %}
+            <a class="btn secondary" href="/panel/events/{{ event['id'] }}?tab=media&page={{ page - 1 }}">Önceki</a>
+          {% endif %}
+          <span class="muted-small">Sayfa {{ page }} / {{ total_pages }}</span>
+          {% if page < total_pages %}
+            <a class="btn secondary" href="/panel/events/{{ event['id'] }}?tab=media&page={{ page + 1 }}">Sonraki</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    {% elif current=='uploads' %}
+      <div class="card">
+        <div class="section-title">Yükleme Geçmişi</div>
+        {% set ns = namespace(has_running=false) %}
+        <div class="table-wrap">
+        <table class="uploads-table">
+          <colgroup>
+            <col style="width:120px;">
+            <col style="width:150px;">
+            <col style="width:90px;">
+            <col style="width:90px;">
+            <col style="width:90px;">
+            <col style="width:160px;">
+            <col style="width:110px;">
+            <col style="width:210px;">
+            <col style="width:420px;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>PID</th>
+              <th>İşlem</th>
+              <th>Yüklenen</th>
+              <th>İşlenen</th>
+              <th>Eşleşme</th>
+              <th>Alt Albüm</th>
+              <th>Durum</th>
+              <th>Zaman</th>
+              <th>Mesaj</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for j in jobs %}
+            {% if j["status"] == "running" %}{% set ns.has_running = true %}{% endif %}
+            <tr>
+              <td class="pid-cell">
+                <span class="tag">{{ j["pid"] or ("#%s" % j["id"]) }}</span>
+              </td>
+              <td class="muted-small action-cell">{{ j["action"] }}</td>
+              <td class="muted-small">{{ j["uploaded_count"] }}</td>
+              <td class="muted-small">
+                {% if j["processed_count"] is not none %}{{ j["processed_count"] }}{% elif j["status"] == "ok" %}{{ j["uploaded_count"] }}{% else %}-{% endif %}
+              </td>
+              <td class="muted-small">
+                {% if j["match_count"] is not none %}{{ j["match_count"] }}{% else %}-{% endif %}
+              </td>
+              <td class="muted-small">
+                <form method="post" action="/panel/events/{{ event['id'] }}/jobs/{{ j['id'] }}/subalbum" class="inline-actions" style="gap:6px;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                  <select name="subalbum_id" style="min-width:140px;">
+                    <option value="">Ana Albüm</option>
+                    {% for s in subalbums %}
+                      <option value="{{ s['id'] }}" {% if (j['subalbum_id'] or 0) == s['id'] %}selected{% endif %}>{{ s['name'] }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn secondary">Bağla</button>
+                </form>
+              </td>
+              <td class="muted-small">{{ j["status"] }}</td>
+              <td class="muted-small">
+                <div><b>Başlangıç:</b> {{ j["created_at"]|fmt_dt if j["created_at"] else "-" }}</div>
+                <div><b>Bitiş:</b> {{ j["finished_at"]|fmt_dt if j["finished_at"] else "-" }}</div>
+              </td>
+              <td class="muted-small msg-cell">{{ j["message"] or "" }}</td>
+            </tr>
+            {% endfor %}
+            {% if jobs|length == 0 %}
+            <tr><td colspan="9" class="muted-small">Henüz kayıt yok.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+        </div>
+        {% if ns.has_running %}
+          <div class="muted-small" style="margin-top:10px;">Canlı takip açık: işlem sürerken sayfa 5 sn'de bir yenilenir.</div>
+        {% endif %}
+      </div>
+    {% elif current=='users' %}
+      <div class="card">
+        <div class="section-title">Kayıtlı Kullanıcılar</div>
+        <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Ad Soyad</th>
+              <th>E-posta</th>
+              <th>Kayıt</th>
+              <th>Selfie</th>
+              <th>Galeri</th>
+              <th>Eşleşen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if attendees and attendees|length > 0 %}
+              {% for a in attendees %}
+              <tr>
+                <td>#{{ a["id"] }}</td>
+                <td>{{ a["name"] or "-" }}</td>
+                <td>{{ a["email"] or "-" }}</td>
+                <td class="muted-small">{{ a["created_at"]|fmt_dt }}</td>
+                <td>
+                  {% if a["selfie_path"] %}
+                    <img class="thumb" src="/{{ a["selfie_path"] }}" />
+                  {% else %}
+                    <span class="muted-small">yok</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if a["gallery_url"] %}
+                    <a class="btn secondary" href="{{ a["gallery_url"] }}" target="_blank">Galeri</a>
+                  {% else %}
+                    <span class="muted-small">-</span>
+                  {% endif %}
+                </td>
+                <td><span class="pill-mini"><b>{{ a["match_count"] or 0 }}</b></span></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="7" class="muted-small">Henüz kayıt yok.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    {% elif current=='mail' %}
+      <div class="card">
+        <div class="section-title">Mail Bildirimleri</div>
+        <div class="inline-actions" style="margin:8px 0 12px 0;">
+          <a class="btn secondary" href="/panel/events/{{ event['id'] }}?tab=mail">Tümü</a>
+          <a class="btn secondary" href="/panel/events/{{ event['id'] }}?tab=mail&mail_filter=sent">Başarılı</a>
+          <a class="btn secondary" href="/panel/events/{{ event['id'] }}?tab=mail&mail_filter=error">Hatalı</a>
+        </div>
+        <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Kullanıcı</th>
+              <th>E-posta</th>
+              <th>Durum</th>
+              <th>Tarih</th>
+              <th>Hata</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in mail_logs %}
+            <tr>
+              <td>{{ m["user_name"] or "-" }}</td>
+              <td>{{ m["email"] }}</td>
+              <td class="muted-small">{{ m["status"] }}</td>
+              <td class="muted-small">{{ m["sent_at"]|fmt_dt }}</td>
+              <td class="muted-small break-cell">{{ m["error"] or "" }}</td>
+            </tr>
+            {% endfor %}
+            {% if mail_logs|length == 0 %}
+            <tr><td colspan="5" class="muted-small">Henüz mail kaydı yok.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+        </div>
+        {% if mail_total_pages and mail_total_pages > 1 %}
+        <div class="inline-actions" style="margin-top:12px;">
+          {% if mail_page > 1 %}
+            <a class="btn secondary" href="/panel/events/{{ event['id'] }}?tab=mail&mail_filter={{ mail_filter }}&mail_page={{ mail_page - 1 }}">Önceki</a>
+          {% endif %}
+          <span class="muted-small">Sayfa {{ mail_page }} / {{ mail_total_pages }} ({{ mail_total }} kayıt)</span>
+          {% if mail_page < mail_total_pages %}
+            <a class="btn secondary" href="/panel/events/{{ event['id'] }}?tab=mail&mail_filter={{ mail_filter }}&mail_page={{ mail_page + 1 }}">Sonraki</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    {% elif current=='reports' %}
+      <div class="card">
+        <div class="section-title">Raporlar</div>
+        <div class="grid-2">
+          <div class="card" style="box-shadow:none;">
+            <div class="muted-small">Toplam Yüklenen Fotoğraf</div>
+            <div style="font-size:22px;font-weight:700;">{{ report_total_photos }}</div>
+          </div>
+          <div class="card" style="box-shadow:none;">
+            <div class="muted-small">Toplam Kayıtlı Kullanıcı</div>
+            <div style="font-size:22px;font-weight:700;">{{ report_total_users }}</div>
+          </div>
+          <div class="card" style="box-shadow:none;">
+            <div class="muted-small">Toplam Eşleşme</div>
+            <div style="font-size:22px;font-weight:700;">{{ report_total_matches }}</div>
+          </div>
+          <div class="card" style="box-shadow:none;">
+            <div class="muted-small">QR Tarama</div>
+            <div style="font-size:22px;font-weight:700;">{{ report_qr_scans }}</div>
+          </div>
+          <div class="card" style="box-shadow:none;">
+            <div class="muted-small">İndirilen Fotoğraf</div>
+            <div style="font-size:22px;font-weight:700;">{{ report_downloads }}</div>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="card">
+        <div class="section-title">Satışlar</div>
+        <div class="muted-small">Bu bölüm satış özellikleri hazır olduğunda aktif edilecek.</div>
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+  function copyText(t){
+    navigator.clipboard.writeText(t);
+    alert("Kopyalandı!");
+  }
+
+  (function(){
+    const maxFiles = {{ upload_batch_max_files|int }};
+    const form = document.getElementById('uploadForm');
+    const input = document.getElementById('photoInput');
+    const btn = document.getElementById('uploadBtn');
+    const wrap = document.getElementById('uploadProgress');
+    const fill = document.getElementById('progressFill');
+    const countDone = document.getElementById('countDone');
+    const countTotal = document.getElementById('countTotal');
+    const percent = document.getElementById('percent');
+
+    if(!form || !input) return;
+
+    function resetProgress(total){
+      wrap.style.display = 'block';
+      fill.style.width = '0%';
+      countDone.textContent = '0';
+      countTotal.textContent = String(total || 0);
+      percent.textContent = '0';
+    }
+
+    form.addEventListener('submit', function(e){
+      if(!input.files || input.files.length === 0) return;
+      if(input.files.length > maxFiles){
+        e.preventDefault();
+        alert('Tek partta en fazla ' + maxFiles + ' fotoğraf yükleyebilirsiniz.');
+        return;
+      }
+      e.preventDefault();
+
+      const totalFiles = input.files.length;
+      resetProgress(totalFiles);
+      btn.disabled = true;
+      btn.textContent = 'Yükleniyor...';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', form.action, true);
+
+      xhr.upload.addEventListener('progress', function(ev){
+        if(!ev.lengthComputable) return;
+        const p = Math.floor((ev.loaded / ev.total) * 100);
+        fill.style.width = p + '%';
+        percent.textContent = String(p);
+        const done = Math.max(0, Math.min(totalFiles, Math.round((p / 100) * totalFiles)));
+        countDone.textContent = String(done);
+      });
+
+      xhr.addEventListener('load', function(){
+        if(xhr.status >= 200 && xhr.status < 400){
+          window.location.href = form.action.replace('/upload_photos', '') + '?msg=Yükleme tamamlandı';
+        }else{
+          window.location.reload();
+        }
+      });
+
+      xhr.addEventListener('error', function(){
+        window.location.reload();
+      });
+
+      const data = new FormData(form);
+      xhr.send(data);
+    });
+  })();
+</script>
+{% if current == 'uploads' %}
+<script>
+  (function(){
+    const hasRunning = {{ 'true' if ns.has_running else 'false' }};
+    if(!hasRunning) return;
+    setTimeout(function(){ window.location.reload(); }, 5000);
+  })();
+</script>
+{% endif %}
+{% endblock %}

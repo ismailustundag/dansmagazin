@@ -1,0 +1,84 @@
+{% extends "console_layout.html" %}
+
+{% block content %}
+<style>
+  .mini{font-size:12px}
+  .ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#166534;border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .albums-wrap{margin-top:10px;display:flex;flex-direction:column;gap:12px}
+  .albums-head,.albums-row{display:grid;grid-template-columns:2.2fr 1.2fr 2fr 1.4fr auto;gap:12px;align-items:center}
+  .albums-head{padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700;color:var(--text)}
+  .albums-row{padding:12px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+  .cell-title{font-weight:800;font-size:16px}
+  .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;background:rgba(255,255,255,.05);color:var(--text)}
+  @media(max-width:900px){
+    .albums-head{display:none}
+    .albums-row{grid-template-columns:1fr}
+    .actions{justify-content:flex-start}
+  }
+</style>
+
+{% if message %}<div class="ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h3 style="margin-top:0;">Yeni Fotoğraf Albümü Oluştur</h3>
+    <div class="muted mini" style="margin-bottom:10px;">
+      WP/Woo etkinliği açıldığında albüm otomatik oluşur. Satışa bağlı olmayan albümleri buradan manuel açabilirsiniz.
+    </div>
+
+    <form method="post" action="/console/event/create" class="grid" style="gap:10px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <div>
+        <label class="mini muted">Albüm Adı</label>
+        <input name="name" placeholder="Örn: Ankara Dans Kampı 2026" required>
+      </div>
+      <div>
+        <label class="mini muted">Slug (kısa link)</label>
+        <input name="slug" placeholder="orn: ankara-dans-kampi-2026" required>
+      </div>
+      <button class="btn" type="submit">Albümü Oluştur</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h3 style="margin-top:0;">Mevcut Fotoğraf Albümleri</h3>
+
+  {% if events and events|length > 0 %}
+    <div class="albums-wrap">
+      <div class="albums-head">
+        <div>Albüm Adı</div>
+        <div>Slug</div>
+        <div>Sahibi</div>
+        <div>Oluşturma</div>
+        <div style="text-align:right;">İşlem</div>
+      </div>
+
+      {% for slug, name, created_at, owner_email in events %}
+        <div class="albums-row">
+          <div><div class="cell-title">{{ name }}</div></div>
+          <div class="mono"><span class="badge">{{ slug }}</span></div>
+          <div><span class="badge">{{ owner_email }}</span></div>
+          <div class="mini muted mono">{{ created_at|fmt_dt }}</div>
+
+          <div class="actions">
+            <a class="btn secondary" style="text-decoration:none;" href="/console/event/{{ slug }}">Aç</a>
+            <form method="post" action="/console/event/{{ slug }}/delete"
+                  onsubmit="return confirm('Bu fotoğraf albümü silinsin mi? Etkinlik kaydı korunur, sadece albüm verileri temizlenir.');"
+                  style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+              <button class="btn danger" type="submit">Albümü Sil</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="muted mini">Henüz fotoğraf albümü yok.</div>
+  {% endif %}
+</div>
+{% endblock %}

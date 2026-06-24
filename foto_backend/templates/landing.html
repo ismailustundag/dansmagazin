@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Dans Magazin</title>
+  <style>
+    :root{
+      --bg1:#0b0f14;
+      --bg2:#0f1926;
+      --card:#141a22;
+      --text:#e7eef8;
+      --muted:#b9c6d9;
+      --line:rgba(255,255,255,.10);
+      --btn:#8a1f2d;
+      --btn2:#a32638;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(900px 500px at 20% -10%, rgba(139,92,255,.25), transparent 60%),
+        radial-gradient(800px 400px at 100% 0%, rgba(59,130,246,.18), transparent 55%),
+        linear-gradient(180deg, #1b2733 0%, #0b0f14 65%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      overflow:auto;
+    }
+    .wrap{
+      width:100%;
+      max-width:520px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+    .logoRow{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+    }
+    .logoRow img{height:92px; opacity:.95}
+    .headline{
+      text-align:center;
+      font-size:20px;
+      font-weight:700;
+      line-height:1.35;
+      padding:0 8px;
+    }
+    .headline b{
+      display:block;
+      font-size:22px;
+      margin-top:6px;
+      letter-spacing:.4px;
+    }
+    .brand{
+      text-align:center;
+      font-weight:700;
+      color:var(--muted);
+      letter-spacing:.2px;
+    }
+    .card{
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 12px 30px rgba(0,0,0,.25);
+    }
+    .card h3{
+      margin:0 0 12px 0;
+      font-size:16px;
+      font-weight:700;
+    }
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      font-size:15px;
+      color:var(--text);
+    }
+    .item{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .dot{
+      width:22px;height:22px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.35);
+      display:flex;align-items:center;justify-content:center;
+      font-size:13px;
+      flex:0 0 22px;
+    }
+    .btn{
+      display:block;
+      width:100%;
+      text-align:center;
+      padding:14px 16px;
+      border-radius:14px;
+      background:linear-gradient(135deg, var(--btn), var(--btn2));
+      color:white;
+      font-weight:800;
+      text-decoration:none;
+      letter-spacing:.2px;
+    }
+    .leadForm{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .leadForm input{
+      width:100%;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#ffffff;
+      color:#111111;
+      font-size:15px;
+      outline:none;
+    }
+    .leadForm input::placeholder{color:#6b7280}
+    .footer{
+      font-size:12px;
+      color:var(--muted);
+      text-align:center;
+      line-height:1.5;
+      padding:0 6px;
+    }
+    .footer a{color:#b18cff}
+    .version{
+      margin-top:6px;
+      font-size:12px;
+      color:#9fb0c7;
+      text-align:center;
+    }
+    @media (max-width: 480px){
+      body{padding:10px}
+      .wrap{gap:10px}
+      .logoRow img{height:72px}
+      .headline{font-size:17px; line-height:1.25}
+      .headline b{font-size:18px; margin-top:4px}
+      .brand{font-size:13px}
+      .card{padding:12px}
+      .card h3{margin-bottom:8px; font-size:15px}
+      .list{gap:8px; font-size:14px}
+      .btn{padding:12px 14px}
+      .footer{font-size:11px; line-height:1.4}
+      .version{font-size:11px}
+    }
+  </style>
+</head>
+<body>
+  {% set is_en = (lang == 'en') %}
+  <div class="wrap">
+    <div class="topLang" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+      <a href="/e/{{ event_id }}?lang=tr" style="color:{{ '#fff' if not is_en else '#b9c6d9' }};text-decoration:none;font-weight:700;">Türkçe</a>
+      <a href="/e/{{ event_id }}?lang=en" style="color:{{ '#fff' if is_en else '#b9c6d9' }};text-decoration:none;font-weight:700;">English</a>
+    </div>
+    <div class="logoRow">
+      <img src="/static/DMlogo.PNG" alt="Dans Magazin">
+    </div>
+    <div class="headline">
+      {% if is_en %}
+        Welcome, you can access your photos from {{ event_name }} here.
+      {% else %}
+        Merhaba, {{ event_name }} etkinliğindeki fotoğraflarınıza buradan ulaşabilirsiniz.
+      {% endif %}
+    </div>
+    <div class="brand">Dans Magazin</div>
+
+    <div class="card">
+      <h3>{% if is_en %}Event photo gallery{% else %}Etkinlik fotoğraf galerisi{% endif %}</h3>
+      <div class="list">
+        <div class="item"><div class="dot">✓</div>{% if is_en %}Browse all uploaded photos for this event.{% else %}Bu etkinlikte yuklenen tum fotograflari inceleyin.{% endif %}</div>
+        <div class="item"><div class="dot">✓</div>{% if is_en %}No selfie registration is required.{% else %}Selfie kaydi gerekli degildir.{% endif %}</div>
+      </div>
+    </div>
+    <a class="btn" href="/e/{{ event_id }}/all?lang={{ 'en' if is_en else 'tr' }}" style="background:linear-gradient(135deg,#374151,#1f2937);margin-top:8px;">
+      {% if is_en %}View All Photos{% else %}Tüm Fotoğrafları Gör{% endif %}
+    </a>
+
+    <div class="footer">
+      {% if is_en %}
+        By uploading your photos, you accept the Dansmagazin terms. We care about your personal data.
+        For details, please review the
+        <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>.
+      {% else %}
+        Fotoğraflarınızı yükleyerek dansmagazin kullanıcı şartlarını okumuş ve kabul etmiş sayılacaksınız,
+        kişisel verilinizi önemsiyoruz, detaylı bilgi için
+        <a href="/privacy" target="_blank" rel="noopener">aydınlatma metnini</a> inceleyebilirsiniz.
+      {% endif %}
+    </div>
+    <div class="version">V1.0.2 Dans Magazin</div>
+  </div>
+</body>
+</html>

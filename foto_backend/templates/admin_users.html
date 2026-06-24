@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Super Admin - Kullanici Yonetimi</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#0b1220;color:#e8eefc;margin:0}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08);background:#0e1627}
+    .wrap{max-width:1250px;margin:0 auto;padding:18px}
+    .card{background:#121a2b;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-top:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row>*{flex:1;min-width:220px}
+    input,select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0b1220;color:#e8eefc}
+    button{padding:9px 11px;border-radius:10px;border:0;background:#4f7cff;color:#fff;font-weight:600;cursor:pointer}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:9px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left;font-size:13px;vertical-align:top}
+    .tag{display:inline-block;padding:4px 8px;border:1px solid rgba(255,255,255,.14);border-radius:999px;font-size:12px}
+    .muted{opacity:.82}
+    .ok{color:#7bffb2;margin-top:8px;font-size:13px}
+    .err{color:#ff7b7b;margin-top:8px;font-size:13px}
+    .nav{display:flex;gap:12px}
+    .nav a{padding:6px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#9fb5ff;text-decoration:none}
+    .nav a.active{border-color:rgba(159,181,255,.45);background:rgba(159,181,255,.10)}
+  </style>
+</head>
+<body>
+  <header>
+    <div><b>Super Admin</b> - Kullanici Yonetimi</div>
+    <div class="nav">
+      <a href="/admin/users" class="active">Kullanici Yonetimi</a>
+      <a href="/admin/mobile">Etkinlik Yonetimi</a>
+      <a href="/console">Fotoğraf Albümleri</a>
+      <a href="/logout">Cikis</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <b>WP/Woo ve Panel Senkron</b>
+      <div class="muted" style="margin-top:6px">Tek kaynak WordPress/Woo'dur. Sayfa hızlı açılır; senkron sadece aşağıdaki butonla tetiklenir.</div>
+      <form method="post" action="/admin/users/sync_wp" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit">WP ile Senkronize Et</button>
+        <span class="muted">
+          {% if sync_stats %}
+            WP toplam: {{ sync_stats.get('wp_total', 0) }} |
+            Yeni: {{ sync_stats.get('created', 0) }} |
+            Güncellendi: {{ sync_stats.get('updated', 0) }} |
+            Eşleşti: {{ sync_stats.get('mapped', 0) }}
+          {% else %}
+            Son senkron istatistiği yok.
+          {% endif %}
+        </span>
+      </form>
+      {% if wp_error %}<div class="err">{{ wp_error }}</div>{% endif %}
+      {% if message %}<div class="ok">{{ message }}</div>{% endif %}
+      {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    </div>
+
+    <div class="card">
+      <b>Filtrele ve Sirala</b>
+      <form method="get" action="/admin/users" style="margin-top:10px">
+        <div class="row">
+          <div>
+            <label class="muted">Rol</label>
+            <select name="role">
+              <option value="all" {% if role_filter == 'all' %}selected{% endif %}>all</option>
+              <option value="super_admin" {% if role_filter == 'super_admin' %}selected{% endif %}>superadmin</option>
+              <option value="editor" {% if role_filter == 'editor' %}selected{% endif %}>editör</option>
+              <option value="customer" {% if role_filter == 'customer' %}selected{% endif %}>customer</option>
+            </select>
+          </div>
+          <div>
+            <label class="muted">Kullanici Ara</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="id, mail veya isim" />
+          </div>
+          <div>
+            <label class="muted">Siralama Alani</label>
+            <select name="sort">
+              <option value="id" {% if sort == 'id' %}selected{% endif %}>id</option>
+              <option value="username" {% if sort == 'username' %}selected{% endif %}>kullanıcı adı</option>
+              <option value="email" {% if sort == 'email' %}selected{% endif %}>mail</option>
+              <option value="role" {% if sort == 'role' %}selected{% endif %}>rol</option>
+              <option value="status" {% if sort == 'status' %}selected{% endif %}>durum</option>
+            </select>
+          </div>
+          <div>
+            <label class="muted">Yon</label>
+            <select name="order">
+              <option value="desc" {% if order == 'desc' %}selected{% endif %}>azalan</option>
+              <option value="asc" {% if order == 'asc' %}selected{% endif %}>artan</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+          <button type="submit">Uygula</button>
+          <a href="/admin/users" style="color:#9fb5ff;text-decoration:none">Temizle</a>
+          <span class="muted">Sonuç: {{ users|length }}</span>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <b>Kullanicilar</b>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Kullanıcı Adı</th><th>Email</th><th>Rol</th><th>WP</th><th>Durum</th><th>Editor</th><th>Detay</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>{{ u['id'] }}</td>
+            <td>
+              {% if u['app_username'] %}
+                {{ u['app_username'] }}
+              {% else %}
+                {{ (u['email'] or '').split('@')[0] }}
+              {% endif %}
+            </td>
+            <td>{{ u['email'] }}</td>
+            <td><span class="tag">{{ u['role'] }}</span></td>
+            <td>{% if u['mapped_wp_user_id'] %}<span class="tag">wp:{{ u['mapped_wp_user_id'] }}</span>{% else %}<span class="tag">yok</span>{% endif %}</td>
+            <td>{% if u['is_active']==1 %}<span class="tag">aktif</span>{% else %}<span class="tag">pasif</span>{% endif %}</td>
+            <td>{% if u['can_create_mobile_event']==1 %}<span class="tag">editor</span>{% else %}<span class="tag">kapali</span>{% endif %}</td>
+            <td>
+              {% if u['role'] != 'super_admin' %}
+              <a href="/admin/users/{{ u['id'] }}" style="color:#9fb5ff">Detay</a>
+              {% else %}
+              <span class="muted">-</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% if users|length == 0 %}<tr><td colspan="8" class="muted">Kullanici yok</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

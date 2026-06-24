@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Yönetim Girişi</title>
+  <link rel="stylesheet" href="/static/admin.css">
+  <style>
+    .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .login-card{max-width:420px;width:100%}
+    .hint{font-size:13px;color:var(--muted);margin-top:8px}
+    .error{background:#ffe5e5;border:1px solid #ffb3b3;padding:10px;border-radius:12px;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="container login-card">
+      <div class="card">
+        <h2 style="margin-bottom:6px;">Yönetim Paneli</h2>
+        <div class="muted" style="margin-bottom:14px;">Giriş yapmak için şifreyi gir.</div>
+
+        <form method="post" action="/console/login" class="grid" style="gap:10px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <div>
+            <label class="mini muted">Şifre</label>
+            <input type="password" name="password" placeholder="••••••••" required>
+          </div>
+          <button class="btn btn-primary" type="submit">Giriş Yap</button>
+        </form>
+
+        {% if error %}
+          <div class="error"><b>Hata:</b> {{ error }}</div>
+        {% endif %}
+
+        <div class="hint">Not: Bu ekran sadece yerel test içindir. Canlıya alırken şifreyi güçlendireceğiz.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

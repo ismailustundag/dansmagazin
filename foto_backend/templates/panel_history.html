@@ -1,0 +1,30 @@
+{% extends "panel_layout.html" %}
+{% set active = 'history' %}
+{% set header = 'Geçmiş İşlemlerim' %}
+{% block content %}
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Tip</th>
+          <th>Tarih</th>
+          <th>Durum</th>
+          <th>Detay</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for j in jobs %}
+          <tr>
+            <td>{{ j["action"] }}</td>
+            <td class="muted">{{ j["created_at"]|fmt_dt }}</td>
+            <td>{{ j["status"] }}</td>
+            <td class="muted">{{ j["message"] }}</td>
+          </tr>
+        {% endfor %}
+        {% if jobs|length == 0 %}
+          <tr><td colspan="4" class="muted">Henüz işlem yok.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}
