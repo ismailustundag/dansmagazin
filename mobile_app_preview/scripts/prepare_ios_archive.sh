@@ -5,7 +5,8 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
 if [ "${DM_CLEAN_WORKTREE:-0}" != "1" ]; then
-  exec ./scripts/run_from_clean_workspace.sh ./scripts/prepare_ios_archive.sh "$@"
+  exec env RELEASE_KEEP_WORKTREE=1 \
+    ./scripts/run_from_clean_workspace.sh ./scripts/prepare_ios_archive.sh "$@"
 fi
 
 API_BASE_URL="${API_BASE_URL:-https://api2.dansmagazin.net}"

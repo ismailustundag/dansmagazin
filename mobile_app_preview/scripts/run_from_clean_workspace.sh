@@ -29,6 +29,7 @@ fi
 sha="$(git -C "$git_root" rev-parse --short "$release_ref")"
 worktree_root="${builds_root}/${sha}_${timestamp}"
 clean_project_root="${worktree_root}/mobile_app_preview"
+keep_worktree="${RELEASE_KEEP_WORKTREE:-0}"
 
 copy_if_present() {
   local source_path="$1"
@@ -87,6 +88,22 @@ copy_android_signing_files() {
 mkdir -p "$builds_root"
 git -C "$git_root" worktree add --detach "$worktree_root" "$release_ref" >/dev/null
 
+cleanup() {
+  local status=$?
+  trap - EXIT
+
+  if [ "$keep_worktree" = "1" ]; then
+    echo "Release workspace korundu: $clean_project_root"
+  else
+    git -C "$git_root" worktree remove --force "$worktree_root" >/dev/null 2>&1 || true
+    rmdir "$builds_root" >/dev/null 2>&1 || true
+  fi
+
+  exit "$status"
+}
+
+trap cleanup EXIT
+
 copy_if_present \
   "$project_root/android/app/google-services.json" \
   "$clean_project_root/android/app/google-services.json"
@@ -100,4 +117,4 @@ echo "Build ref'i: $release_ref"
 echo "Build commit'i: $sha"
 
 cd "$clean_project_root"
-exec env DM_CLEAN_WORKTREE=1 "$command_path" "$@"
+env DM_CLEAN_WORKTREE=1 "$command_path" "$@"
