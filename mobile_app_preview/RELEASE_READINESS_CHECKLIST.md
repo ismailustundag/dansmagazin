@@ -26,14 +26,14 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 
 ## 3.0) Güncel Proje Değerleri
 
-- Checklist son güncelleme tarihi: `2026-06-23`
+- Checklist son güncelleme tarihi: `2026-06-24`
 - Geçerli branch: `main`
-- Checklist güncellenirken görülen HEAD: `bd950f3`
-- `pubspec.yaml` sürümü: `1.0.23+37`
+- Checklist güncellenirken görülen HEAD: `f3f673a`
+- `pubspec.yaml` sürümü: `1.0.24+38`
 - Google Play mevcut sürüm: `1.0.20` (`versionCode 34`)
 - Apple mevcut sürüm: `1.0.21` (`build 35`)
-- Yeni public update için önerilen Flutter sürümü: `1.0.23+37`
-- Sadece iOS TestFlight rebuild gerekiyorsa alternatif: `1.0.22+37`
+- Yeni public update için önerilen Flutter sürümü: `1.0.24+38`
+- Sadece iOS TestFlight rebuild gerekiyorsa alternatif: `1.0.24+38`
 - Android package / applicationId: `net.dansmagazin.mobile`
 - Android Firebase OAuth type=1 SHA-1: `12:FB:D0:FA:C9:4A:C7:98:35:C9:6E:F0:D5:6C:15:EC:0C:1D:78:F1`
 - iOS bundle id: `com.example.mobilAppPreview`
@@ -75,20 +75,9 @@ Not: Linkler `lib/services/legal_links.dart` dosyasından yönetilir.
 
 ```bash
 cd ~/dansmagazin/mobile_app_preview
-git stash -u -m autosync_tmp
-git pull --rebase origin main
-git stash pop || true
-git rev-parse --short HEAD
-grep -n '"package_name"' android/app/google-services.json
-grep -n '"client_type"' android/app/google-services.json
-grep -n '"certificate_hash"' android/app/google-services.json
-flutter pub get
-flutter build appbundle --release \
-  --dart-define=API_BASE_URL=https://api2.dansmagazin.net \
-  --dart-define=APP_BUILD_SHA=$(git rev-parse --short HEAD) \
-  --dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com \
-  --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
-cp build/app/outputs/bundle/release/app-release.aab ~/Desktop/dansmagazin-release-$(git rev-parse --short HEAD).aab
+git fetch origin
+git rev-parse --short origin/main
+./scripts/build_android_appbundle.sh
 ```
 
 Alternatif tek komut:
@@ -98,19 +87,17 @@ Alternatif tek komut:
 ```
 
 Not:
-- Script build öncesi `./scripts/release_guard.sh` çalıştırır.
+- Script her çalışmada tek kullanımlık temiz bir release workspace açar.
+- `android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist` ve varsa Android signing dosyalarını mevcut klasörden otomatik kopyalar.
+- Mevcut repo kirli olsa bile build temiz worktree üzerinden alınır.
 
 ### Android APK (Yerel Doğrulama)
 
 ```bash
 cd ~/dansmagazin/mobile_app_preview
-flutter pub get
-flutter build apk --release \
-  --dart-define=API_BASE_URL=https://api2.dansmagazin.net \
-  --dart-define=APP_BUILD_SHA=$(git rev-parse --short HEAD) \
-  --dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com \
-  --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
-cp build/app/outputs/flutter-apk/app-release.apk ~/Desktop/dansmagazin-release-$(git rev-parse --short HEAD).apk
+git fetch origin
+git rev-parse --short origin/main
+./scripts/build_android_release.sh
 ```
 
 Alternatif tek komut:
@@ -123,20 +110,9 @@ Alternatif tek komut:
 
 ```bash
 cd ~/dansmagazin/mobile_app_preview
-git stash -u -m autosync_tmp
-git pull --rebase origin main
-git stash pop || true
-git rev-parse --short HEAD
-flutter pub get
-cd ios
-pod install
-cd ..
-flutter build ios --release --no-codesign \
-  --dart-define=API_BASE_URL=https://api2.dansmagazin.net \
-  --dart-define=APP_BUILD_SHA=$(git rev-parse --short HEAD) \
-  --dart-define=GOOGLE_SERVER_CLIENT_ID=715936767290-0urophgn1ao2e9rsiibhg2lnao96n9af.apps.googleusercontent.com \
-  --dart-define=GOOGLE_IOS_CLIENT_ID=715936767290-bfqnn4arpk5vkka6f703i0ippnfhr9bs.apps.googleusercontent.com
-open ios/Runner.xcworkspace
+git fetch origin
+git rev-parse --short origin/main
+./scripts/prepare_ios_archive.sh
 ```
 
 Alternatif tek komut:
@@ -146,7 +122,8 @@ Alternatif tek komut:
 ```
 
 Not:
-- Script build öncesi `./scripts/release_guard.sh` çalıştırır.
+- Script build işlemini tek kullanımlık temiz release workspace içinde yapar.
+- Xcode archive ekranı bu temiz workspace üzerinden açılır; iş bitince ilgili workspace klasörü silinebilir.
 
 Not:
 - Play Console'a yanlış build yüklenirse `versionCode` tekrar kullanılamaz.
