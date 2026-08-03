@@ -4,22 +4,16 @@ import '../services/i18n.dart';
 import '../services/notification_center.dart';
 import '../services/profile_card_palette.dart';
 import '../services/profile_api.dart';
-import '../services/store_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
 import '../widgets/verified_avatar.dart';
-import 'admin_notifications_screen.dart';
-import 'app_webview_screen.dart';
 import 'chat_thread_screen.dart';
 import 'edit_profile_screen.dart';
 import 'editor_event_management_screen.dart';
-import 'guest_lists_screen.dart';
 import 'my_photos_screen.dart';
 import 'notifications_screen.dart';
-import 'photo_polls_admin_screen.dart';
 import 'screen_shell.dart';
 import 'settings_screen.dart';
-import 'store_management_screen.dart';
 import 'tickets_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -60,9 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const _rose = AppTheme.pink;
   static const _peach = AppTheme.orange;
   static const _sky = AppTheme.cyan;
-  static const _mint = AppTheme.info;
   static const _lavender = AppTheme.violet;
-  static const _photoPanelBase = 'https://foto.dansmagazin.net';
 
   String _displayName = '';
   String _avatarUrl = '';
@@ -181,53 +173,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
   }
 
-  Future<void> _openPhotoPanel(String path, String title) async {
-    final token = widget.sessionToken.trim();
-    if (token.isEmpty) return;
-    final cleanPath = path.trim().replaceAll(RegExp(r'^/+'), '');
-    final nextPath = '/panel/$cleanPath';
-    final url = '$_photoPanelBase/mobile-sso-login?next=${Uri.encodeQueryComponent(nextPath)}';
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AppWebViewScreen(
-          url: url,
-          title: title,
-          headers: {'Authorization': 'Bearer $token'},
-        ),
-      ),
-    );
-  }
-
   bool get _showManagementTools =>
       widget.appRole == 'super_admin' ||
       (_profile?.storeEnabled ?? false) ||
-      (_profile?.isVerified ?? false) ||
       widget.canCreateMobileEvent ||
       widget.wpRoles.contains('administrator') ||
       widget.wpRoles.contains('editor');
 
   bool get _canManageStore =>
       (_profile?.storeEnabled ?? false);
-
-  bool get _canOpenStore =>
-      (_profile?.isVerified ?? false) && !(_profile?.storeEnabled ?? false);
-
-  Future<void> _openStoreForProfile() async {
-    try {
-      await StoreApi.openStore(widget.sessionToken);
-      await _loadProfileData();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mağazan açıldı. Artık ürün ekleyebilirsin.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -315,88 +269,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 14),
           _SectionTitle(title: t('management_tools')),
           const SizedBox(height: 10),
-          if (widget.appRole == 'super_admin' || widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
-            _ProfileListCard(
-              title: t('event_management'),
-              subtitle: t('event_management_subtitle'),
-              icon: Icons.event_note_rounded,
-              accent: _lavender,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => EditorEventManagementScreen(sessionToken: widget.sessionToken),
+          _ProfileListCard(
+            title: 'Yönetim Paneli',
+            subtitle: 'Etkinlik, davetli, mağaza, anket ve bildirim yönetimi',
+            icon: Icons.admin_panel_settings_rounded,
+            accent: _lavender,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EditorEventManagementScreen(
+                  sessionToken: widget.sessionToken,
+                  canManageEvents: widget.appRole == 'super_admin' ||
+                      widget.canCreateMobileEvent ||
+                      widget.wpRoles.contains('administrator') ||
+                      widget.wpRoles.contains('editor'),
+                  canManageStore: _canManageStore,
+                  isSuperAdmin: widget.appRole == 'super_admin',
                 ),
               ),
             ),
-          if (widget.appRole == 'super_admin' || widget.canCreateMobileEvent || widget.wpRoles.contains('administrator') || widget.wpRoles.contains('editor'))
-            _ProfileListCard(
-              title: 'Davetli Listeleri',
-              subtitle: 'Şehre, seriye veya konsepte göre kullanıcı listeleri oluştur',
-              icon: Icons.groups_rounded,
-              accent: _sky,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => GuestListsScreen(sessionToken: widget.sessionToken),
-                ),
-              ),
-            ),
-          if (widget.isLoggedIn && widget.appRole == 'super_admin')
-            _ProfileListCard(
-              title: 'Foto Paneli',
-              subtitle: 'Etkinlikler, profil ve kredi islemlerini yonetin',
-              icon: Icons.photo_library_outlined,
-              accent: _mint,
-              onTap: () => _openPhotoPanel('events', 'Foto Paneli · Etkinlikler'),
-            ),
-          if (widget.appRole == 'super_admin')
-            _ProfileListCard(
-              title: t('send_notification'),
-              subtitle: t('send_notification_subtitle'),
-              icon: Icons.campaign_rounded,
-              accent: _peach,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AdminNotificationsScreen(sessionToken: widget.sessionToken),
-                ),
-              ),
-            ),
-          if (widget.appRole == 'super_admin') ...[
-            const SizedBox(height: 10),
-            _ProfileListCard(
-              title: 'Anketleri Yönet',
-              subtitle: 'Akış içindeki anketleri oluştur, yayından kaldır ve sil',
-              icon: Icons.poll_outlined,
-              accent: _sky,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PhotoPollsAdminScreen(sessionToken: widget.sessionToken),
-                ),
-              ),
-            ),
-          ],
-          if (_canOpenStore) ...[
-            const SizedBox(height: 10),
-            _ProfileListCard(
-              title: 'Mağaza Aç',
-              subtitle: 'Satış yapmak için mağazanı aktifleştir',
-              icon: Icons.store_mall_directory_outlined,
-              accent: _mint,
-              onTap: _openStoreForProfile,
-            ),
-          ],
-          if (_canManageStore) ...[
-            const SizedBox(height: 10),
-            _ProfileListCard(
-              title: 'Mağazamı Yönet',
-              subtitle: 'Ürün ekle, mağazandaki ürünleri kontrol et',
-              icon: Icons.storefront_outlined,
-              accent: _mint,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => StoreManagementScreen(sessionToken: widget.sessionToken),
-                ),
-              ),
-            ),
-          ],
+          ),
         ],
         const SizedBox(height: 14),
         _SectionTitle(title: t('account_tools')),

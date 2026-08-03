@@ -16,6 +16,7 @@ class AdminNotificationsScreen extends StatefulWidget {
 class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   final TextEditingController _titleCtrl = TextEditingController();
   final TextEditingController _bodyCtrl = TextEditingController();
+  final TextEditingController _targetRouteCtrl = TextEditingController();
   final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _popupTitleCtrl = TextEditingController();
   final TextEditingController _popupBodyCtrl = TextEditingController();
@@ -61,6 +62,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
+    _targetRouteCtrl.dispose();
     _searchCtrl.dispose();
     _popupTitleCtrl.dispose();
     _popupBodyCtrl.dispose();
@@ -153,6 +155,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
         title: title,
         body: body,
         sendToAll: _sendToAll,
+        targetRoute: _targetRouteCtrl.text,
         targetAccountIds: _selected.toList()..sort(),
       );
       if (!mounted) return;
@@ -161,6 +164,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       );
       _titleCtrl.clear();
       _bodyCtrl.clear();
+      _targetRouteCtrl.clear();
       _selected.clear();
       _selectedUsers.clear();
       await _loadSent();
@@ -297,6 +301,20 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                       labelText: _t('content_label'),
                       border: OutlineInputBorder(),
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _targetRouteCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Yönlendirme hedefi',
+                      border: OutlineInputBorder(),
+                      hintText: '/events/215, /store veya /profile/notifications',
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Boş bırakırsan bildirime tıklayan kullanıcı bildirimler ekranına gider.',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.62), fontSize: 11.5, height: 1.35),
                   ),
                   const SizedBox(height: 8),
                   SwitchListTile(

@@ -16,6 +16,9 @@ class GuestListSummary {
   final int guestListId;
   final String name;
   final int memberCount;
+  final bool isMaster;
+  final bool isOwned;
+  final int? sourceMasterListId;
   final String createdAt;
   final String updatedAt;
 
@@ -23,6 +26,9 @@ class GuestListSummary {
     required this.guestListId,
     required this.name,
     required this.memberCount,
+    required this.isMaster,
+    required this.isOwned,
+    required this.sourceMasterListId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -32,6 +38,9 @@ class GuestListSummary {
       guestListId: (json['guest_list_id'] as num?)?.toInt() ?? 0,
       name: (json['name'] ?? '').toString(),
       memberCount: (json['member_count'] as num?)?.toInt() ?? 0,
+      isMaster: json['is_master'] == true,
+      isOwned: json['is_owned'] == true,
+      sourceMasterListId: (json['source_master_list_id'] as num?)?.toInt(),
       createdAt: (json['created_at'] ?? '').toString(),
       updatedAt: (json['updated_at'] ?? '').toString(),
     );
@@ -189,20 +198,23 @@ class GuestListImportResult extends EventInviteesResult {
 class GuestListApi {
   static const _base = 'https://api2.dansmagazin.net';
 
-  static Map<String, String> _headers(String sessionToken, {bool jsonBody = false}) {
+  static Map<String, String> _headers(String sessionToken,
+      {bool jsonBody = false}) {
     return <String, String>{
       'Authorization': 'Bearer ${sessionToken.trim()}',
       if (jsonBody) 'Content-Type': 'application/json',
     };
   }
 
-  static Future<List<GuestListSummary>> listGuestLists(String sessionToken) async {
+  static Future<List<GuestListSummary>> listGuestLists(
+      String sessionToken) async {
     final resp = await http.get(
       Uri.parse('$_base/profile/guest-lists'),
       headers: _headers(sessionToken),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Davetli listeleri alınamadı'));
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Davetli listeleri alınamadı'));
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
@@ -221,9 +233,29 @@ class GuestListApi {
       body: jsonEncode({'name': name.trim()}),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Davetli listesi oluşturulamadı'));
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Davetli listesi oluşturulamadı'));
     }
-    return GuestListDetail.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return GuestListDetail.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
+  }
+
+  static Future<GuestListDetail> copyGuestList({
+    required String sessionToken,
+    required int guestListId,
+    required String name,
+  }) async {
+    final resp = await http.post(
+      Uri.parse('$_base/profile/guest-lists/$guestListId/copy'),
+      headers: _headers(sessionToken, jsonBody: true),
+      body: jsonEncode({'name': name.trim()}),
+    );
+    if (resp.statusCode != 200) {
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Davetli listesi kopyalanamadı'));
+    }
+    return GuestListDetail.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<GuestListDetail> guestListDetail({
@@ -235,9 +267,11 @@ class GuestListApi {
       headers: _headers(sessionToken),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Davetli listesi alınamadı'));
+      throw GuestListApiException(
+          parseApiErrorBody(resp.body, fallback: 'Davetli listesi alınamadı'));
     }
-    return GuestListDetail.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return GuestListDetail.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<GuestListDetail> renameGuestList({
@@ -251,9 +285,11 @@ class GuestListApi {
       body: jsonEncode({'name': name.trim()}),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Davetli listesi güncellenemedi'));
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Davetli listesi güncellenemedi'));
     }
-    return GuestListDetail.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return GuestListDetail.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<void> deleteGuestList({
@@ -265,7 +301,8 @@ class GuestListApi {
       headers: _headers(sessionToken),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Davetli listesi silinemedi'));
+      throw GuestListApiException(
+          parseApiErrorBody(resp.body, fallback: 'Davetli listesi silinemedi'));
     }
   }
 
@@ -280,9 +317,11 @@ class GuestListApi {
       body: jsonEncode({'account_id': accountId}),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Kullanıcı listeye eklenemedi'));
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Kullanıcı listeye eklenemedi'));
     }
-    return GuestListDetail.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return GuestListDetail.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<GuestListDetail> removeMember({
@@ -295,9 +334,11 @@ class GuestListApi {
       headers: _headers(sessionToken),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Kullanıcı listeden çıkarılamadı'));
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Kullanıcı listeden çıkarılamadı'));
     }
-    return GuestListDetail.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return GuestListDetail.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<EventInviteesResult> eventInvitees({
@@ -309,9 +350,11 @@ class GuestListApi {
       headers: _headers(sessionToken),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Etkinlik davetlileri alınamadı'));
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Etkinlik davetlileri alınamadı'));
     }
-    return EventInviteesResult.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return EventInviteesResult.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<GuestListImportResult> importGuestListToEvent({
@@ -320,14 +363,17 @@ class GuestListApi {
     required int guestListId,
   }) async {
     final resp = await http.post(
-      Uri.parse('$_base/events/manage/items/$submissionId/invitees/import-guest-list'),
+      Uri.parse(
+          '$_base/events/manage/items/$submissionId/invitees/import-guest-list'),
       headers: _headers(sessionToken, jsonBody: true),
       body: jsonEncode({'guest_list_id': guestListId}),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Davetli listesi etkinliğe aktarılamadı'));
+      throw GuestListApiException(parseApiErrorBody(resp.body,
+          fallback: 'Davetli listesi etkinliğe aktarılamadı'));
     }
-    return GuestListImportResult.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return GuestListImportResult.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   static Future<EventInviteesResult> removeEventInvitee({
@@ -340,8 +386,10 @@ class GuestListApi {
       headers: _headers(sessionToken),
     );
     if (resp.statusCode != 200) {
-      throw GuestListApiException(parseApiErrorBody(resp.body, fallback: 'Davetli kaldırılamadı'));
+      throw GuestListApiException(
+          parseApiErrorBody(resp.body, fallback: 'Davetli kaldırılamadı'));
     }
-    return EventInviteesResult.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    return EventInviteesResult.fromJson(
+        jsonDecode(resp.body) as Map<String, dynamic>);
   }
 }

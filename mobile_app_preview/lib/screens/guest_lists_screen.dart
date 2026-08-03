@@ -6,10 +6,12 @@ import '../theme/app_theme.dart';
 
 class GuestListsScreen extends StatefulWidget {
   final String sessionToken;
+  final bool createOnOpen;
 
   const GuestListsScreen({
     super.key,
     required this.sessionToken,
+    this.createOnOpen = false,
   });
 
   @override
@@ -23,6 +25,11 @@ class _GuestListsScreenState extends State<GuestListsScreen> {
   void initState() {
     super.initState();
     _future = _fetch();
+    if (widget.createOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _createList();
+      });
+    }
   }
 
   Future<List<GuestListSummary>> _fetch() {
@@ -36,7 +43,8 @@ class _GuestListsScreenState extends State<GuestListsScreen> {
   }
 
   Future<void> _createList() async {
-    final name = await _askForName(title: 'Yeni Davetli Listesi', initialValue: '');
+    final name =
+        await _askForName(title: 'Yeni Davetli Listesi', initialValue: '');
     if (name == null || name.trim().isEmpty) return;
     try {
       await GuestListApi.createGuestList(
@@ -61,7 +69,8 @@ class _GuestListsScreenState extends State<GuestListsScreen> {
       title: 'Listeyi Yeniden Adlandır',
       initialValue: item.name,
     );
-    if (name == null || name.trim().isEmpty || name.trim() == item.name.trim()) return;
+    if (name == null || name.trim().isEmpty || name.trim() == item.name.trim())
+      return;
     try {
       await GuestListApi.renameGuestList(
         sessionToken: widget.sessionToken,
@@ -72,6 +81,34 @@ class _GuestListsScreenState extends State<GuestListsScreen> {
       await _refresh();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Liste adı güncellendi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
+  Future<void> _copyList(GuestListSummary item) async {
+    final name = await _askForName(
+      title: 'Listeyi Kopyala',
+      initialValue: '${item.name} Kopyası',
+    );
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      final copied = await GuestListApi.copyGuestList(
+        sessionToken: widget.sessionToken,
+        guestListId: item.guestListId,
+        name: name,
+      );
+      if (!mounted) return;
+      await _refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                '${copied.summary.name} listesi ${copied.members.length} kişiyle kopyalandı.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -130,6 +167,96 @@ class _GuestListsScreenState extends State<GuestListsScreen> {
     if (changed == true && mounted) {
       await _refresh();
     }
+  }
+
+  Widget _sectionTitle(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: const TextStyle(color: AppTheme.textSecondary, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _listTile(GuestListSummary item) {
+    final isReadOnlyMaster = item.isMaster && !item.isOwned;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: AppTheme.panel(
+        tone: AppTone.profile,
+        radius: 18,
+        subtle: true,
+      ),
+      child: ListTile(
+        onTap: () => _openDetail(item),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        title: Text(
+          item.name,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            isReadOnlyMaster
+                ? 'Master liste · ${item.memberCount} kişi'
+                : '${item.memberCount} kişi kayıtlı',
+            style: const TextStyle(color: AppTheme.textSecondary),
+          ),
+        ),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppTheme.violet.withOpacity(0.16),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            isReadOnlyMaster
+                ? Icons.workspace_premium_rounded
+                : Icons.groups_rounded,
+            color: AppTheme.violet,
+          ),
+        ),
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'rename') {
+              _renameList(item);
+            } else if (value == 'copy') {
+              _copyList(item);
+            } else if (value == 'delete') {
+              _deleteList(item);
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              value: 'copy',
+              child: Text(isReadOnlyMaster ? 'Profilime Kopyala' : 'Kopyala'),
+            ),
+            if (!isReadOnlyMaster)
+              const PopupMenuItem<String>(
+                value: 'rename',
+                child: Text('Yeniden Adlandır'),
+              ),
+            if (!isReadOnlyMaster)
+              const PopupMenuItem<String>(
+                value: 'delete',
+                child: Text('Sil'),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<String?> _askForName({
@@ -208,6 +335,10 @@ class _GuestListsScreenState extends State<GuestListsScreen> {
                 );
               }
               final items = snapshot.data ?? const <GuestListSummary>[];
+              final ownedItems = items.where((item) => item.isOwned).toList();
+              final masterItems = items
+                  .where((item) => item.isMaster && !item.isOwned)
+                  .toList();
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 children: [
@@ -236,61 +367,22 @@ class _GuestListsScreenState extends State<GuestListsScreen> {
                         'Henüz davetli listeniz yok. Sağ alttan ilk listenizi oluşturabilirsiniz.',
                         style: TextStyle(color: AppTheme.textSecondary),
                       ),
-                    )
-                  else
-                    ...items.map(
-                      (item) => Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        decoration: AppTheme.panel(
-                          tone: AppTone.profile,
-                          radius: 18,
-                          subtle: true,
-                        ),
-                        child: ListTile(
-                          onTap: () => _openDetail(item),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          title: Text(
-                            item.name,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              '${item.memberCount} kişi kayıtlı',
-                              style: const TextStyle(color: AppTheme.textSecondary),
-                            ),
-                          ),
-                          leading: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: AppTheme.violet.withOpacity(0.16),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(Icons.groups_rounded, color: AppTheme.violet),
-                          ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'rename') {
-                                _renameList(item);
-                              } else if (value == 'delete') {
-                                _deleteList(item);
-                              }
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem<String>(
-                                value: 'rename',
-                                child: Text('Yeniden Adlandır'),
-                              ),
-                              PopupMenuItem<String>(
-                                value: 'delete',
-                                child: Text('Sil'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                     ),
+                  if (masterItems.isNotEmpty) ...[
+                    _sectionTitle(
+                      'Master Listeler',
+                      'Bu listeleri profilinize kopyalayarak düzenleyebilirsiniz.',
+                    ),
+                    ...masterItems.map(_listTile),
+                    const SizedBox(height: 8),
+                  ],
+                  if (ownedItems.isNotEmpty) ...[
+                    _sectionTitle(
+                      'Listelerim',
+                      'Yalnızca size ait olan ve etkinliklerinize aktarabileceğiniz listeler.',
+                    ),
+                    ...ownedItems.map(_listTile),
+                  ],
                 ],
               );
             },
@@ -362,7 +454,9 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
       ),
     );
     ctrl.dispose();
-    if (name == null || name.trim().isEmpty || name.trim() == detail.summary.name.trim()) return;
+    if (name == null ||
+        name.trim().isEmpty ||
+        name.trim() == detail.summary.name.trim()) return;
     try {
       await GuestListApi.renameGuestList(
         sessionToken: widget.sessionToken,
@@ -388,7 +482,8 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Listeyi Sil'),
-        content: Text('${detail.summary.name} listesini silmek istiyor musunuz?'),
+        content:
+            Text('${detail.summary.name} listesini silmek istiyor musunuz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -418,13 +513,64 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
     }
   }
 
+  Future<void> _copyToProfile(GuestListDetail detail) async {
+    final ctrl = TextEditingController(text: '${detail.summary.name} Kopyası');
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Profilime Kopyala'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 80,
+          decoration: const InputDecoration(labelText: 'Yeni liste adı'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(ctrl.text.trim()),
+            child: const Text('Kopyala'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      final copied = await GuestListApi.copyGuestList(
+        sessionToken: widget.sessionToken,
+        guestListId: widget.guestListId,
+        name: name,
+      );
+      _changed = true;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${copied.summary.name} profilinize ${copied.members.length} kişiyle kaydedildi.',
+          ),
+        ),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
   Future<void> _addMember(GuestListDetail detail) async {
     final selected = await Navigator.of(context).push<SocialUserItem>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => _GuestListMemberPickerScreen(
           sessionToken: widget.sessionToken,
-          existingAccountIds: detail.members.map((member) => member.accountId).toSet(),
+          existingAccountIds:
+              detail.members.map((member) => member.accountId).toSet(),
         ),
       ),
     );
@@ -504,7 +650,9 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
         floatingActionButton: FutureBuilder<GuestListDetail>(
           future: _future,
           builder: (context, snapshot) {
-            if (!snapshot.hasData) return const SizedBox.shrink();
+            if (!snapshot.hasData || !snapshot.data!.summary.isOwned) {
+              return const SizedBox.shrink();
+            }
             return FloatingActionButton.extended(
               onPressed: () => _addMember(snapshot.data!),
               icon: const Icon(Icons.person_add_alt_1_rounded),
@@ -557,28 +705,40 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
                         children: [
                           Text(
                             detail.summary.name,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '${detail.summary.memberCount} kişi kayıtlı',
-                            style: const TextStyle(color: AppTheme.textSecondary),
+                            detail.summary.isMaster && !detail.summary.isOwned
+                                ? 'Master liste · ${detail.summary.memberCount} kişi'
+                                : '${detail.summary.memberCount} kişi kayıtlı',
+                            style:
+                                const TextStyle(color: AppTheme.textSecondary),
                           ),
                           const SizedBox(height: 12),
                           Wrap(
                             spacing: 10,
                             runSpacing: 10,
                             children: [
-                              OutlinedButton.icon(
-                                onPressed: () => _rename(detail),
-                                icon: const Icon(Icons.edit_rounded),
-                                label: const Text('Adını Değiştir'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: () => _delete(detail),
-                                icon: const Icon(Icons.delete_outline_rounded),
-                                label: const Text('Listeyi Sil'),
-                              ),
+                              if (detail.summary.isOwned) ...[
+                                OutlinedButton.icon(
+                                  onPressed: () => _rename(detail),
+                                  icon: const Icon(Icons.edit_rounded),
+                                  label: const Text('Adını Değiştir'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () => _delete(detail),
+                                  icon:
+                                      const Icon(Icons.delete_outline_rounded),
+                                  label: const Text('Listeyi Sil'),
+                                ),
+                              ] else
+                                FilledButton.icon(
+                                  onPressed: () => _copyToProfile(detail),
+                                  icon: const Icon(Icons.copy_all_rounded),
+                                  label: const Text('Profilime Kopyala'),
+                                ),
                             ],
                           ),
                         ],
@@ -592,9 +752,14 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
                         radius: 18,
                         subtle: true,
                       ),
-                      child: const Text(
-                        'Bu listedeki kullanıcıları daha sonra etkinlik içinden içeri aktarabilirsiniz. Aktarım yapıldığında sadece o etkinlik için davetli olurlar.',
-                        style: TextStyle(color: AppTheme.textSecondary, height: 1.45),
+                      child: Text(
+                        detail.summary.isOwned
+                            ? 'Bu listedeki kullanıcıları daha sonra etkinlik içinden içeri aktarabilirsiniz. Aktarım yapıldığında sadece o etkinlik için davetli olurlar.'
+                            : 'Master liste salt okunurdur. Düzenlemek ve yetkili olduğunuz bir etkinliğe aktarmak için önce profilinize kopyalayın.',
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          height: 1.45,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -606,9 +771,13 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
                           radius: 18,
                           subtle: true,
                         ),
-                        child: const Text(
-                          'Bu listede henüz kullanıcı yok. Sağ alttan kullanıcı arayıp ekleyebilirsiniz.',
-                          style: TextStyle(color: AppTheme.textSecondary),
+                        child: Text(
+                          detail.summary.isOwned
+                              ? 'Bu listede henüz kullanıcı yok. Sağ alttan kullanıcı arayıp ekleyebilirsiniz.'
+                              : 'Bu Master listede henüz kullanıcı yok.',
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       )
                     else
@@ -621,7 +790,8 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
                             subtle: true,
                           ),
                           child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 6),
                             leading: _UserAvatar(
                               imageUrl: member.avatarUrl,
                               label: member.name,
@@ -631,18 +801,26 @@ class _GuestListDetailScreenState extends State<GuestListDetailScreen> {
                               member.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
                             ),
                             subtitle: Text(
-                              member.email.isEmpty ? 'Kullanıcı kaydı' : member.email,
+                              member.email.isEmpty
+                                  ? 'Kullanıcı kaydı'
+                                  : member.email,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: AppTheme.textSecondary),
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary),
                             ),
-                            trailing: IconButton(
-                              onPressed: () => _removeMember(member),
-                              icon: const Icon(Icons.remove_circle_outline_rounded),
-                            ),
+                            trailing: detail.summary.isOwned
+                                ? IconButton(
+                                    onPressed: () => _removeMember(member),
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline_rounded,
+                                    ),
+                                  )
+                                : null,
                           ),
                         ),
                       ),
@@ -667,10 +845,12 @@ class _GuestListMemberPickerScreen extends StatefulWidget {
   });
 
   @override
-  State<_GuestListMemberPickerScreen> createState() => _GuestListMemberPickerScreenState();
+  State<_GuestListMemberPickerScreen> createState() =>
+      _GuestListMemberPickerScreenState();
 }
 
-class _GuestListMemberPickerScreenState extends State<_GuestListMemberPickerScreen> {
+class _GuestListMemberPickerScreenState
+    extends State<_GuestListMemberPickerScreen> {
   final TextEditingController _queryCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
@@ -766,7 +946,8 @@ class _GuestListMemberPickerScreenState extends State<_GuestListMemberPickerScre
               ),
               child: Text(
                 'Arama sonucundaki kullanıcıya dokunduğunuzda listeye eklenecek. Zaten listede olanlar tekrar seçilemez.',
-                style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+                style:
+                    const TextStyle(color: AppTheme.textSecondary, height: 1.4),
               ),
             ),
             if (_error != null) ...[
@@ -784,7 +965,8 @@ class _GuestListMemberPickerScreenState extends State<_GuestListMemberPickerScre
               )
             else
               ..._items.map((item) {
-                final alreadyAdded = widget.existingAccountIds.contains(item.accountId);
+                final alreadyAdded =
+                    widget.existingAccountIds.contains(item.accountId);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: AppTheme.panel(
@@ -793,8 +975,11 @@ class _GuestListMemberPickerScreenState extends State<_GuestListMemberPickerScre
                     subtle: true,
                   ),
                   child: ListTile(
-                    onTap: alreadyAdded ? null : () => Navigator.of(context).pop(item),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    onTap: alreadyAdded
+                        ? null
+                        : () => Navigator.of(context).pop(item),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     leading: _UserAvatar(
                       imageUrl: item.avatarUrl,
                       label: item.name,
@@ -815,7 +1000,9 @@ class _GuestListMemberPickerScreenState extends State<_GuestListMemberPickerScre
                     trailing: alreadyAdded
                         ? const Text(
                             'Ekli',
-                            style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontWeight: FontWeight.w700),
                           )
                         : const Icon(Icons.add_circle_outline_rounded),
                   ),
@@ -841,14 +1028,16 @@ class _UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = label.trim().isEmpty ? '?' : label.trim().substring(0, 1).toUpperCase();
+    final initial =
+        label.trim().isEmpty ? '?' : label.trim().substring(0, 1).toUpperCase();
     return Stack(
       clipBehavior: Clip.none,
       children: [
         CircleAvatar(
           radius: 22,
           backgroundColor: AppTheme.surfaceSecondary,
-          backgroundImage: imageUrl.trim().isNotEmpty ? NetworkImage(imageUrl.trim()) : null,
+          backgroundImage:
+              imageUrl.trim().isNotEmpty ? NetworkImage(imageUrl.trim()) : null,
           child: imageUrl.trim().isNotEmpty
               ? null
               : Text(

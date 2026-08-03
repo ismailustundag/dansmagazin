@@ -69,11 +69,7 @@ class ContentShareService {
     required ContentSharePayload payload,
   }) async {
     final box = context.findRenderObject() as RenderBox?;
-    final parts = [
-      payload.title.trim(),
-      payload.shareUrl.trim(),
-    ].where((e) => e.isNotEmpty).toList();
-    final text = parts.join('\n');
+    final text = payload.shareUrl.trim();
     await Share.share(
       text,
       subject: payload.title.trim().isEmpty ? null : payload.title.trim(),

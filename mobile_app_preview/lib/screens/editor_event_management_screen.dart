@@ -14,13 +14,17 @@ import '../services/i18n.dart';
 import '../services/profile_api.dart';
 import '../services/turkiye_cities.dart';
 import '../theme/app_theme.dart';
+import 'admin_notifications_screen.dart';
 import 'chat_thread_screen.dart';
-import 'editor_news_management_screen.dart';
+import 'guest_lists_screen.dart';
+import 'photo_polls_admin_screen.dart';
+import 'store_management_screen.dart';
 
 DateTime? _parseEventDate(String raw) {
   final v = raw.trim();
   if (v.isEmpty) return null;
-  final ddmmyyyy = RegExp(r'^(\d{1,2})[-\.](\d{1,2})[-\.](\d{4})$').firstMatch(v);
+  final ddmmyyyy =
+      RegExp(r'^(\d{1,2})[-\.](\d{1,2})[-\.](\d{4})$').firstMatch(v);
   if (ddmmyyyy != null) {
     final d = int.tryParse(ddmmyyyy.group(1)!);
     final m = int.tryParse(ddmmyyyy.group(2)!);
@@ -91,7 +95,8 @@ String _toDisplayTime(String raw) {
 String _toApiDateTime(String dateRaw, String timeRaw) {
   final d = _parseEventDate(dateRaw.trim());
   if (d == null) return dateRaw.trim();
-  final day = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  final day =
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   final t = _parseTimeOfDay(timeRaw.trim());
   if (t == null) return day;
   final hh = t.hour.toString().padLeft(2, '0');
@@ -372,12 +377,17 @@ Future<String?> _showEventCityPickerSheet(
                         borderRadius: BorderRadius.circular(16),
                         onTap: () => Navigator.of(ctx).pop(city),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 13),
                           decoration: BoxDecoration(
-                            color: selected ? AppTheme.cyan.withOpacity(0.16) : const Color(0xFF151B28),
+                            color: selected
+                                ? AppTheme.cyan.withOpacity(0.16)
+                                : const Color(0xFF151B28),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: selected ? AppTheme.cyan.withOpacity(0.82) : Colors.white.withOpacity(0.06),
+                              color: selected
+                                  ? AppTheme.cyan.withOpacity(0.82)
+                                  : Colors.white.withOpacity(0.06),
                             ),
                           ),
                           child: Row(
@@ -386,9 +396,13 @@ Future<String?> _showEventCityPickerSheet(
                                 child: Text(
                                   city,
                                   style: TextStyle(
-                                    color: selected ? Colors.white : Colors.white.withOpacity(0.88),
+                                    color: selected
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.88),
                                     fontSize: 15,
-                                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                   ),
                                 ),
                               ),
@@ -403,7 +417,8 @@ Future<String?> _showEventCityPickerSheet(
                                 ),
                               if (selected) ...[
                                 const SizedBox(width: 8),
-                                const Icon(Icons.check_rounded, size: 18, color: AppTheme.cyan),
+                                const Icon(Icons.check_rounded,
+                                    size: 18, color: AppTheme.cyan),
                               ],
                             ],
                           ),
@@ -427,7 +442,8 @@ Widget _eventCityField({
   required VoidCallback onTap,
   required InputDecoration decoration,
 }) {
-  final effectiveValue = value.trim().isEmpty ? I18n.t('select_city_prompt') : value.trim();
+  final effectiveValue =
+      value.trim().isEmpty ? I18n.t('select_city_prompt') : value.trim();
   return Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: IgnorePointer(
@@ -445,7 +461,9 @@ Widget _eventCityField({
             child: Text(
               effectiveValue,
               style: TextStyle(
-                color: value.trim().isEmpty ? AppTheme.textSecondary : Colors.white,
+                color: value.trim().isEmpty
+                    ? AppTheme.textSecondary
+                    : Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
@@ -488,7 +506,8 @@ _VenueParts _splitVenue(String venue, {String mapUrl = ''}) {
     return _VenueParts(name: raw, mapUrl: '');
   }
   final link = (m.group(0) ?? '').trim();
-  final name = raw.replaceFirst(link, '').replaceAll(RegExp(r'\s+\n'), '\n').trim();
+  final name =
+      raw.replaceFirst(link, '').replaceAll(RegExp(r'\s+\n'), '\n').trim();
   return _VenueParts(name: name, mapUrl: link);
 }
 
@@ -524,8 +543,17 @@ Future<void> _openSupportChat(BuildContext context, String sessionToken) async {
 
 class EditorEventManagementScreen extends StatelessWidget {
   final String sessionToken;
+  final bool canManageEvents;
+  final bool canManageStore;
+  final bool isSuperAdmin;
 
-  const EditorEventManagementScreen({super.key, required this.sessionToken});
+  const EditorEventManagementScreen({
+    super.key,
+    required this.sessionToken,
+    this.canManageEvents = true,
+    this.canManageStore = false,
+    this.isSuperAdmin = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -533,85 +561,208 @@ class EditorEventManagementScreen extends StatelessWidget {
       backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
         backgroundColor: AppTheme.bgPrimary,
-        title: Text(I18n.t('event_management_screen_title')),
+        title: const Text('Yönetim Paneli'),
       ),
       body: SafeArea(
         top: false,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-          _ActionCard(
-            title: I18n.t('create_event_title'),
-            subtitle: I18n.t('create_event_subtitle'),
-            icon: Icons.add_circle_outline,
-            onTap: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  fullscreenDialog: true,
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: Text(I18n.t('create_event_title'))),
-                    body: SafeArea(
-                      child: _CreateEventSheet(sessionToken: sessionToken),
-                    ),
+            if (canManageEvents)
+              _PanelSection(
+                title: 'Etkinlik Yönetimi',
+                children: [
+                  _ActionCard(
+                    title: 'Etkinlik Oluştur',
+                    subtitle:
+                        'Yeni etkinlik, festival veya dans gecesi oluştur',
+                    icon: Icons.add_circle_outline,
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          fullscreenDialog: true,
+                          builder: (_) => Scaffold(
+                            appBar:
+                                AppBar(title: const Text('Etkinlik Oluştur')),
+                            body: SafeArea(
+                              child:
+                                  _CreateEventSheet(sessionToken: sessionToken),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
+                  _ActionCard(
+                    title: 'Etkinlik Düzenle',
+                    subtitle:
+                        'Yayındaki etkinlikleri güncelle ve davetli aktar',
+                    icon: Icons.edit_calendar_outlined,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ManageEventsScreen(sessionToken: sessionToken),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            if (canManageEvents)
+              _PanelSection(
+                title: 'Bilet ve Davetli Yönetimi',
+                children: [
+                  _ActionCard(
+                    title: 'Davetli Listesi Oluştur',
+                    subtitle: 'Şehir, okul veya geceye özel yeni liste hazırla',
+                    icon: Icons.group_add_rounded,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => GuestListsScreen(
+                            sessionToken: sessionToken,
+                            createOnOpen: true,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  _ActionCard(
+                    title: 'Listeni Düzenle',
+                    subtitle:
+                        'Davetli listelerine kullanıcı ekle, çıkar veya listeyi yeniden adlandır',
+                    icon: Icons.groups_rounded,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              GuestListsScreen(sessionToken: sessionToken),
+                        ),
+                      );
+                    },
+                  ),
+                  _ActionCard(
+                    title: 'Bilet Kontrol Et',
+                    subtitle:
+                        'Kapı girişinde QR bilet okut ve kullanılanları izle',
+                    icon: Icons.qr_code_scanner,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TicketScanEventListScreen(
+                              sessionToken: sessionToken),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            if (canManageStore)
+              _PanelSection(
+                title: 'Mağaza Yönetimi',
+                children: [
+                  _ActionCard(
+                    title: 'Mağazamı Yönet',
+                    subtitle:
+                        'Ürün ekle, mağaza profilini ve ürünlerini düzenle',
+                    icon: Icons.storefront_outlined,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              StoreManagementScreen(sessionToken: sessionToken),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            if (isSuperAdmin)
+              _PanelSection(
+                title: 'Anket Yönetimi',
+                children: [
+                  _ActionCard(
+                    title: 'Anketleri Yönet',
+                    subtitle:
+                        'Akış içindeki anketleri oluştur, yayından kaldır ve sil',
+                    icon: Icons.poll_outlined,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PhotoPollsAdminScreen(sessionToken: sessionToken),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            if (isSuperAdmin)
+              _PanelSection(
+                title: 'Bildirim Yönetimi',
+                children: [
+                  _ActionCard(
+                    title: 'Bildirim Gönder',
+                    subtitle:
+                        'Kullanıcılara bildirim gönder ve yönlendirme hedefi belirle',
+                    icon: Icons.campaign_rounded,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AdminNotificationsScreen(
+                              sessionToken: sessionToken),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            if (!canManageEvents && !canManageStore && !isSuperAdmin)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: AppTheme.panel(
+                    tone: AppTone.neutral, radius: 18, subtle: true),
+                child: const Text(
+                  'Bu panelde kullanabileceğin aktif bir yönetim aracı bulunmuyor.',
+                  style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          _ActionCard(
-            title: I18n.t('create_news_title'),
-            subtitle: I18n.t('create_news_subtitle'),
-            icon: Icons.newspaper_outlined,
-            onTap: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => EditorNewsCreateScreen(sessionToken: sessionToken),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          _ActionCard(
-            title: I18n.t('manage_news_title'),
-            subtitle: I18n.t('manage_news_subtitle'),
-            icon: Icons.fact_check_outlined,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ManageNewsScreen(sessionToken: sessionToken),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          _ActionCard(
-            title: I18n.t('manage_event_title'),
-            subtitle: I18n.t('manage_event_subtitle'),
-            icon: Icons.edit_calendar_outlined,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ManageEventsScreen(sessionToken: sessionToken),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          _ActionCard(
-            title: I18n.t('scan_ticket_title'),
-            subtitle: I18n.t('scan_ticket_subtitle'),
-            icon: Icons.qr_code_scanner,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TicketScanEventListScreen(sessionToken: sessionToken),
-                ),
-              );
-            },
-          ),
+              ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PanelSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _PanelSection({
+    required this.title,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 10),
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                  ),
+            ),
+          ),
+          ...children,
+        ],
       ),
     );
   }
@@ -637,7 +788,8 @@ class _ActionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: AppTheme.panel(tone: AppTone.admin, radius: 18, subtle: true),
+        decoration:
+            AppTheme.panel(tone: AppTone.admin, radius: 18, subtle: true),
         child: Row(
           children: [
             Icon(icon, color: AppTheme.cyan),
@@ -648,12 +800,14 @@ class _ActionCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13.5),
+                    style: const TextStyle(
+                        color: AppTheme.textSecondary, fontSize: 13.5),
                   ),
                 ],
               ),
@@ -695,17 +849,22 @@ class _DanceStylesField extends StatelessWidget {
                   (style) => FilterChip(
                     label: Text(_danceStyleLabel(style)),
                     selected: selectedStyles.contains(style),
-                    onSelected: onToggle == null ? null : (_) => onToggle!(style),
+                    onSelected:
+                        onToggle == null ? null : (_) => onToggle!(style),
                     selectedColor: const Color(0xFFE58B8B),
                     checkmarkColor: Colors.white,
                     backgroundColor: AppTheme.surfacePrimary,
                     labelStyle: TextStyle(
-                      color: selectedStyles.contains(style) ? Colors.white : AppTheme.textSecondary,
+                      color: selectedStyles.contains(style)
+                          ? Colors.white
+                          : AppTheme.textSecondary,
                       fontWeight: FontWeight.w600,
                       fontSize: 12.5,
                     ),
                     side: BorderSide(
-                      color: selectedStyles.contains(style) ? const Color(0x00FFFFFF) : Colors.white12,
+                      color: selectedStyles.contains(style)
+                          ? const Color(0x00FFFFFF)
+                          : Colors.white12,
                     ),
                   ),
                 )
@@ -737,13 +896,15 @@ class _TicketSalesHelpCard extends StatelessWidget {
         children: [
           const Text(
             'Etkinlik biletinizin satışa açılmasını istiyorsanız Dansmagazin ile iletişime geçin.',
-            style: TextStyle(fontSize: 13.5, color: AppTheme.textSecondary, height: 1.35),
+            style: TextStyle(
+                fontSize: 13.5, color: AppTheme.textSecondary, height: 1.35),
           ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: busy ? null : () => _openSupportChat(context, sessionToken),
+              onPressed:
+                  busy ? null : () => _openSupportChat(context, sessionToken),
               icon: const Icon(Icons.chat_bubble_outline),
               label: const Text(
                 'Mesaj Gönder',
@@ -763,7 +924,8 @@ class TicketScanEventListScreen extends StatefulWidget {
   const TicketScanEventListScreen({super.key, required this.sessionToken});
 
   @override
-  State<TicketScanEventListScreen> createState() => _TicketScanEventListScreenState();
+  State<TicketScanEventListScreen> createState() =>
+      _TicketScanEventListScreenState();
 }
 
 class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
@@ -808,59 +970,64 @@ class _TicketScanEventListScreenState extends State<TicketScanEventListScreen> {
           child: FutureBuilder<List<_ScannableEvent>>(
             future: _future,
             builder: (_, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snap.hasError) {
-              return ListView(
-                children: [
-                  const SizedBox(height: 60),
-                  Center(
-                    child: TextButton(
-                      onPressed: _refresh,
-                      child: const Text('Etkinlik listesi alınamadı, tekrar dene'),
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return ListView(
+                  children: [
+                    const SizedBox(height: 60),
+                    Center(
+                      child: TextButton(
+                        onPressed: _refresh,
+                        child: const Text(
+                            'Etkinlik listesi alınamadı, tekrar dene'),
+                      ),
                     ),
-                  ),
-                ],
-              );
-            }
-            final items = snap.data ?? [];
-            if (items.isEmpty) {
-              return ListView(
-                children: const [
-                  SizedBox(height: 60),
-                  Center(child: Text('Bu kullanıcıya atanmış etkinlik editör yetkisi yok.')),
-                ],
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: items.length,
-              itemBuilder: (_, i) {
-                final e = items[i];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: _ActionCard(
-                    title: e.eventName,
-                    subtitle: e.venue.isNotEmpty
-                        ? e.venue
-                        : (e.eventDate.isNotEmpty ? _toDisplayDate(e.eventDate) : 'Etkinlik #${e.submissionId}'),
-                    icon: Icons.event_available,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => TicketScanScreen(
-                            sessionToken: widget.sessionToken,
-                            submissionId: e.submissionId,
-                            eventName: e.eventName,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  ],
                 );
-              },
-            );
+              }
+              final items = snap.data ?? [];
+              if (items.isEmpty) {
+                return ListView(
+                  children: const [
+                    SizedBox(height: 60),
+                    Center(
+                        child: Text(
+                            'Bu kullanıcıya atanmış etkinlik editör yetkisi yok.')),
+                  ],
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                itemBuilder: (_, i) {
+                  final e = items[i];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: _ActionCard(
+                      title: e.eventName,
+                      subtitle: e.venue.isNotEmpty
+                          ? e.venue
+                          : (e.eventDate.isNotEmpty
+                              ? _toDisplayDate(e.eventDate)
+                              : 'Etkinlik #${e.submissionId}'),
+                      icon: Icons.event_available,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TicketScanScreen(
+                              sessionToken: widget.sessionToken,
+                              submissionId: e.submissionId,
+                              eventName: e.eventName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              );
             },
           ),
         ),
@@ -946,7 +1113,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
     }
 
     final now = DateTime.now();
-    if (_lastToken == qrToken && now.difference(_lastScanAt).inMilliseconds < 1500) {
+    if (_lastToken == qrToken &&
+        now.difference(_lastScanAt).inMilliseconds < 1500) {
       return;
     }
     _lastToken = qrToken;
@@ -954,7 +1122,8 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
 
     setState(() => _loading = true);
     try {
-      final req = http.MultipartRequest('POST', Uri.parse('$_base/events/${widget.submissionId}/tickets/scan'))
+      final req = http.MultipartRequest('POST',
+          Uri.parse('$_base/events/${widget.submissionId}/tickets/scan'))
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['qr_token'] = qrToken;
       final res = await req.send();
@@ -1015,7 +1184,9 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
     );
     if (res.statusCode != 200) return;
     final map = jsonDecode(res.body) as Map<String, dynamic>;
-    final items = (map['items'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
+    final items = (map['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     if (!mounted) return;
     setState(() => _used = items);
   }
@@ -1076,154 +1247,162 @@ class _TicketScanScreenState extends State<TicketScanScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-          Container(
-            height: 220,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white24),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: _scannerOpen
-                ? Container(
-                    color: const Color(0xFF070B14),
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 180,
-                      height: 180,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: MobileScanner(
-                              controller: _scannerController,
-                              onDetect: _onDetect,
-                            ),
-                          ),
-                          IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.white70, width: 2),
+            Container(
+              height: 220,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _scannerOpen
+                  ? Container(
+                      color: const Color(0xFF070B14),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 180,
+                        height: 180,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: MobileScanner(
+                                controller: _scannerController,
+                                onDetect: _onDetect,
                               ),
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 126,
-                                  height: 126,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      border: Border.fromBorderSide(
-                                        BorderSide(color: Color(0xFFE53935), width: 2.6),
+                            ),
+                            IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: Colors.white70, width: 2),
+                                ),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 126,
+                                    height: 126,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        border: Border.fromBorderSide(
+                                          BorderSide(
+                                              color: Color(0xFFE53935),
+                                              width: 2.6),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  )
-                : Container(
-                    color: const Color(0xFF0F172A),
-                    alignment: Alignment.center,
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton.icon(
-                        onPressed: _loading ? null : _openScanner,
-                        icon: const Icon(Icons.qr_code_scanner),
-                        label: const Text('QR Tara'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFD32F2F),
-                          foregroundColor: Colors.white,
-                          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    )
+                  : Container(
+                      color: const Color(0xFF0F172A),
+                      alignment: Alignment.center,
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: _loading ? null : _openScanner,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: const Text('QR Tara'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD32F2F),
+                            foregroundColor: Colors.white,
+                            textStyle: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 16),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-          ),
-          if (_scannerOpen) ...[
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: _loading ? null : _closeScanner,
-              icon: const Icon(Icons.close),
-              label: const Text('Taramayı Kapat'),
             ),
-          ],
-          const SizedBox(height: 10),
-          Text(
-            _scannerOpen
-                ? 'QR kodunu kırmızı çerçevenin içine getir. Kamera açıldıktan sonra kısa bir bekleme var.'
-                : 'QR Tara butonuna basıp kodu okutun. Sonuç otomatik gösterilir.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: _loading ? null : _loadUsed,
-            child: const Text('Kullanılmış Biletleri Yenile'),
-          ),
-          if (_result.isNotEmpty) ...[
+            if (_scannerOpen) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _loading ? null : _closeScanner,
+                icon: const Icon(Icons.close),
+                label: const Text('Taramayı Kapat'),
+              ),
+            ],
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _resultColor,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    _resultSuccess ? Icons.check_circle : Icons.cancel,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _result,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontSize: 18,
-                        height: 1.25,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            Text(
+              _scannerOpen
+                  ? 'QR kodunu kırmızı çerçevenin içine getir. Kamera açıldıktan sonra kısa bir bekleme var.'
+                  : 'QR Tara butonuna basıp kodu okutun. Sonuç otomatik gösterilir.',
+              style: TextStyle(color: Colors.white70),
             ),
-          ],
-          const SizedBox(height: 14),
-          const Text('Kullanılmış Biletler', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          if (_used.isEmpty)
-            const Text('Henüz kayıt yok.')
-          else
-            ..._used.map((x) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: _loading ? null : _loadUsed,
+              child: const Text('Kullanılmış Biletleri Yenile'),
+            ),
+            if (_result.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF121826),
+                  color: _resultColor,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
+                  border: Border.all(color: Colors.white24),
                 ),
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text((x['buyer_name'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    Text((x['buyer_email'] ?? '').toString(), style: const TextStyle(color: Colors.white70)),
-                    Text('Kullanım: ${(x['used_at'] ?? '').toString()}'),
-                    Text('Okutan: ${(x['scanned_by'] ?? '').toString()}', style: const TextStyle(color: Colors.white70)),
+                    Icon(
+                      _resultSuccess ? Icons.check_circle : Icons.cancel,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _result,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontSize: 18,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              );
-            }),
+              ),
+            ],
+            const SizedBox(height: 14),
+            const Text('Kullanılmış Biletler',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            if (_used.isEmpty)
+              const Text('Henüz kayıt yok.')
+            else
+              ..._used.map((x) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF121826),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text((x['buyer_name'] ?? '').toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text((x['buyer_email'] ?? '').toString(),
+                          style: const TextStyle(color: Colors.white70)),
+                      Text('Kullanım: ${(x['used_at'] ?? '').toString()}'),
+                      Text('Okutan: ${(x['scanned_by'] ?? '').toString()}',
+                          style: const TextStyle(color: Colors.white70)),
+                    ],
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -1335,7 +1514,9 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                 return ListView(
                   children: const [
                     SizedBox(height: 60),
-                    Center(child: Text('Düzenleyebileceğiniz etkinlik bulunamadı.')),
+                    Center(
+                        child:
+                            Text('Düzenleyebileceğiniz etkinlik bulunamadı.')),
                   ],
                 );
               }
@@ -1344,14 +1525,17 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                 itemCount: items.length,
                 itemBuilder: (_, i) {
                   final e = items[i];
-                  final status = e.status.trim().isEmpty ? '-' : e.status;
+                  final status = e.eventIsActive
+                      ? (e.status.trim().isEmpty ? '-' : e.status)
+                      : 'Pasif';
                   return InkWell(
                     onTap: () => _openEdit(e),
                     borderRadius: BorderRadius.circular(18),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(14),
-                      decoration: AppTheme.panel(tone: AppTone.events, radius: 18, subtle: true),
+                      decoration: AppTheme.panel(
+                          tone: AppTone.events, radius: 18, subtle: true),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1379,7 +1563,9 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                                 color: AppTheme.surfacePrimary,
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.image_not_supported_outlined, color: AppTheme.textSecondary),
+                              child: const Icon(
+                                  Icons.image_not_supported_outlined,
+                                  color: AppTheme.textSecondary),
                             ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1390,26 +1576,37 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                                   e.name,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  e.eventDate.isEmpty ? 'Tarih yok' : _toDisplayDate(e.eventDate),
+                                  e.eventDate.isEmpty
+                                      ? 'Tarih yok'
+                                      : _toDisplayDate(e.eventDate),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12.5),
+                                  style: const TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 12.5),
                                 ),
                                 const SizedBox(height: 6),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.cyan.withOpacity(0.14),
+                                    color: e.eventIsActive
+                                        ? AppTheme.cyan.withOpacity(0.14)
+                                        : Colors.orangeAccent.withOpacity(0.14),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                   child: Text(
                                     'Durum: $status',
-                                    style: const TextStyle(
-                                      color: AppTheme.cyan,
+                                    style: TextStyle(
+                                      color: e.eventIsActive
+                                          ? AppTheme.cyan
+                                          : Colors.orangeAccent,
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -1419,7 +1616,8 @@ class _ManageEventsScreenState extends State<ManageEventsScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                          const Icon(Icons.chevron_right,
+                              color: AppTheme.textSecondary),
                         ],
                       ),
                     ),
@@ -1455,6 +1653,7 @@ class _ManagedEventItem {
   final String entryFee;
   final String coverUrl;
   final String status;
+  final bool eventIsActive;
 
   _ManagedEventItem({
     required this.submissionId,
@@ -1477,6 +1676,7 @@ class _ManagedEventItem {
     required this.entryFee,
     required this.coverUrl,
     required this.status,
+    required this.eventIsActive,
   });
 
   factory _ManagedEventItem.fromJson(Map<String, dynamic> json) {
@@ -1496,14 +1696,18 @@ class _ManagedEventItem {
       eventKind: (json['event_kind'] ?? '').toString(),
       coverCrop: (json['cover_crop'] ?? 'center').toString(),
       danceStyles: _normalizeDanceStyles(json['dance_styles']),
-      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
-      repeatWeekly: (json['repeat_weekly'] == true) || (json['repeat_weekly'] == 1),
+      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) ||
+          (json['ticket_sales_enabled'] == 1),
+      repeatWeekly:
+          (json['repeat_weekly'] == true) || (json['repeat_weekly'] == 1),
       repeatWeekday: (json['repeat_weekday'] as num?)?.toInt(),
       organizerName: (json['organizer_name'] ?? '').toString(),
       programText: (json['program_text'] ?? '').toString(),
       entryFee: (json['entry_fee'] ?? '0').toString(),
       coverUrl: (json['cover_url'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
+      eventIsActive:
+          (json['event_is_active'] == true) || (json['event_is_active'] == 1),
     );
   }
 
@@ -1523,7 +1727,8 @@ class _ManagedEventItem {
   }
 
   DateTime? get _effectiveEndMoment {
-    final candidate = endAt.isNotEmpty ? endAt : (startAt.isNotEmpty ? startAt : eventDate);
+    final candidate =
+        endAt.isNotEmpty ? endAt : (startAt.isNotEmpty ? startAt : eventDate);
     final parsed = DateTime.tryParse(candidate.trim().replaceAll(' ', 'T'));
     if (parsed == null) return null;
     final endDt = parsed.isUtc ? parsed.toLocal() : parsed;
@@ -1573,23 +1778,34 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   int _repeatWeekday = 0;
   XFile? _coverImage;
   bool _saving = false;
+  bool _actionBusy = false;
   String? _error;
   bool get _isPromoLesson => _eventKind == 'promo_lesson';
+  bool get _busy => _saving || _actionBusy;
 
   @override
   void initState() {
     super.initState();
-    final parts = _splitVenue(widget.item.venue, mapUrl: widget.item.venueMapUrl);
-    final parsedDate = _parseEventDate(widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate);
+    final parts =
+        _splitVenue(widget.item.venue, mapUrl: widget.item.venueMapUrl);
+    final parsedDate = _parseEventDate(widget.item.startAt.isNotEmpty
+        ? widget.item.startAt
+        : widget.item.eventDate);
     final endSource = widget.item.endAt.isNotEmpty
         ? widget.item.endAt
-        : (widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate);
+        : (widget.item.startAt.isNotEmpty
+            ? widget.item.startAt
+            : widget.item.eventDate);
     _descCtrl = TextEditingController(text: widget.item.description);
     _startDateCtrl = TextEditingController(
-      text: _toDisplayDate(widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate),
+      text: _toDisplayDate(widget.item.startAt.isNotEmpty
+          ? widget.item.startAt
+          : widget.item.eventDate),
     );
     _startTimeCtrl = TextEditingController(
-      text: _toDisplayTime(widget.item.startAt.isNotEmpty ? widget.item.startAt : widget.item.eventDate),
+      text: _toDisplayTime(widget.item.startAt.isNotEmpty
+          ? widget.item.startAt
+          : widget.item.eventDate),
     );
     _endDateCtrl = TextEditingController(text: _toDisplayDate(endSource));
     _endTimeCtrl = TextEditingController(text: _toDisplayTime(endSource));
@@ -1604,9 +1820,10 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     _repeatWeekly = widget.item.repeatWeekly;
     final fallbackWeekday = (parsedDate ?? DateTime.now()).weekday - 1;
     final itemWeekday = widget.item.repeatWeekday;
-    _repeatWeekday = (itemWeekday != null && itemWeekday >= 0 && itemWeekday <= 6)
-        ? itemWeekday
-        : fallbackWeekday.clamp(0, 6).toInt();
+    _repeatWeekday =
+        (itemWeekday != null && itemWeekday >= 0 && itemWeekday <= 6)
+            ? itemWeekday
+            : fallbackWeekday.clamp(0, 6).toInt();
     if (_isPromoLesson) {
       _repeatWeekly = false;
     }
@@ -1627,8 +1844,10 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   }
 
   Future<void> _save() async {
-    final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
-    DateTime? endMoment = _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    final startMoment = _combineDateAndTime(
+        _startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
+    DateTime? endMoment =
+        _combineDateAndTime(_endDateCtrl.text.trim(), _endTimeCtrl.text.trim());
     if (startMoment == null) {
       setState(() => _error = 'Başlangıç tarihi ve saati zorunlu.');
       return;
@@ -1646,7 +1865,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       final effectiveRepeatWeekly = !_isPromoLesson && _repeatWeekly;
       final req = http.MultipartRequest(
         'POST',
-        Uri.parse('$_base/events/manage/items/${widget.item.submissionId}/update'),
+        Uri.parse(
+            '$_base/events/manage/items/${widget.item.submissionId}/update'),
       )
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
         ..fields['description'] = _descCtrl.text.trim()
@@ -1660,16 +1880,19 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..fields['cover_crop'] = _coverCrop
         ..fields['dance_styles'] = _danceStylesPayload(_danceStyles)
         ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
-        ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
+        ..fields['repeat_weekday'] =
+            effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim();
       if (_coverImage != null) {
-        req.files.add(await http.MultipartFile.fromPath('cover_image', _coverImage!.path));
+        req.files.add(await http.MultipartFile.fromPath(
+            'cover_image', _coverImage!.path));
       }
       final res = await req.send();
       final body = await res.stream.bytesToString();
       if (res.statusCode != 200) {
-        setState(() => _error = parseApiErrorBody(body, fallback: 'Kaydetme başarısız'));
+        setState(() =>
+            _error = parseApiErrorBody(body, fallback: 'Kaydetme başarısız'));
         return;
       }
       if (!mounted) return;
@@ -1681,15 +1904,162 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     }
   }
 
+  Future<bool> _confirmAction({
+    required String title,
+    required String message,
+    required String actionLabel,
+    bool destructive = false,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            style: destructive
+                ? ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                  )
+                : null,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _setEventActive(bool isActive) async {
+    final confirmed = await _confirmAction(
+      title: isActive ? 'Etkinliği Aktife Al' : 'Etkinliği Pasife Al',
+      message: isActive
+          ? 'Bu etkinlik uygulamada tekrar görünür hale getirilecek. Devam edilsin mi?'
+          : 'Bu etkinlik uygulamada pasife alınacak. Devam edilsin mi?',
+      actionLabel: isActive ? 'Aktife Al' : 'Pasife Al',
+      destructive: !isActive,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() {
+      _actionBusy = true;
+      _error = null;
+    });
+    try {
+      final res = await http.post(
+        Uri.parse(
+            '$_base/events/manage/items/${widget.item.submissionId}/active'),
+        headers: {
+          'Authorization': 'Bearer ${widget.sessionToken}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'is_active': isActive}),
+      );
+      if (res.statusCode != 200) {
+        setState(() => _error = parseApiErrorBody(res.body,
+            fallback: 'Etkinlik durumu güncellenemedi'));
+        return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(isActive
+                ? 'Etkinlik aktife alındı.'
+                : 'Etkinlik pasife alındı.')),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Hata: $e');
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
+  Future<void> _copyEvent() async {
+    final confirmed = await _confirmAction(
+      title: 'Etkinliği Kopyala',
+      message:
+          'Bu etkinliğin aynı bilgilerle yeni bir kopyası oluşturulacak. Devam edilsin mi?',
+      actionLabel: 'Kopyala',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() {
+      _actionBusy = true;
+      _error = null;
+    });
+    try {
+      final res = await http.post(
+        Uri.parse(
+            '$_base/events/manage/items/${widget.item.submissionId}/copy'),
+        headers: {'Authorization': 'Bearer ${widget.sessionToken}'},
+      );
+      if (res.statusCode != 200) {
+        setState(() => _error =
+            parseApiErrorBody(res.body, fallback: 'Etkinlik kopyalanamadı'));
+        return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Etkinlik kopyalandı.')),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Hata: $e');
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
+  Future<void> _deleteEvent() async {
+    final confirmed = await _confirmAction(
+      title: 'Etkinliği Sil',
+      message: 'Bu etkinlik uygulamadan kaldırılacak. Devam edilsin mi?',
+      actionLabel: 'Sil',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() {
+      _actionBusy = true;
+      _error = null;
+    });
+    try {
+      final res = await http.delete(
+        Uri.parse('$_base/events/manage/items/${widget.item.submissionId}'),
+        headers: {'Authorization': 'Bearer ${widget.sessionToken}'},
+      );
+      if (res.statusCode != 200) {
+        setState(() => _error =
+            parseApiErrorBody(res.body, fallback: 'Etkinlik silinemedi'));
+        return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Etkinlik silindi.')),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Hata: $e');
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(
+          16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
       child: ListView(
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: AppTheme.panel(tone: AppTone.events, radius: 20, elevated: true),
+            decoration: AppTheme.panel(
+                tone: AppTone.events, radius: 20, elevated: true),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1697,22 +2067,68 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                   widget.item.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  widget.item.eventDate.isEmpty ? 'Tarih bilgisi yok' : _toDisplayDate(widget.item.eventDate),
-                  style: const TextStyle(fontSize: 13.5, color: AppTheme.textSecondary),
+                  widget.item.eventDate.isEmpty
+                      ? 'Tarih bilgisi yok'
+                      : _toDisplayDate(widget.item.eventDate),
+                  style: const TextStyle(
+                      fontSize: 13.5, color: AppTheme.textSecondary),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.item.city.trim().isEmpty ? 'Şehir belirtilmedi' : widget.item.city,
-                  style: const TextStyle(fontSize: 13.5, color: AppTheme.textSecondary),
+                  widget.item.city.trim().isEmpty
+                      ? 'Şehir belirtilmedi'
+                      : widget.item.city,
+                  style: const TextStyle(
+                      fontSize: 13.5, color: AppTheme.textSecondary),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
+          _section(
+            'Yönetici İşlemleri',
+            [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : () => _setEventActive(!widget.item.eventIsActive),
+                    icon: Icon(widget.item.eventIsActive
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined),
+                    label: Text(
+                        widget.item.eventIsActive ? 'Pasife Al' : 'Aktife Al'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _copyEvent,
+                    icon: const Icon(Icons.copy_rounded),
+                    label: const Text('Kopyala'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _deleteEvent,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Sil'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
+                    ),
+                  ),
+                ],
+              ),
+              if (_actionBusy) ...[
+                const SizedBox(height: 10),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
+            ],
+          ),
           _section(
             'Genel Bilgiler',
             [
@@ -1758,7 +2174,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                                     height: 148,
                                     color: AppTheme.surfacePrimary,
                                     alignment: Alignment.center,
-                                    child: const Icon(Icons.image_not_supported_outlined, color: AppTheme.textSecondary),
+                                    child: const Icon(
+                                        Icons.image_not_supported_outlined,
+                                        color: AppTheme.textSecondary),
                                   ),
                                 )
                               : Container(
@@ -1766,14 +2184,16 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                                   width: double.infinity,
                                   color: AppTheme.surfacePrimary,
                                   alignment: Alignment.center,
-                                  child: const Icon(Icons.image_not_supported_outlined, color: AppTheme.textSecondary),
+                                  child: const Icon(
+                                      Icons.image_not_supported_outlined,
+                                      color: AppTheme.textSecondary),
                                 )),
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         ElevatedButton.icon(
-                          onPressed: _saving
+                          onPressed: _busy
                               ? null
                               : () async {
                                   try {
@@ -1790,21 +2210,28 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                                     }
                                   } on TimeoutException {
                                     if (!mounted) return;
-                                    setState(() => _error = I18n.t('gallery_timeout'));
+                                    setState(() =>
+                                        _error = I18n.t('gallery_timeout'));
                                   } catch (e) {
                                     if (!mounted) return;
-                                    setState(() => _error = '${I18n.t('photo_pick_failed')}: $e');
+                                    setState(() => _error =
+                                        '${I18n.t('photo_pick_failed')}: $e');
                                   }
                                 },
                           icon: const Icon(Icons.image_outlined),
-                          label: Text(_coverImage == null ? 'Afişi Değiştir' : 'Yeni Afiş Seçildi'),
+                          label: Text(_coverImage == null
+                              ? 'Afişi Değiştir'
+                              : 'Yeni Afiş Seçildi'),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            _coverImage == null ? 'Mevcut afiş korunuyor' : _coverImage!.name,
+                            _coverImage == null
+                                ? 'Mevcut afiş korunuyor'
+                                : _coverImage!.name,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                            style: const TextStyle(
+                                fontSize: 12.5, color: AppTheme.textSecondary),
                           ),
                         ),
                       ],
@@ -1813,7 +2240,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                 ),
               ),
               _txt(_venueNameCtrl, 'Mekan Adı'),
-              _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
+              _txt(_venueMapCtrl, 'Konum Linki',
+                  keyboardType: TextInputType.url),
               _eventCityField(
                 value: _cities.contains(_city) ? _city : 'Belirtilmedi',
                 enabled: !_saving,
@@ -1824,12 +2252,20 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               DropdownButtonFormField<String>(
                 value: _eventKind,
                 items: [
-                  DropdownMenuItem(value: 'dance_night', child: Text(I18n.t('event_type_dance_night'))),
-                  DropdownMenuItem(value: 'festival', child: Text(I18n.t('event_type_festival'))),
-                  DropdownMenuItem(value: 'competition', child: Text(I18n.t('event_type_competition'))),
-                  DropdownMenuItem(value: 'promo_lesson', child: Text(I18n.t('event_type_promo_lesson'))),
+                  DropdownMenuItem(
+                      value: 'dance_night',
+                      child: Text(I18n.t('event_type_dance_night'))),
+                  DropdownMenuItem(
+                      value: 'festival',
+                      child: Text(I18n.t('event_type_festival'))),
+                  DropdownMenuItem(
+                      value: 'competition',
+                      child: Text(I18n.t('event_type_competition'))),
+                  DropdownMenuItem(
+                      value: 'promo_lesson',
+                      child: Text(I18n.t('event_type_promo_lesson'))),
                 ],
-                onChanged: _saving
+                onChanged: _busy
                     ? null
                     : (v) => setState(() {
                           _eventKind = v ?? _eventKind;
@@ -1843,17 +2279,25 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               DropdownButtonFormField<String>(
                 value: _coverCrop,
                 items: [
-                  DropdownMenuItem(value: 'top', child: Text(I18n.t('cover_crop_top'))),
-                  DropdownMenuItem(value: 'center', child: Text(I18n.t('cover_crop_center'))),
-                  DropdownMenuItem(value: 'bottom', child: Text(I18n.t('cover_crop_bottom'))),
+                  DropdownMenuItem(
+                      value: 'top', child: Text(I18n.t('cover_crop_top'))),
+                  DropdownMenuItem(
+                      value: 'center',
+                      child: Text(I18n.t('cover_crop_center'))),
+                  DropdownMenuItem(
+                      value: 'bottom',
+                      child: Text(I18n.t('cover_crop_bottom'))),
                 ],
-                onChanged: _saving ? null : (v) => setState(() => _coverCrop = _normalizeCoverCrop(v)),
+                onChanged: _busy
+                    ? null
+                    : (v) =>
+                        setState(() => _coverCrop = _normalizeCoverCrop(v)),
                 decoration: _fieldDecoration(I18n.t('cover_crop_label')),
               ),
               const SizedBox(height: 4),
               _DanceStylesField(
                 selectedStyles: _danceStyles,
-                onToggle: _saving
+                onToggle: _busy
                     ? null
                     : (style) => setState(() {
                           if (_danceStyles.contains(style)) {
@@ -1892,7 +2336,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                       : 'Açıkken tarihi geçen etkinlik kapanır, aynı etkinliğin yenisi otomatik açılır.',
                 ),
                 value: _isPromoLesson ? false : _repeatWeekly,
-                onChanged: (_saving || _isPromoLesson) ? null : (v) => setState(() => _repeatWeekly = v),
+                onChanged: (_busy || _isPromoLesson)
+                    ? null
+                    : (v) => setState(() => _repeatWeekly = v),
               ),
               if (!_isPromoLesson && _repeatWeekly)
                 Padding(
@@ -1901,9 +2347,13 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
                     value: _repeatWeekday,
                     items: List.generate(
                       _weekdayLabels.length,
-                      (i) => DropdownMenuItem<int>(value: i, child: Text(_weekdayLabels[i])),
+                      (i) => DropdownMenuItem<int>(
+                          value: i, child: Text(_weekdayLabels[i])),
                     ),
-                    onChanged: _saving ? null : (v) => setState(() => _repeatWeekday = v ?? _repeatWeekday),
+                    onChanged: _busy
+                        ? null
+                        : (v) => setState(
+                            () => _repeatWeekday = v ?? _repeatWeekday),
                     decoration: _fieldDecoration('Tekrar Günü'),
                   ),
                 ),
@@ -1927,8 +2377,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _saving ? null : _save,
-              child: Text(_saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'),
+              onPressed: _busy ? null : _save,
+              child:
+                  Text(_saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'),
             ),
           ),
           const SizedBox(height: 12),
@@ -1950,7 +2401,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
+      decoration:
+          AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1976,8 +2428,10 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       child: TextField(
         controller: c,
         maxLines: maxLines,
-        keyboardType: keyboardType ?? (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
-        textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+        keyboardType: keyboardType ??
+            (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
+        textInputAction:
+            maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
         enableInteractiveSelection: true,
         decoration: _fieldDecoration(label),
       ),
@@ -2013,7 +2467,10 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
 
   String _normalizeKind(String raw) {
     final v = raw.trim().toLowerCase();
-    if (v == 'festival' || v == 'competition' || v == 'dance_night' || v == 'promo_lesson') return v;
+    if (v == 'festival' ||
+        v == 'competition' ||
+        v == 'dance_night' ||
+        v == 'promo_lesson') return v;
     return 'dance_night';
   }
 
@@ -2023,7 +2480,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     return 'center';
   }
 
-  Future<void> _pickDate(TextEditingController ctrl, {bool updateRepeatWeekday = false}) async {
+  Future<void> _pickDate(TextEditingController ctrl,
+      {bool updateRepeatWeekday = false}) async {
     final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
     final date = await showDatePicker(
       context: context,
@@ -2039,7 +2497,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   }
 
   Future<void> _pickTime(TextEditingController ctrl) async {
-    final initial = _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 21, minute: 0);
+    final initial =
+        _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 21, minute: 0);
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null || !mounted) return;
     final h = picked.hour.toString().padLeft(2, '0');
@@ -2060,14 +2519,18 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+          style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary),
         ),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               flex: 2,
-              child: _dateField(dateCtrl, dateLabel, updateRepeatWeekday: updateRepeatWeekday),
+              child: _dateField(dateCtrl, dateLabel,
+                  updateRepeatWeekday: updateRepeatWeekday),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -2105,7 +2568,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     );
   }
 
-  Widget _dateField(TextEditingController c, String label, {bool updateRepeatWeekday = false}) {
+  Widget _dateField(TextEditingController c, String label,
+      {bool updateRepeatWeekday = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
@@ -2183,14 +2647,53 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
   }
 
   Future<void> _importGuestList() async {
+    if (_importing) return;
+    setState(() => _importing = true);
     try {
-      final lists = await GuestListApi.listGuestLists(widget.sessionToken);
+      var allLists = await GuestListApi.listGuestLists(widget.sessionToken);
+      var lists = allLists.where((list) => list.isOwned).toList();
       if (!mounted) return;
       if (lists.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Önce profilden bir davetli listesi oluşturun.')),
+        final hasMasterLists = allLists.any((list) => list.isMaster);
+        final openLists = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(hasMasterLists
+                ? 'Önce Listeyi Profilinize Kopyalayın'
+                : 'Davetli Listesi Bulunamadı'),
+            content: Text(
+              hasMasterLists
+                  ? 'Master listeler doğrudan etkinliğe aktarılamaz. Davetli Listeleri ekranından bir Master listeyi profilinize kopyalayın; kopyayı düzenleyip buradan aktarabilirsiniz.'
+                  : 'Bu hesap için henüz bir davetli listesi yok. Liste oluşturduktan sonra buraya dönüp etkinliğe aktarabilirsiniz.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: const Icon(Icons.groups_rounded),
+                label: Text(hasMasterLists
+                    ? 'Davetli Listelerine Git'
+                    : 'Liste Oluştur'),
+              ),
+            ],
+          ),
         );
-        return;
+        if (openLists != true || !mounted) return;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => GuestListsScreen(
+              sessionToken: widget.sessionToken,
+              createOnOpen: !hasMasterLists,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        allLists = await GuestListApi.listGuestLists(widget.sessionToken);
+        lists = allLists.where((list) => list.isOwned).toList();
+        if (!mounted || lists.isEmpty) return;
       }
       final selected = await showModalBottomSheet<GuestListSummary>(
         context: context,
@@ -2227,7 +2730,8 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
                         color: AppTheme.violet.withOpacity(0.16),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.groups_rounded, color: AppTheme.violet),
+                      child: const Icon(Icons.groups_rounded,
+                          color: AppTheme.violet),
                     ),
                     title: Text(
                       list.name,
@@ -2246,7 +2750,6 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
         ),
       );
       if (selected == null || !mounted) return;
-      setState(() => _importing = true);
       final result = await GuestListApi.importGuestListToEvent(
         sessionToken: widget.sessionToken,
         submissionId: widget.submissionId,
@@ -2287,7 +2790,8 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Davetliyi Kaldır'),
-        content: Text('${invitee.name} bu etkiniğin davetli listesinden çıkarılsın mı?'),
+        content: Text(
+            '${invitee.name} bu etkiniğin davetli listesinden çıkarılsın mı?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -2310,7 +2814,8 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
       if (!mounted) return;
       setState(() => _invitees = result);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${invitee.name} davetli listesinden çıkarıldı.')),
+        SnackBar(
+            content: Text('${invitee.name} davetli listesinden çıkarıldı.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -2325,12 +2830,14 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
     final invitees = _invitees;
     final listNames = <String>{
       for (final item in invitees?.items ?? const <EventInvitee>[])
-        if (item.sourceGuestListName.trim().isNotEmpty) item.sourceGuestListName.trim(),
+        if (item.sourceGuestListName.trim().isNotEmpty)
+          item.sourceGuestListName.trim(),
     }.toList();
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
+      decoration:
+          AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2357,7 +2864,8 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.playlist_add_check_circle_outlined),
-                label: Text(_importing ? 'Aktarılıyor...' : 'Davetli Listesi Aktar'),
+                label: Text(
+                    _importing ? 'Aktarılıyor...' : 'Davetli Listesi Aktar'),
               ),
               OutlinedButton.icon(
                 onPressed: _loading ? null : _load,
@@ -2402,7 +2910,8 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
                       children: listNames
                           .map(
                             (name) => Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 color: AppTheme.violet.withOpacity(0.14),
                                 borderRadius: BorderRadius.circular(999),
@@ -2439,15 +2948,24 @@ class _EventGuestListSectionState extends State<_EventGuestListSection> {
                     border: Border.all(color: AppTheme.borderSoft),
                   ),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                     leading: CircleAvatar(
                       backgroundColor: AppTheme.surfaceSecondary,
-                      backgroundImage: invitee.avatarUrl.trim().isNotEmpty ? NetworkImage(invitee.avatarUrl.trim()) : null,
+                      backgroundImage: invitee.avatarUrl.trim().isNotEmpty
+                          ? NetworkImage(invitee.avatarUrl.trim())
+                          : null,
                       child: invitee.avatarUrl.trim().isNotEmpty
                           ? null
                           : Text(
-                              invitee.name.trim().isEmpty ? '?' : invitee.name.trim().substring(0, 1).toUpperCase(),
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              invitee.name.trim().isEmpty
+                                  ? '?'
+                                  : invitee.name
+                                      .trim()
+                                      .substring(0, 1)
+                                      .toUpperCase(),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
                             ),
                     ),
                     title: Text(
@@ -2590,7 +3108,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
       );
     } on EventSocialApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _drawing = false);
     }
@@ -2611,7 +3130,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
       );
     } on EventSocialApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _opening = false);
     }
@@ -2632,7 +3152,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
       );
     } on EventSocialApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _closing = false);
     }
@@ -2676,7 +3197,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
       );
     } on EventSocialApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -2688,7 +3210,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
+      decoration:
+          AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2698,13 +3221,17 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
           ),
           const SizedBox(height: 12),
           if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+            const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator()))
           else if ((_error ?? '').trim().isNotEmpty) ...[
             Text(_error!, style: const TextStyle(color: Colors.redAccent)),
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(onPressed: _load, child: const Text('Tekrar Dene')),
+              child: TextButton(
+                  onPressed: _load, child: const Text('Tekrar Dene')),
             ),
           ] else if (raffle == null) ...[
             const Text(
@@ -2733,20 +3260,29 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
             ),
             const SizedBox(height: 12),
             if (raffle.startsAt.trim().isNotEmpty)
-              _RaffleInfoRow(label: 'Başvurular Açıldı', value: _toDisplayRaffleMoment(raffle.startsAt)),
+              _RaffleInfoRow(
+                  label: 'Başvurular Açıldı',
+                  value: _toDisplayRaffleMoment(raffle.startsAt)),
             if (raffle.endsAt.trim().isNotEmpty)
-              _RaffleInfoRow(label: 'Başvurular Durdu', value: _toDisplayRaffleMoment(raffle.endsAt)),
+              _RaffleInfoRow(
+                  label: 'Başvurular Durdu',
+                  value: _toDisplayRaffleMoment(raffle.endsAt)),
             if (raffle.drawnAt.trim().isNotEmpty)
-              _RaffleInfoRow(label: 'Çekiliş Sonucu', value: _toDisplayRaffleMoment(raffle.drawnAt)),
+              _RaffleInfoRow(
+                  label: 'Çekiliş Sonucu',
+                  value: _toDisplayRaffleMoment(raffle.drawnAt)),
             if (raffle.primaryWinners.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const Text('Asıl Talihliler', style: TextStyle(fontWeight: FontWeight.w700)),
+              const Text('Asıl Talihliler',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               ...raffle.primaryWinners.map(
                 (winner) => Container(
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration:
+                      AppTheme.glassPanel(tone: AppTone.events, radius: 16),
                   child: Row(
                     children: [
                       Container(
@@ -2765,7 +3301,9 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                          winner.name.trim().isEmpty
+                              ? 'Kullanıcı'
+                              : winner.name.trim(),
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -2776,13 +3314,16 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
             ],
             if (raffle.reserveWinners.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const Text('Yedek Talihliler', style: TextStyle(fontWeight: FontWeight.w700)),
+              const Text('Yedek Talihliler',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               ...raffle.reserveWinners.map(
                 (winner) => Container(
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration:
+                      AppTheme.glassPanel(tone: AppTone.events, radius: 16),
                   child: Row(
                     children: [
                       Container(
@@ -2801,7 +3342,9 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                          winner.name.trim().isEmpty
+                              ? 'Kullanıcı'
+                              : winner.name.trim(),
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -2818,7 +3361,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                 OutlinedButton.icon(
                   onPressed: raffle.canEdit ? _openEditor : null,
                   icon: const Icon(Icons.edit_calendar_outlined),
-                  label: Text(raffle.canEdit ? 'Çekilişi Düzenle' : 'Sonuçlandı'),
+                  label:
+                      Text(raffle.canEdit ? 'Çekilişi Düzenle' : 'Sonuçlandı'),
                 ),
                 if (raffle.canOpen)
                   ElevatedButton.icon(
@@ -2827,7 +3371,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.play_circle_outline),
                     label: Text(_opening ? 'Açılıyor...' : 'Başvuruları Aç'),
@@ -2842,7 +3387,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.pause_circle_outline),
-                    label: Text(_closing ? 'Durduruluyor...' : 'Başvuruları Durdur'),
+                    label: Text(
+                        _closing ? 'Durduruluyor...' : 'Başvuruları Durdur'),
                   ),
                 if (raffle.canDraw)
                   ElevatedButton.icon(
@@ -2851,7 +3397,8 @@ class _EventRaffleSectionState extends State<_EventRaffleSection> {
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.auto_awesome),
                     label: Text(_drawing ? 'Belirleniyor...' : 'Çekiliş Yap'),
@@ -2893,7 +3440,8 @@ class _EventRaffleEditorScreen extends StatefulWidget {
   });
 
   @override
-  State<_EventRaffleEditorScreen> createState() => _EventRaffleEditorScreenState();
+  State<_EventRaffleEditorScreen> createState() =>
+      _EventRaffleEditorScreenState();
 }
 
 class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
@@ -2905,7 +3453,8 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
   void initState() {
     super.initState();
     final raffle = widget.raffle;
-    _winnerCountCtrl = TextEditingController(text: raffle == null ? '1' : raffle.winnerCount.toString());
+    _winnerCountCtrl = TextEditingController(
+        text: raffle == null ? '1' : raffle.winnerCount.toString());
   }
 
   @override
@@ -2953,7 +3502,8 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: AppTheme.panel(tone: AppTone.events, radius: 20, elevated: true),
+              decoration: AppTheme.panel(
+                  tone: AppTone.events, radius: 20, elevated: true),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2961,12 +3511,14 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
                     widget.eventName,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Talihli sayısını belirle. Başvuruları istediğin anda açıp durdurabilir, ardından aynı sayı kadar asıl ve yedek talihli seçebilirsin.',
-                    style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, height: 1.4),
                   ),
                 ],
               ),
@@ -2974,21 +3526,26 @@ class _EventRaffleEditorScreenState extends State<_EventRaffleEditorScreen> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: AppTheme.panel(tone: AppTone.events, radius: 20, subtle: true),
+              decoration: AppTheme.panel(
+                  tone: AppTone.events, radius: 20, subtle: true),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Çekiliş Ayarı', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  const Text('Çekiliş Ayarı',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _winnerCountCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: _raffleFieldDecoration('Kaç Kişi (Asıl + Yedek)'),
+                    decoration:
+                        _raffleFieldDecoration('Kaç Kişi (Asıl + Yedek)'),
                   ),
                   const SizedBox(height: 10),
                   const Text(
                     'Örnek: 3 girersen çekiliş yapıldığında 3 asıl ve 3 yedek talihli belirlenir.',
-                    style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, height: 1.4),
                   ),
                 ],
               ),
@@ -3038,7 +3595,10 @@ class _RaffleDateTimeBlock extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+          style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary),
         ),
         const SizedBox(height: 8),
         Row(
@@ -3051,7 +3611,8 @@ class _RaffleDateTimeBlock extends StatelessWidget {
                   controller: dateCtrl,
                   readOnly: true,
                   onTap: () => onPickDate(dateCtrl),
-                  decoration: _raffleFieldDecoration(dateLabel, suffixIcon: Icons.calendar_month),
+                  decoration: _raffleFieldDecoration(dateLabel,
+                      suffixIcon: Icons.calendar_month),
                 ),
               ),
             ),
@@ -3063,7 +3624,8 @@ class _RaffleDateTimeBlock extends StatelessWidget {
                   controller: timeCtrl,
                   readOnly: true,
                   onTap: () => onPickTime(timeCtrl),
-                  decoration: _raffleFieldDecoration(timeLabel, suffixIcon: Icons.access_time),
+                  decoration: _raffleFieldDecoration(timeLabel,
+                      suffixIcon: Icons.access_time),
                 ),
               ),
             ),
@@ -3119,7 +3681,8 @@ class _RaffleInfoRow extends StatelessWidget {
             width: 76,
             child: Text(
               label,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12.5),
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 12.5),
             ),
           ),
           const SizedBox(width: 8),
@@ -3189,7 +3752,8 @@ class _RepeatSelectedDatesSheet extends StatefulWidget {
   });
 
   @override
-  State<_RepeatSelectedDatesSheet> createState() => _RepeatSelectedDatesSheetState();
+  State<_RepeatSelectedDatesSheet> createState() =>
+      _RepeatSelectedDatesSheetState();
 }
 
 class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
@@ -3233,7 +3797,8 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
   @override
   Widget build(BuildContext context) {
     final firstDay = DateTime(_focusMonth.year, _focusMonth.month, 1);
-    final daysInMonth = DateTime(_focusMonth.year, _focusMonth.month + 1, 0).day;
+    final daysInMonth =
+        DateTime(_focusMonth.year, _focusMonth.month + 1, 0).day;
     final leadingEmptyCells = firstDay.weekday - 1;
     final sortedDates = _sortedDateKeys(_selectedKeys);
 
@@ -3259,7 +3824,8 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
             ),
             Text(
               'Ay değiştirip günleri seç. Seçilen her tarih ayrı bir etkinlik olarak oluşturulur.',
-              style: TextStyle(color: Colors.white.withOpacity(0.72), height: 1.4),
+              style:
+                  TextStyle(color: Colors.white.withOpacity(0.72), height: 1.4),
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -3278,7 +3844,8 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
                           child: Center(
                             child: Text(
                               _formatMonthYearTr(_focusMonth),
-                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                              style: const TextStyle(
+                                  fontSize: 17, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ),
@@ -3301,7 +3868,10 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
                           Center(
                             child: Text(
                               label,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textSecondary),
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textSecondary),
                             ),
                           ),
                         for (int i = 0; i < leadingEmptyCells; i += 1)
@@ -3309,17 +3879,23 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
                         for (int day = 1; day <= daysInMonth; day += 1)
                           Builder(
                             builder: (context) {
-                              final value = DateTime(_focusMonth.year, _focusMonth.month, day);
-                              final isSelected = _selectedKeys.contains(_dateKey(value));
+                              final value = DateTime(
+                                  _focusMonth.year, _focusMonth.month, day);
+                              final isSelected =
+                                  _selectedKeys.contains(_dateKey(value));
                               return InkWell(
                                 borderRadius: BorderRadius.circular(12),
                                 onTap: () => _toggleDate(value),
                                 child: Ink(
                                   decoration: BoxDecoration(
-                                    color: isSelected ? AppTheme.orange : const Color(0xFF111827),
+                                    color: isSelected
+                                        ? AppTheme.orange
+                                        : const Color(0xFF111827),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: isSelected ? AppTheme.amber.withOpacity(0.55) : Colors.white12,
+                                      color: isSelected
+                                          ? AppTheme.amber.withOpacity(0.55)
+                                          : Colors.white12,
                                     ),
                                   ),
                                   child: Center(
@@ -3327,7 +3903,9 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
                                       '$day',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        color: isSelected ? Colors.black : Colors.white,
+                                        color: isSelected
+                                            ? Colors.black
+                                            : Colors.white,
                                       ),
                                     ),
                                   ),
@@ -3350,7 +3928,8 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
                           ),
                         if (_selectedKeys.isNotEmpty)
                           TextButton.icon(
-                            onPressed: () => setState(() => _selectedKeys.clear()),
+                            onPressed: () =>
+                                setState(() => _selectedKeys.clear()),
                             icon: const Icon(Icons.layers_clear_outlined),
                             label: const Text('Seçimi Temizle'),
                           ),
@@ -3378,8 +3957,11 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop<Set<String>>(Set<String>.from(_selectedKeys)),
-                child: Text(sortedDates.isEmpty ? 'Tarih Seçmeden Kapat' : '${sortedDates.length} Tarihi Kaydet'),
+                onPressed: () => Navigator.of(context)
+                    .pop<Set<String>>(Set<String>.from(_selectedKeys)),
+                child: Text(sortedDates.isEmpty
+                    ? 'Tarih Seçmeden Kapat'
+                    : '${sortedDates.length} Tarihi Kaydet'),
               ),
             ),
           ],
@@ -3399,7 +3981,8 @@ class _CreateEventSheet extends StatefulWidget {
 }
 
 class _CreateEventSheetState extends State<_CreateEventSheet> {
-  static const String _submitUrl = 'https://api2.dansmagazin.net/events/submissions';
+  static const String _submitUrl =
+      'https://api2.dansmagazin.net/events/submissions';
 
   final _eventCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -3440,7 +4023,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     super.dispose();
   }
 
-  Future<void> _pickDate(TextEditingController ctrl, {bool updateRepeatWeekday = false}) async {
+  Future<void> _pickDate(TextEditingController ctrl,
+      {bool updateRepeatWeekday = false}) async {
     final initial = _parseEventDate(ctrl.text) ?? DateTime.now();
     final date = await showDatePicker(
       context: context,
@@ -3450,13 +4034,16 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
     if (date == null || !mounted) return;
     ctrl.text = _toDisplayDate(date.toIso8601String());
-    if (updateRepeatWeekday && _repeatMode == _repeatModeWeeklyFixed && !_isPromoLesson) {
+    if (updateRepeatWeekday &&
+        _repeatMode == _repeatModeWeeklyFixed &&
+        !_isPromoLesson) {
       setState(() => _repeatWeekday = date.weekday - 1);
     }
   }
 
   Future<void> _pickTime(TextEditingController ctrl) async {
-    final initial = _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 21, minute: 0);
+    final initial =
+        _parseTimeOfDay(ctrl.text) ?? const TimeOfDay(hour: 21, minute: 0);
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null || !mounted) return;
     final h = picked.hour.toString().padLeft(2, '0');
@@ -3515,8 +4102,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       setState(() => _error = 'Etkinlik adı zorunlu.');
       return;
     }
-    final startMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
-    DateTime? endMoment = _combineDateAndTime(_startDateCtrl.text.trim(), _endTimeCtrl.text.trim());
+    final startMoment = _combineDateAndTime(
+        _startDateCtrl.text.trim(), _startTimeCtrl.text.trim());
+    DateTime? endMoment = _combineDateAndTime(
+        _startDateCtrl.text.trim(), _endTimeCtrl.text.trim());
     if (startMoment == null) {
       setState(() => _error = 'Etkinlik tarihi ve başlangıç saati zorunlu.');
       return;
@@ -3527,8 +4116,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     }
     endMoment = _normalizeEventEnd(startMoment, endMoment);
     final effectiveRepeatMode = _isPromoLesson ? _repeatModeNone : _repeatMode;
-    if (effectiveRepeatMode == _repeatModeSelectedDates && _selectedRepeatDateKeys.isEmpty) {
-      setState(() => _error = 'Toplu oluşturma için en az bir tarih seçmelisin.');
+    if (effectiveRepeatMode == _repeatModeSelectedDates &&
+        _selectedRepeatDateKeys.isEmpty) {
+      setState(
+          () => _error = 'Toplu oluşturma için en az bir tarih seçmelisin.');
       return;
     }
     setState(() {
@@ -3536,8 +4127,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       _error = null;
     });
     try {
-      final effectiveRepeatWeekly = effectiveRepeatMode == _repeatModeWeeklyFixed;
-      final selectedRepeatDates = _sortedDateKeys(_selectedRepeatDateKeys).map(_dateKey).join(',');
+      final effectiveRepeatWeekly =
+          effectiveRepeatMode == _repeatModeWeeklyFixed;
+      final selectedRepeatDates =
+          _sortedDateKeys(_selectedRepeatDateKeys).map(_dateKey).join(',');
       final req = http.MultipartRequest('POST', Uri.parse(_submitUrl))
         ..fields['event_name'] = _eventCtrl.text.trim()
         ..fields['description'] = _descCtrl.text.trim()
@@ -3550,8 +4143,12 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
         ..fields['ticket_sales_enabled'] = '0'
         ..fields['repeat_mode'] = effectiveRepeatMode
         ..fields['repeat_weekly'] = effectiveRepeatWeekly ? '1' : '0'
-        ..fields['repeat_weekday'] = effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
-        ..fields['repeat_selected_dates'] = effectiveRepeatMode == _repeatModeSelectedDates ? selectedRepeatDates : ''
+        ..fields['repeat_weekday'] =
+            effectiveRepeatWeekly ? _repeatWeekday.toString() : ''
+        ..fields['repeat_selected_dates'] =
+            effectiveRepeatMode == _repeatModeSelectedDates
+                ? selectedRepeatDates
+                : ''
         ..fields['organizer_name'] = _orgCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_startDateCtrl.text.trim())
         ..fields['start_at'] = _formatApiMoment(startMoment)
@@ -3560,12 +4157,14 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       final token = widget.sessionToken.trim();
       if (token.isNotEmpty) req.headers['Authorization'] = 'Bearer $token';
       if (_image != null) {
-        req.files.add(await http.MultipartFile.fromPath('cover_image', _image!.path));
+        req.files.add(
+            await http.MultipartFile.fromPath('cover_image', _image!.path));
       }
       final streamed = await req.send();
       final body = await streamed.stream.bytesToString();
       if (streamed.statusCode != 200) {
-        setState(() => _error = parseApiErrorBody(body, fallback: 'Gönderim başarısız'));
+        setState(() =>
+            _error = parseApiErrorBody(body, fallback: 'Gönderim başarısız'));
         return;
       }
       if (!mounted) return;
@@ -3581,7 +4180,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3589,10 +4189,14 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               Row(
                 children: [
                   const Expanded(
-                    child: Text('Etkinliğini Ekle', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                    child: Text('Etkinliğini Ekle',
+                        style: TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w700)),
                   ),
                   TextButton(
-                    onPressed: _sending ? null : () => Navigator.of(context).pop(false),
+                    onPressed: _sending
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                     child: const Text('Vazgeç'),
                   ),
                 ],
@@ -3602,7 +4206,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               _txt(_descCtrl, 'Detaylar', maxLines: 3),
               _txt(_programCtrl, 'Program', maxLines: 3),
               _txt(_venueNameCtrl, 'Mekan Adı'),
-              _txt(_venueMapCtrl, 'Konum Linki', keyboardType: TextInputType.url),
+              _txt(_venueMapCtrl, 'Konum Linki',
+                  keyboardType: TextInputType.url),
               _eventCityField(
                 value: _city,
                 enabled: !_sending,
@@ -3611,17 +4216,21 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                   labelText: 'Şehir',
                   filled: true,
                   fillColor: const Color(0xFF111827),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _eventKind,
                 items: const [
-                  DropdownMenuItem(value: 'dance_night', child: Text('Dans Gecesi')),
+                  DropdownMenuItem(
+                      value: 'dance_night', child: Text('Dans Gecesi')),
                   DropdownMenuItem(value: 'festival', child: Text('Festival')),
-                  DropdownMenuItem(value: 'competition', child: Text('Yarışma')),
-                  DropdownMenuItem(value: 'promo_lesson', child: Text('Tanıtım Dersi')),
+                  DropdownMenuItem(
+                      value: 'competition', child: Text('Yarışma')),
+                  DropdownMenuItem(
+                      value: 'promo_lesson', child: Text('Tanıtım Dersi')),
                 ],
                 onChanged: _sending
                     ? null
@@ -3636,7 +4245,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                   labelText: 'Etkinlik Türü',
                   filled: true,
                   fillColor: const Color(0xFF111827),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
               const SizedBox(height: 4),
@@ -3657,9 +4267,14 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               DropdownButtonFormField<String>(
                 value: _isPromoLesson ? _repeatModeNone : _repeatMode,
                 items: const [
-                  DropdownMenuItem(value: _repeatModeNone, child: Text('Tek Etkinlik')),
-                  DropdownMenuItem(value: _repeatModeWeeklyFixed, child: Text('Her Hafta Aynı Gün')),
-                  DropdownMenuItem(value: _repeatModeSelectedDates, child: Text('Değişken Günleri Toplu Seç')),
+                  DropdownMenuItem(
+                      value: _repeatModeNone, child: Text('Tek Etkinlik')),
+                  DropdownMenuItem(
+                      value: _repeatModeWeeklyFixed,
+                      child: Text('Her Hafta Aynı Gün')),
+                  DropdownMenuItem(
+                      value: _repeatModeSelectedDates,
+                      child: Text('Değişken Günleri Toplu Seç')),
                 ],
                 onChanged: (_sending || _isPromoLesson)
                     ? null
@@ -3667,7 +4282,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                           _repeatMode = value ?? _repeatModeNone;
                           if (_repeatMode == _repeatModeWeeklyFixed) {
                             _syncRepeatWeekdayFromStartDate();
-                          } else if (_repeatMode == _repeatModeSelectedDates && _selectedRepeatDateKeys.isEmpty) {
+                          } else if (_repeatMode == _repeatModeSelectedDates &&
+                              _selectedRepeatDateKeys.isEmpty) {
                             _seedSelectedRepeatDatesFromStartDate();
                           }
                         }),
@@ -3678,7 +4294,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                       : 'Sabit gün için otomatik tekrar, değişken gün için toplu tarih oluşturma seçebilirsin.',
                   filled: true,
                   fillColor: const Color(0xFF111827),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
               if (!_isPromoLesson && _repeatMode == _repeatModeWeeklyFixed)
@@ -3688,14 +4305,19 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                     value: _repeatWeekday,
                     items: List.generate(
                       _weekdayLabels.length,
-                      (i) => DropdownMenuItem<int>(value: i, child: Text(_weekdayLabels[i])),
+                      (i) => DropdownMenuItem<int>(
+                          value: i, child: Text(_weekdayLabels[i])),
                     ),
-                    onChanged: _sending ? null : (v) => setState(() => _repeatWeekday = v ?? _repeatWeekday),
+                    onChanged: _sending
+                        ? null
+                        : (v) => setState(
+                            () => _repeatWeekday = v ?? _repeatWeekday),
                     decoration: InputDecoration(
                       labelText: 'Tekrar Günü',
                       filled: true,
                       fillColor: const Color(0xFF111827),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
@@ -3715,14 +4337,16 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                       children: [
                         const Text(
                           'Toplu Tarih Seçimi',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           _selectedRepeatDateKeys.isEmpty
                               ? 'Ay ay dolaşıp farklı günleri seçebilirsin. Seçtiğin her tarih için ayrı etkinlik oluşturulur.'
                               : '${_selectedRepeatDateKeys.length} tarih seçildi. İstersen tekrar açıp ay bazında günleri güncelle.',
-                          style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary, height: 1.4),
                         ),
                         const SizedBox(height: 12),
                         Wrap(
@@ -3730,10 +4354,13 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                           runSpacing: 8,
                           children: [
                             ElevatedButton.icon(
-                              onPressed: _sending ? null : _pickRepeatSelectedDates,
+                              onPressed:
+                                  _sending ? null : _pickRepeatSelectedDates,
                               icon: const Icon(Icons.event_available_outlined),
                               label: Text(
-                                _selectedRepeatDateKeys.isEmpty ? 'Tarihleri Seç' : 'Tarihleri Düzenle',
+                                _selectedRepeatDateKeys.isEmpty
+                                    ? 'Tarihleri Seç'
+                                    : 'Tarihleri Düzenle',
                               ),
                             ),
                             if (_selectedRepeatDateKeys.isNotEmpty)
@@ -3754,13 +4381,15 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              for (final date in _sortedDateKeys(_selectedRepeatDateKeys))
+                              for (final date
+                                  in _sortedDateKeys(_selectedRepeatDateKeys))
                                 InputChip(
                                   label: Text(_formatRepeatDateChip(date)),
                                   onDeleted: _sending
                                       ? null
                                       : () => setState(() {
-                                            _selectedRepeatDateKeys.remove(_dateKey(date));
+                                            _selectedRepeatDateKeys
+                                                .remove(_dateKey(date));
                                           }),
                                 ),
                             ],
@@ -3792,10 +4421,12 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                               }
                             } on TimeoutException {
                               if (!mounted) return;
-                              setState(() => _error = I18n.t('gallery_timeout'));
+                              setState(
+                                  () => _error = I18n.t('gallery_timeout'));
                             } catch (e) {
                               if (!mounted) return;
-                              setState(() => _error = '${I18n.t('photo_pick_failed')}: $e');
+                              setState(() => _error =
+                                  '${I18n.t('photo_pick_failed')}: $e');
                             }
                           },
                     style: ElevatedButton.styleFrom(
@@ -3805,14 +4436,20 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                     label: Text(I18n.t('select_cover')),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_image == null ? I18n.t('not_selected') : _image!.name, overflow: TextOverflow.ellipsis)),
+                  Expanded(
+                      child: Text(
+                          _image == null
+                              ? I18n.t('not_selected')
+                              : _image!.name,
+                          overflow: TextOverflow.ellipsis)),
                 ],
               ),
               if (_image != null) ...[
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.file(File(_image!.path), height: 120, fit: BoxFit.cover),
+                  child: Image.file(File(_image!.path),
+                      height: 120, fit: BoxFit.cover),
                 ),
               ],
               if (_error != null) ...[
@@ -3824,7 +4461,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _sending ? null : _submit,
-                  child: Text(_sending ? I18n.t('sending_ellipsis') : I18n.t('send_for_approval')),
+                  child: Text(_sending
+                      ? I18n.t('sending_ellipsis')
+                      : I18n.t('send_for_approval')),
                 ),
               ),
               const SizedBox(height: 12),
@@ -3850,8 +4489,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
       child: TextField(
         controller: c,
         maxLines: maxLines,
-        keyboardType: keyboardType ?? (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
-        textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+        keyboardType: keyboardType ??
+            (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
+        textInputAction:
+            maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
         enableInteractiveSelection: true,
         decoration: InputDecoration(
           labelText: label,
@@ -3867,7 +4508,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _dateField(_startDateCtrl, 'Etkinlik Tarihi', updateRepeatWeekday: true),
+        _dateField(_startDateCtrl, 'Etkinlik Tarihi',
+            updateRepeatWeekday: true),
         Row(
           children: [
             Expanded(
@@ -3883,7 +4525,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             'Bitiş saati başlangıçtan erken seçilirse etkinlik otomatik olarak ertesi güne taşınır.',
-            style: TextStyle(fontSize: 12.5, color: Colors.white.withOpacity(0.68), height: 1.35),
+            style: TextStyle(
+                fontSize: 12.5,
+                color: Colors.white.withOpacity(0.68),
+                height: 1.35),
           ),
         ),
       ],
@@ -3908,7 +4553,8 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
     );
   }
 
-  Widget _dateField(TextEditingController c, String label, {bool updateRepeatWeekday = false}) {
+  Widget _dateField(TextEditingController c, String label,
+      {bool updateRepeatWeekday = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
