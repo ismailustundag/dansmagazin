@@ -840,6 +840,20 @@ main {
 .dm-test-product-card strong {
   color: var(--red);
 }
+.dm-test-product-card > div > span:last-child {
+  margin-top: 0.35rem;
+  color: var(--magenta);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.dm-test-product-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.dm-test-product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+  border-color: rgba(255, 255, 255, 0.95);
+}
 @media (max-width: 650px) {
   [data-shop-catalog] .dm-test-product-grid {
     grid-template-columns: minmax(0, 1fr);

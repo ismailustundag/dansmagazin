@@ -21,6 +21,9 @@ const DM_I18N = {
   tr: {
     navHome: "Ana Sayfa", navNews: "Haberler", navShop: "Mağaza", navAccount: "Hesabım", navAdmin: "Yönetim",
     storeKicker: "Dans Magazin mağaza", cartView: "Sepeti gör", secureStore: "Güvenli mağaza",
+    catalogHeading: "Ürünler ve biletler", optionsLabel: "seçenek", reviewCta: "İncele",
+    catalogOffline: "Diğer ürünler şu anda yüklenemedi. Mevcut etkinlik biletleri aşağıdadır.",
+    optionLabel: "Seçenek", productNotFound: "Ürün bulunamadı", productLoadError: "Ürün yüklenemedi",
     productTitle: "Ankara Dans Festivali FULLPASS",
     productMeta: "Ankara Dans Festivali bilet ve konaklama seçenekleri.", shopMeta: "Etkinlik biletleri ve Dans Magazin ürünleri.",
     productDescription: "Ankara International Dance Festival 2026; dünya ve Türkiye yıldızlarını, 20’den fazla ülkeden sosyal dansçıları, sabaha kadar süren partileri ve unutulmaz workshopları başkentte buluşturuyor.",
@@ -45,6 +48,9 @@ const DM_I18N = {
   en: {
     navHome: "Home", navNews: "News", navShop: "Store", navAccount: "My Account", navAdmin: "Admin",
     storeKicker: "Dans Magazin store", cartView: "View cart", secureStore: "Secure store",
+    catalogHeading: "Products and tickets", optionsLabel: "options", reviewCta: "View",
+    catalogOffline: "Other products could not be loaded right now. The available event tickets are shown below.",
+    optionLabel: "Option", productNotFound: "Product not found", productLoadError: "Product could not be loaded",
     productTitle: "Ankara Dance Festival FULLPASS",
     productMeta: "Ankara Dance Festival ticket and accommodation options.", shopMeta: "Event tickets and Dans Magazin products.",
     productDescription: "Ankara International Dance Festival 2026 brings world and Turkish stars, social dancers from more than 20 countries, parties until dawn and unforgettable workshops together in the capital.",
@@ -69,6 +75,9 @@ const DM_I18N = {
   es: {
     navHome: "Inicio", navNews: "Noticias", navShop: "Tienda", navAccount: "Mi cuenta", navAdmin: "Admin",
     storeKicker: "Tienda Dans Magazin", cartView: "Ver carrito", secureStore: "Tienda segura",
+    catalogHeading: "Productos y entradas", optionsLabel: "opciones", reviewCta: "Ver",
+    catalogOffline: "Otros productos no se pudieron cargar ahora. Las entradas disponibles se muestran abajo.",
+    optionLabel: "Opción", productNotFound: "Producto no encontrado", productLoadError: "No se pudo cargar el producto",
     productTitle: "Ankara Dance Festival FULLPASS",
     productMeta: "Opciones de entradas y alojamiento para Ankara Dance Festival.", shopMeta: "Entradas para eventos y productos de Dans Magazin.",
     productDescription: "Ankara International Dance Festival 2026 reúne en la capital a estrellas mundiales y turcas, bailarines sociales de más de 20 países, fiestas hasta el amanecer y talleres inolvidables.",
@@ -785,24 +794,38 @@ async function loadCommerceShopProducts() {
     window.DM_PUBLIC_CATALOG = null;
   }
 }
-function hideSupersededLegacyProducts(products) {
-  const legacy = document.querySelector("[data-legacy-shop-grid]");
-  if (!legacy || !Array.isArray(products)) return;
+function supersededLegacyPaths(products) {
+  const paths = new Set();
+  if (!Array.isArray(products)) return paths;
   const known = new Map(liveEventProducts().map(item => [String(item.id), item]));
   const hiddenLegacyIds = new Set(products.map(product => String(product.legacy_woo_product_id || "")).filter(Boolean));
   (window.DM_LEGACY_VISIBILITY || new Map()).forEach((isActive, legacyId) => { if (!isActive) hiddenLegacyIds.add(String(legacyId)); });
   hiddenLegacyIds.forEach(legacyId => {
     const legacyProduct = known.get(legacyId);
     if (!legacyProduct?.productUrl) return;
-    const link = [...legacy.querySelectorAll("a[href]")].find(item => {
-      try { return new URL(item.href, location.origin).pathname === new URL(legacyProduct.productUrl, location.origin).pathname; }
-      catch (_) { return false; }
-    });
-    const card = link?.closest("article") || link?.closest(".dm-shop-product-card") || link;
-    if (card) card.hidden = true;
-    const companion = card?.nextElementSibling;
-    if (companion?.matches("aside")) companion.hidden = true;
+    try { paths.add(new URL(legacyProduct.productUrl, location.origin).pathname); } catch (_) {}
   });
+  return paths;
+}
+function collectVisibleLegacyCards(products) {
+  const legacy = document.querySelector("[data-legacy-shop-grid]");
+  if (!legacy) return [];
+  const superseded = supersededLegacyPaths(products);
+  const cards = [];
+  legacy.querySelectorAll(":scope > article").forEach(article => {
+    const link = article.querySelector("a[href]");
+    if (!link) return;
+    let path = "";
+    try { path = new URL(link.href, location.origin).pathname; } catch (_) { return; }
+    if (superseded.has(path)) return;
+    const img = article.querySelector(".dm-shop-product-image img");
+    const title = article.querySelector("h2")?.textContent?.trim() || "";
+    const priceStrong = article.querySelector(".dm-price-line strong");
+    const price = priceStrong?.textContent?.trim() || article.querySelector(".dm-price-line")?.textContent?.trim() || "";
+    if (!title) return;
+    cards.push({ url: link.getAttribute("href"), image: img?.getAttribute("src") || "", title, price });
+  });
+  return cards;
 }
 function renderSharedShop() {
   const catalog = document.querySelector("[data-shop-catalog]");
@@ -816,12 +839,12 @@ function renderSharedShop() {
     detail.hidden = false;
     const product = products?.find(item => `commerce-${item.id}` === productId);
     if (!product) {
-      detail.innerHTML = `<div class="dm-shop-panel"><h2>${products ? "Ürün bulunamadı" : "Ürün yüklenemedi"}</h2><a class="dm-shop-button subtle" href="${withLang("/magaza/")}">Mağazaya dön</a></div>`;
+      detail.innerHTML = `<div class="dm-shop-panel"><h2>${products ? tx("productNotFound") : tx("productLoadError")}</h2><a class="dm-shop-button subtle" href="${withLang("/magaza/")}">${tx("backToShop")}</a></div>`;
       return;
     }
     document.title = `${product.name} - Dans Magazin`;
     const image = commerceImageUrl(product.image_url) || "/wp-content/uploads/2024/05/Yeni-Logo1-TEMIZ-1.png";
-    detail.innerHTML = `<div class="dm-product-detail"><div class="dm-product-media"><div class="dm-product-media-main"><img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}"></div></div><div class="dm-product-buy"><h2>${escapeHtml(product.name)}</h2><p>${escapeHtml(product.description || "")}</p><form data-commerce-product-form><label>Seçenek<select name="variation_id" required>${product.variations.map(item => `<option value="${Number(item.id)}">${escapeHtml(item.name)} - ${money(item.price)}</option>`).join("")}</select></label><label>${tx("qty")}<input name="qty" type="number" min="1" max="20" value="1" required></label><div class="dm-selected-price"><strong data-commerce-price></strong></div><button class="dm-shop-button" type="submit">${tx("addToCart")}</button></form><p class="dm-shop-note" data-commerce-note role="status"></p><a class="dm-shop-button subtle" href="${withLang("/magaza/")}">Mağazaya dön</a></div></div>`;
+    detail.innerHTML = `<div class="dm-product-detail"><div class="dm-product-media"><div class="dm-product-media-main"><img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}"></div></div><div class="dm-product-buy"><h2>${escapeHtml(product.name)}</h2><p>${escapeHtml(product.description || "")}</p><form data-commerce-product-form><label>${tx("optionLabel")}<select name="variation_id" required>${product.variations.map(item => `<option value="${Number(item.id)}">${escapeHtml(item.name)} - ${money(item.price)}</option>`).join("")}</select></label><label>${tx("qty")}<input name="qty" type="number" min="1" max="20" value="1" required></label><div class="dm-selected-price"><strong data-commerce-price></strong></div><button class="dm-shop-button" type="submit">${tx("addToCart")}</button></form><p class="dm-shop-note" data-commerce-note role="status"></p><a class="dm-shop-button subtle" href="${withLang("/magaza/")}">${tx("backToShop")}</a></div></div>`;
     const form = detail.querySelector("[data-commerce-product-form]");
     const selectedVariation = () => product.variations.find(item => Number(item.id) === Number(form.elements.variation_id.value));
     const updatePrice = () => { detail.querySelector("[data-commerce-price]").textContent = money(selectedVariation()?.price || 0); };
@@ -848,16 +871,20 @@ function renderSharedShop() {
     return;
   }
   if (!products) {
-    catalog.innerHTML = `<p class="dm-shop-note" role="status">Diğer ürünler şu anda yüklenemedi. Mevcut etkinlik biletleri aşağıdadır.</p>`;
+    catalog.innerHTML = `<p class="dm-shop-note" role="status">${tx("catalogOffline")}</p>`;
     return;
   }
-  hideSupersededLegacyProducts(products);
-  if (!products.length) return;
-  catalog.innerHTML = `<h2>Satıştaki ürünler</h2><div class="dm-test-product-grid">${products.map(product => {
+  const legacyCards = collectVisibleLegacyCards(products);
+  const legacyGrid = document.querySelector("[data-legacy-shop-grid]");
+  if (legacyGrid) legacyGrid.style.display = "none";
+  if (!products.length && !legacyCards.length) return;
+  const sharedCards = products.map(product => {
     const image = commerceImageUrl(product.image_url) || "/wp-content/uploads/2024/05/Yeni-Logo1-TEMIZ-1.png";
     const price = Math.min(...product.variations.map(item => Number(item.price)));
-    return `<a class="dm-test-product-card" href="${withLang(`/magaza/?product=commerce-${encodeURIComponent(product.id)}`)}"><img src="${escapeHtml(image)}" alt=""><div><h2>${escapeHtml(product.name)}</h2><p>${product.variations.length} seçenek</p><strong>${money(price)}</strong><span>İncele</span></div></a>`;
-  }).join("")}</div>`;
+    return `<a class="dm-test-product-card" href="${withLang(`/magaza/?product=commerce-${encodeURIComponent(product.id)}`)}"><img src="${escapeHtml(image)}" alt=""><div><h2>${escapeHtml(product.name)}</h2><p>${product.variations.length} ${tx("optionsLabel")}</p><strong>${money(price)}</strong><span>${tx("reviewCta")}</span></div></a>`;
+  });
+  const legacyHtml = legacyCards.map(card => `<a class="dm-test-product-card" href="${withLang(card.url)}"><img src="${escapeHtml(card.image)}" alt=""><div><span class="dm-shop-badge">${tx("onSale")}</span><h2>${escapeHtml(card.title)}</h2><strong>${escapeHtml(card.price)}</strong><span>${tx("reviewCta")}</span></div></a>`);
+  catalog.innerHTML = `<h2>${tx("catalogHeading")}</h2><div class="dm-test-product-grid">${sharedCards.concat(legacyHtml).join("")}</div>`;
   localizeLinks(catalog);
 }
 function initShop() {
