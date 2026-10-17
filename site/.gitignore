@@ -1,0 +1,13 @@
+.DS_Store
+*.log
+*.bak
+*.bak-*
+backups/
+tmp/
+cache/
+.env
+.env.*
+*.sql
+*.sql.gz
+node_modules/
+assets/dm-local-runtime-data.json
