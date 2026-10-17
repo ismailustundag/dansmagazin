@@ -8,7 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../services/auth_api.dart';
+import '../services/app_settings.dart';
 import '../services/legal_links.dart';
+import '../services/profile_api.dart';
 
 enum AuthAction { login, register, guest }
 
@@ -48,8 +50,10 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  static final Uri _forgotPasswordUri = Uri.parse('https://dansmagazin.net/hesabim/lost-password/');
-  static const String _buildSha = String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
+  static final Uri _forgotPasswordUri =
+      Uri.parse('https://api2.dansmagazin.net/auth/password-reset');
+  static const String _buildSha =
+      String.fromEnvironment('APP_BUILD_SHA', defaultValue: 'local');
   static const String _googleServerClientId =
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
   static const String _googleServerClientIdFallback =
@@ -76,6 +80,36 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _bgVideoReady = false;
   bool _screenClosed = false;
 
+  String _text(String tr, String en, String es) {
+    switch (AppSettings.language.value) {
+      case 'en':
+        return en;
+      case 'es':
+        return es;
+      default:
+        return tr;
+    }
+  }
+
+  Future<void> _setLanguage(String language) async {
+    if (_loading || AppSettings.language.value == language) return;
+    await AppSettings.setLanguage(language);
+    if (!mounted) return;
+    setState(() => _error = null);
+  }
+
+  Future<void> _syncSelectedLanguage(String sessionToken) async {
+    if (sessionToken.trim().isEmpty) return;
+    try {
+      await ProfileApi.updateSettings(
+        sessionToken: sessionToken,
+        language: AppSettings.language.value,
+      );
+    } catch (_) {
+      // Local language selection remains valid if profile sync is temporarily unavailable.
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -83,7 +117,8 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _initBackgroundVideo() async {
-    final controller = VideoPlayerController.asset('assets/video/dm_teaser.mp4');
+    final controller =
+        VideoPlayerController.asset('assets/video/dm_teaser.mp4');
     try {
       await controller.setLooping(true);
       await controller.setVolume(0);
@@ -129,7 +164,11 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _submit() async {
     if (_isRegister && !_acceptedLegal) {
-      setState(() => _error = 'Kayıt için yasal metinleri onaylamalısınız');
+      setState(() => _error = _text(
+            'Kayıt için yasal metinleri onaylamalısınız',
+            'You must accept the legal terms to register',
+            'Debes aceptar los textos legales para registrarte',
+          ));
       return;
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -150,11 +189,14 @@ class _AuthScreenState extends State<AuthScreen> {
               password: _passwordCtrl.text,
               rememberMe: _rememberMe,
             );
+      await _syncSelectedLanguage(session.sessionToken);
       if (!mounted) return;
       Navigator.of(context).pop(
         AuthResult(
           action: _isRegister ? AuthAction.register : AuthAction.login,
-          name: session.name.trim().isEmpty ? session.email.split('@').first : session.name,
+          name: session.name.trim().isEmpty
+              ? session.email.split('@').first
+              : session.name,
           email: session.email,
           rememberMe: _rememberMe,
           sessionToken: session.sessionToken,
@@ -170,7 +212,11 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _error = e.message);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Beklenmeyen bir hata oluştu');
+      setState(() => _error = _text(
+            'Beklenmeyen bir hata oluştu',
+            'An unexpected error occurred',
+            'Se produjo un error inesperado',
+          ));
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -180,11 +226,16 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _openForgotPassword() async {
     try {
-      final ok = await launchUrl(_forgotPasswordUri, mode: LaunchMode.inAppBrowserView);
+      final ok = await launchUrl(_forgotPasswordUri,
+          mode: LaunchMode.inAppBrowserView);
       if (ok) return;
     } catch (_) {}
     if (!mounted) return;
-    setState(() => _error = 'Şifre sıfırlama sayfası açılamadı');
+    setState(() => _error = _text(
+          'Şifre sıfırlama sayfası açılamadı',
+          'The password reset page could not be opened',
+          'No se pudo abrir la página para restablecer la contraseña',
+        ));
   }
 
   Future<void> _openGoogleLogin() async {
@@ -197,8 +248,9 @@ class _AuthScreenState extends State<AuthScreen> {
       final serverClientId = _googleServerClientId.trim().isNotEmpty
           ? _googleServerClientId.trim()
           : _googleServerClientIdFallback;
-      final iosClientId =
-          _googleIosClientId.trim().isNotEmpty ? _googleIosClientId.trim() : _googleIosClientIdFallback;
+      final iosClientId = _googleIosClientId.trim().isNotEmpty
+          ? _googleIosClientId.trim()
+          : _googleIosClientIdFallback;
       final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
       final googleSignIn = GoogleSignIn(
         scopes: const ['email', 'profile'],
@@ -211,25 +263,36 @@ class _AuthScreenState extends State<AuthScreen> {
       final account = await googleSignIn.signIn();
       if (account == null) {
         if (!mounted) return;
-        setState(() => _error = 'Google girişi iptal edildi');
+        setState(() => _error = _text(
+              'Google girişi iptal edildi',
+              'Google sign-in was cancelled',
+              'Se canceló el acceso con Google',
+            ));
         return;
       }
       final auth = await account.authentication;
       final idToken = (auth.idToken ?? '').trim();
       if (idToken.isEmpty) {
         if (!mounted) return;
-        setState(() => _error = 'Google kimlik doğrulama tokenı alınamadı');
+        setState(() => _error = _text(
+              'Google kimlik doğrulama tokenı alınamadı',
+              'Google authentication could not be completed',
+              'No se pudo completar la autenticación con Google',
+            ));
         return;
       }
       final session = await AuthApi.googleNativeLogin(
         idToken: idToken,
         rememberMe: _rememberMe,
       );
+      await _syncSelectedLanguage(session.sessionToken);
       if (!mounted) return;
       Navigator.of(context).pop(
         AuthResult(
           action: AuthAction.login,
-          name: session.name.trim().isEmpty ? session.email.split('@').first : session.name,
+          name: session.name.trim().isEmpty
+              ? session.email.split('@').first
+              : session.name,
           email: session.email,
           rememberMe: _rememberMe,
           sessionToken: session.sessionToken,
@@ -245,7 +308,11 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _error = e.message);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Google ile giriş başarısız: $e');
+      setState(() => _error = _text(
+            'Google ile giriş başarısız: $e',
+            'Google sign-in failed: $e',
+            'Error al acceder con Google: $e',
+          ));
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -263,7 +330,11 @@ class _AuthScreenState extends State<AuthScreen> {
       final isAvailable = await SignInWithApple.isAvailable();
       if (!isAvailable) {
         if (!mounted) return;
-        setState(() => _error = 'Apple ile giriş bu cihazda kullanılamıyor');
+        setState(() => _error = _text(
+              'Apple ile giriş bu cihazda kullanılamıyor',
+              'Sign in with Apple is not available on this device',
+              'Iniciar sesión con Apple no está disponible en este dispositivo',
+            ));
         return;
       }
       final credential = await SignInWithApple.getAppleIDCredential(
@@ -275,13 +346,20 @@ class _AuthScreenState extends State<AuthScreen> {
       final identityToken = (credential.identityToken ?? '').trim();
       if (identityToken.isEmpty) {
         if (!mounted) return;
-        setState(() => _error = 'Apple kimlik doğrulama tokenı alınamadı');
+        setState(() => _error = _text(
+              'Apple kimlik doğrulama tokenı alınamadı',
+              'Apple authentication could not be completed',
+              'No se pudo completar la autenticación con Apple',
+            ));
         return;
       }
 
       final givenName = (credential.givenName ?? '').trim();
       final familyName = (credential.familyName ?? '').trim();
-      final fullName = [givenName, familyName].where((part) => part.isNotEmpty).join(' ').trim();
+      final fullName = [givenName, familyName]
+          .where((part) => part.isNotEmpty)
+          .join(' ')
+          .trim();
 
       final session = await AuthApi.appleNativeLogin(
         identityToken: identityToken,
@@ -290,11 +368,14 @@ class _AuthScreenState extends State<AuthScreen> {
         name: fullName,
         rememberMe: _rememberMe,
       );
+      await _syncSelectedLanguage(session.sessionToken);
       if (!mounted) return;
       Navigator.of(context).pop(
         AuthResult(
           action: AuthAction.login,
-          name: session.name.trim().isEmpty ? session.email.split('@').first : session.name,
+          name: session.name.trim().isEmpty
+              ? session.email.split('@').first
+              : session.name,
           email: session.email,
           rememberMe: _rememberMe,
           sessionToken: session.sessionToken,
@@ -308,15 +389,24 @@ class _AuthScreenState extends State<AuthScreen> {
     } on SignInWithAppleAuthorizationException catch (e) {
       if (!mounted) return;
       final message = e.code == AuthorizationErrorCode.canceled
-          ? 'Apple girişi iptal edildi'
-          : 'Apple ile giriş başarısız: ${e.message ?? e.code.name}';
+          ? _text('Apple girişi iptal edildi', 'Apple sign-in was cancelled',
+              'Se canceló el acceso con Apple')
+          : _text(
+              'Apple ile giriş başarısız: ${e.message ?? e.code.name}',
+              'Apple sign-in failed: ${e.message ?? e.code.name}',
+              'Error al acceder con Apple: ${e.message ?? e.code.name}',
+            );
       setState(() => _error = message);
     } on AuthApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Apple ile giriş başarısız: $e');
+      setState(() => _error = _text(
+            'Apple ile giriş başarısız: $e',
+            'Apple sign-in failed: $e',
+            'Error al acceder con Apple: $e',
+          ));
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -329,7 +419,11 @@ class _AuthScreenState extends State<AuthScreen> {
       await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Yasal bağlantı açılamadı');
+      setState(() => _error = _text(
+            'Yasal bağlantı açılamadı',
+            'The legal document could not be opened',
+            'No se pudo abrir el documento legal',
+          ));
     }
   }
 
@@ -448,13 +542,15 @@ class _AuthScreenState extends State<AuthScreen> {
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           ),
           child: _loading
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
                 )
               : Text(
                   label,
@@ -508,11 +604,13 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget _buildDivider() {
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.white.withOpacity(0.24), thickness: 1)),
+        Expanded(
+            child:
+                Divider(color: Colors.white.withOpacity(0.24), thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
-            'VEYA',
+            _text('VEYA', 'OR', 'O'),
             style: GoogleFonts.manrope(
               color: Colors.white.withOpacity(0.56),
               fontSize: 10,
@@ -521,8 +619,151 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
-        Expanded(child: Divider(color: Colors.white.withOpacity(0.24), thickness: 1)),
+        Expanded(
+            child:
+                Divider(color: Colors.white.withOpacity(0.24), thickness: 1)),
       ],
+    );
+  }
+
+  Widget _buildLanguageSelector() {
+    const languages = <(String, String, String)>[
+      ('tr', '🇹🇷', 'Türkiye, Türkçe'),
+      ('en', '🇬🇧', 'United Kingdom, English'),
+      ('es', '🇪🇸', 'España, Español'),
+    ];
+    final selected = AppSettings.language.value;
+    return Semantics(
+      label: _text('Dil seçimi', 'Language selection', 'Selección de idioma'),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 9),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.30),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.18)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Icon(
+                    Icons.language_rounded,
+                    color: Color(0xFFFBBF24),
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _text(
+                          'Uygulama dilini seçin',
+                          'Choose app language',
+                          'Elige el idioma',
+                        ),
+                        style: GoogleFonts.manrope(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        'Dil • Language • Idioma',
+                        style: GoogleFonts.manrope(
+                          color: Colors.white.withOpacity(0.55),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 9),
+            Row(
+              children: [
+                for (var index = 0; index < languages.length; index++) ...[
+                  if (index > 0) const SizedBox(width: 6),
+                  Expanded(
+                    child: Builder(
+                      builder: (context) {
+                        final language = languages[index];
+                        final isSelected = selected == language.$1;
+                        return Semantics(
+                          button: true,
+                          selected: isSelected,
+                          label: language.$3,
+                          child: Material(
+                            color: isSelected
+                                ? const Color(0xFFF59E0B).withOpacity(0.18)
+                                : Colors.white.withOpacity(0.055),
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: _loading
+                                  ? null
+                                  : () => _setLanguage(language.$1),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                height: 54,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFFFBBF24)
+                                        : Colors.white.withOpacity(0.12),
+                                    width: isSelected ? 1.4 : 1,
+                                  ),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        language.$2,
+                                        style: const TextStyle(fontSize: 28),
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      const Align(
+                                        alignment: Alignment.topRight,
+                                        child: Icon(
+                                          Icons.check_circle_rounded,
+                                          color: Color(0xFFFBBF24),
+                                          size: 15,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -553,12 +794,16 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         _buildInputField(
           controller: _emailCtrl,
-          hint: 'e-posta@adresiniz.com',
-          label: 'E-POSTA',
+          hint:
+              _text('e-posta@adresiniz.com', 'your@email.com', 'tu@correo.com'),
+          label: _text('E-POSTA', 'EMAIL', 'CORREO'),
           keyboardType: TextInputType.emailAddress,
           validator: (v) {
             final value = (v ?? '').trim();
-            if (value.isEmpty || !value.contains('@')) return 'Geçerli e-posta girin';
+            if (value.isEmpty || !value.contains('@')) {
+              return _text('Geçerli e-posta girin', 'Enter a valid email',
+                  'Introduce un correo válido');
+            }
             return null;
           },
         ),
@@ -566,17 +811,26 @@ class _AuthScreenState extends State<AuthScreen> {
         _buildInputField(
           controller: _passwordCtrl,
           hint: '••••••••',
-          label: 'ŞİFRE',
+          label: _text('ŞİFRE', 'PASSWORD', 'CONTRASEÑA'),
           obscureText: _obscurePassword,
           suffixIcon: IconButton(
-            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
             icon: Icon(
-              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              _obscurePassword
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
               color: const Color(0xFF6B7280),
               size: 20,
             ),
           ),
-          validator: (v) => (v ?? '').length < 6 ? 'Şifre en az 6 karakter olmalı' : null,
+          validator: (v) => (v ?? '').length < 6
+              ? _text(
+                  'Şifre en az 6 karakter olmalı',
+                  'Password must be at least 6 characters',
+                  'La contraseña debe tener al menos 6 caracteres',
+                )
+              : null,
         ),
         const SizedBox(height: 8),
         Row(
@@ -586,12 +840,14 @@ class _AuthScreenState extends State<AuthScreen> {
                 children: [
                   Checkbox(
                     value: _rememberMe,
-                    onChanged: _loading ? null : (v) => setState(() => _rememberMe = v ?? true),
+                    onChanged: _loading
+                        ? null
+                        : (v) => setState(() => _rememberMe = v ?? true),
                     visualDensity: VisualDensity.compact,
                   ),
                   Flexible(
                     child: Text(
-                      'Beni Hatırla',
+                      _text('Beni Hatırla', 'Remember me', 'Recordarme'),
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.manrope(
                         color: Colors.white.withOpacity(0.74),
@@ -606,9 +862,11 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
             TextButton(
               onPressed: _loading ? null : _openForgotPassword,
-              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 6)),
               child: Text(
-                'Şifremi Unuttum',
+                _text('Şifremi Unuttum', 'Forgot password',
+                    'Olvidé mi contraseña'),
                 style: GoogleFonts.manrope(
                   color: Colors.white.withOpacity(0.42),
                   fontSize: 11,
@@ -622,7 +880,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _buildErrorBox(),
         if (_error != null) const SizedBox(height: 12),
         _buildActionButton(
-          label: 'Giriş Yap',
+          label: _text('Giriş Yap', 'Sign in', 'Iniciar sesión'),
           onTap: _loading ? null : _submit,
         ),
         const SizedBox(height: 16),
@@ -659,49 +917,66 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         _buildInputField(
           controller: _nameCtrl,
-          hint: 'AD SOYAD',
-          validator: (v) => (v ?? '').trim().isEmpty ? 'Ad soyad zorunlu' : null,
+          hint: _text('AD SOYAD', 'FULL NAME', 'NOMBRE COMPLETO'),
+          validator: (v) => (v ?? '').trim().isEmpty
+              ? _text('Ad soyad zorunlu', 'Full name is required',
+                  'El nombre completo es obligatorio')
+              : null,
         ),
         const SizedBox(height: 10),
         _buildInputField(
           controller: _emailCtrl,
-          hint: 'E-POSTA',
+          hint: _text('E-POSTA', 'EMAIL', 'CORREO'),
           keyboardType: TextInputType.emailAddress,
           validator: (v) {
             final value = (v ?? '').trim();
-            if (value.isEmpty || !value.contains('@')) return 'Geçerli e-posta girin';
+            if (value.isEmpty || !value.contains('@')) {
+              return _text('Geçerli e-posta girin', 'Enter a valid email',
+                  'Introduce un correo válido');
+            }
             return null;
           },
         ),
         const SizedBox(height: 10),
         _buildInputField(
           controller: _passwordCtrl,
-          hint: 'ŞİFRE',
+          hint: _text('ŞİFRE', 'PASSWORD', 'CONTRASEÑA'),
           obscureText: _obscurePassword,
           suffixIcon: IconButton(
-            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
             icon: const Icon(
               Icons.visibility_outlined,
               color: Color(0xFF6B7280),
               size: 20,
             ),
           ),
-          validator: (v) => (v ?? '').length < 6 ? 'Şifre en az 6 karakter olmalı' : null,
+          validator: (v) => (v ?? '').length < 6
+              ? _text(
+                  'Şifre en az 6 karakter olmalı',
+                  'Password must be at least 6 characters',
+                  'La contraseña debe tener al menos 6 caracteres',
+                )
+              : null,
         ),
         const SizedBox(height: 10),
         _buildInputField(
           controller: _passwordAgainCtrl,
-          hint: 'ŞİFRE TEKRAR',
+          hint: _text('ŞİFRE TEKRAR', 'REPEAT PASSWORD', 'REPETIR CONTRASEÑA'),
           obscureText: _obscurePasswordAgain,
           suffixIcon: IconButton(
-            onPressed: () => setState(() => _obscurePasswordAgain = !_obscurePasswordAgain),
+            onPressed: () =>
+                setState(() => _obscurePasswordAgain = !_obscurePasswordAgain),
             icon: const Icon(
               Icons.visibility_outlined,
               color: Color(0xFF6B7280),
               size: 20,
             ),
           ),
-          validator: (v) => v != _passwordCtrl.text ? 'Şifreler eşleşmiyor' : null,
+          validator: (v) => v != _passwordCtrl.text
+              ? _text('Şifreler eşleşmiyor', 'Passwords do not match',
+                  'Las contraseñas no coinciden')
+              : null,
         ),
         const SizedBox(height: 10),
         Row(
@@ -709,7 +984,9 @@ class _AuthScreenState extends State<AuthScreen> {
           children: [
             Checkbox(
               value: _acceptedLegal,
-              onChanged: _loading ? null : (v) => setState(() => _acceptedLegal = v ?? false),
+              onChanged: _loading
+                  ? null
+                  : (v) => setState(() => _acceptedLegal = v ?? false),
               visualDensity: VisualDensity.compact,
             ),
             Expanded(
@@ -717,7 +994,11 @@ class _AuthScreenState extends State<AuthScreen> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text.rich(
                   TextSpan(
-                    text: 'Yasal metinleri okudum ve kabul ettim. ',
+                    text: _text(
+                      'Yasal metinleri okudum ve kabul ettim. ',
+                      'I have read and accept the legal terms. ',
+                      'He leído y acepto los textos legales. ',
+                    ),
                     style: GoogleFonts.manrope(
                       color: Colors.white.withOpacity(0.52),
                       fontSize: 11,
@@ -725,11 +1006,16 @@ class _AuthScreenState extends State<AuthScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                     children: [
-                      _legalLinkSpan('Gizlilik', LegalLinks.privacyPolicy),
+                      _legalLinkSpan(_text('Gizlilik', 'Privacy', 'Privacidad'),
+                          LegalLinks.privacyPolicy),
                       const TextSpan(text: ', '),
                       _legalLinkSpan('KVKK', LegalLinks.kvkkNotice),
-                      const TextSpan(text: ' ve '),
-                      _legalLinkSpan('Kullanım Şartları', LegalLinks.terms),
+                      TextSpan(text: _text(' ve ', ' and ', ' y ')),
+                      _legalLinkSpan(
+                        _text('Kullanım Şartları', 'Terms of Use',
+                            'Términos de uso'),
+                        LegalLinks.terms,
+                      ),
                       const TextSpan(text: '.'),
                     ],
                   ),
@@ -741,7 +1027,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _buildErrorBox(),
         if (_error != null) const SizedBox(height: 12),
         _buildActionButton(
-          label: 'Hesap Oluştur',
+          label: _text('Hesap Oluştur', 'Create account', 'Crear cuenta'),
           onTap: _loading ? null : _submit,
         ),
         const SizedBox(height: 14),
@@ -853,16 +1139,19 @@ class _AuthScreenState extends State<AuthScreen> {
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 410),
-                      child: Container(
+                    child: Container(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(32),
                         color: Colors.white.withOpacity(0.08),
-                        border: Border.all(color: Colors.white.withOpacity(0.16)),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.16)),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.34),
@@ -876,8 +1165,14 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            _buildLanguageSelector(),
+                            const SizedBox(height: 14),
                             Text(
-                              'Sahne senin, Biz seninleyiz',
+                              _text(
+                                'Sahne senin, Biz seninleyiz',
+                                'Your stage, your community',
+                                'Tu escenario, tu comunidad',
+                              ),
                               textAlign: TextAlign.center,
                               style: GoogleFonts.epilogue(
                                 color: Colors.white,
@@ -892,23 +1187,32 @@ class _AuthScreenState extends State<AuthScreen> {
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.04),
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.white.withOpacity(0.10)),
+                                border: Border.all(
+                                    color: Colors.white.withOpacity(0.10)),
                               ),
                               child: Row(
                                 children: [
                                   Expanded(
                                     child: _ModeTab(
-                                      label: 'Giriş',
+                                      label:
+                                          _text('Giriş', 'Sign in', 'Acceder'),
                                       selected: !_isRegister,
-                                      onTap: _loading ? null : () => setState(() => _isRegister = false),
+                                      onTap: _loading
+                                          ? null
+                                          : () => setState(
+                                              () => _isRegister = false),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: _ModeTab(
-                                      label: 'Kayıt',
+                                      label: _text(
+                                          'Kayıt', 'Register', 'Registro'),
                                       selected: _isRegister,
-                                      onTap: _loading ? null : () => setState(() => _isRegister = true),
+                                      onTap: _loading
+                                          ? null
+                                          : () => setState(
+                                              () => _isRegister = true),
                                     ),
                                   ),
                                 ],
@@ -922,7 +1226,8 @@ class _AuthScreenState extends State<AuthScreen> {
                               child: _isRegister
                                   ? KeyedSubtree(
                                       key: const ValueKey('register-form'),
-                                      child: _buildRegisterForm(showAppleSignIn),
+                                      child:
+                                          _buildRegisterForm(showAppleSignIn),
                                     )
                                   : KeyedSubtree(
                                       key: const ValueKey('login-form'),

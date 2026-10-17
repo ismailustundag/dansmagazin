@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import html
 import hmac
 import json
 import logging
@@ -17,9 +18,9 @@ import psycopg2
 import psycopg2.extras
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Form, Header, HTTPException, Request
 from app.utils import client_ip_from_request, display_name, get_db_connection
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -36,6 +37,12 @@ WP_MOBILE_SSO_URL = os.getenv("WP_MOBILE_SSO_URL", f"{WP_BASE_URL}/?mobile_sso=1
 WP_MOBILE_SSO_SECRET = os.getenv("WP_MOBILE_SSO_SECRET", "").strip()
 WOO_SSO_RATE_LIMIT_WINDOW_SEC = int(os.getenv("WOO_SSO_RATE_LIMIT_WINDOW_SEC", "60"))
 WOO_SSO_RATE_LIMIT_MAX_PER_WINDOW = int(os.getenv("WOO_SSO_RATE_LIMIT_MAX_PER_WINDOW", "20"))
+_WOO_SSO_EXTRA_ALLOWED_HOSTS_RAW = os.getenv("WOO_SSO_EXTRA_ALLOWED_HOSTS", "").strip()
+WOO_SSO_EXTRA_ALLOWED_HOSTS = {
+    x.strip().lower()
+    for x in _WOO_SSO_EXTRA_ALLOWED_HOSTS_RAW.split(",")
+    if x and x.strip()
+}
 REGISTER_RATE_LIMIT_WINDOW_SEC = int(os.getenv("REGISTER_RATE_LIMIT_WINDOW_SEC", "900"))
 REGISTER_RATE_LIMIT_MAX_PER_WINDOW = int(os.getenv("REGISTER_RATE_LIMIT_MAX_PER_WINDOW", "5"))
 REGISTER_SIMILAR_WINDOW_SEC = int(os.getenv("REGISTER_SIMILAR_WINDOW_SEC", "3600"))
@@ -70,6 +77,12 @@ APPLE_OAUTH_AUDIENCES = {
     for x in _APPLE_OAUTH_AUDIENCES_RAW.split(",")
     if x and x.strip()
 }
+SMTP_SERVER = os.getenv("SMTP_SERVER", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587") or "587")
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", os.getenv("EMAIL_USERNAME", "")).strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASSWORD", ""))
+SMTP_FROM = os.getenv("SMTP_FROM", os.getenv("EMAIL_FROM", "Dans Magazin <info@dansmagazin.net>")).strip()
+PUBLIC_SITE_BASE_URL = os.getenv("PUBLIC_SITE_BASE_URL", "https://dansmagazin.net").rstrip("/")
 DEFAULT_SYSTEM_FRIEND_EMAIL = os.getenv("DEFAULT_SYSTEM_FRIEND_EMAIL", "info@dansmagazin.net").strip().lower()
 DEFAULT_SYSTEM_FRIEND_NAME = os.getenv("DEFAULT_SYSTEM_FRIEND_NAME", "Dansmagazin").strip()
 
@@ -78,6 +91,8 @@ _WOO_SSO_RATE_BUCKETS: dict[str, list[float]] = {}
 _REGISTER_RATE_LOCK = threading.Lock()
 _REGISTER_RATE_BUCKETS: dict[str, list[float]] = {}
 _APPLE_JWKS_CACHE: dict[str, Any] = {"by_kid": {}, "exp": 0.0}
+_NATIVE_IDENTITY_SCHEMA_LOCK = threading.Lock()
+_NATIVE_IDENTITY_SCHEMA_READY: set[str] = set()
 
 
 class LoginRequest(BaseModel):
@@ -138,6 +153,15 @@ class AppleNativeLoginRequest(BaseModel):
     remember_me: bool = True
 
 
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    password: str
+
+
 def _append_query_params(url: str, params: Dict[str, str]) -> str:
     parsed = urlparse(url)
     q = dict(parse_qsl(parsed.query, keep_blank_values=True))
@@ -169,6 +193,119 @@ def _hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     dk = _pbkdf2_hash(password, salt)
     return base64.b64encode(salt + dk).decode("utf-8")
+
+
+def _verify_password(password: str, encoded: str) -> bool:
+    try:
+        raw = base64.b64decode(encoded.encode("ascii"))
+        salt, expected = raw[:16], raw[16:]
+        return hmac.compare_digest(_pbkdf2_hash(password, salt), expected)
+    except Exception:
+        return False
+
+
+def _ensure_password_reset_table(conn):
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS mobile_password_resets (
+            id BIGSERIAL PRIMARY KEY,
+            account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+
+
+def _send_password_reset_email(email: str, token: str):
+    if not SMTP_SERVER or not SMTP_USERNAME or not SMTP_PASSWORD:
+        raise RuntimeError("SMTP ayarları eksik")
+    link = f"{PUBLIC_SITE_BASE_URL}/sifre-sifirla?token={token}"
+    msg = EmailMessage()
+    msg["Subject"] = "Dansmagazin şifre sıfırlama"
+    msg["From"] = SMTP_FROM
+    msg["To"] = email
+    msg.set_content(
+        "Merhaba,\n\nDansmagazin hesabınız için şifre sıfırlama bağlantınız:\n"
+        f"{link}\n\nBu bağlantı 30 dakika geçerlidir ve yalnızca bir kez kullanılabilir.\n"
+        "Bu isteği siz yapmadıysanız bu e-postayı dikkate almayın."
+    )
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=20) as server:
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.send_message(msg)
+
+
+@router.post("/password-reset/request")
+async def request_password_reset(payload: PasswordResetRequest):
+    email = payload.email.strip().lower()
+    generic = {"detail": "E-posta adresi kayıtlıysa şifre sıfırlama bağlantısı gönderildi."}
+    if "@" not in email:
+        return generic
+    conn = db_conn()
+    try:
+        _ensure_password_reset_table(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT id, email FROM accounts WHERE LOWER(email)=LOWER(%s) AND COALESCE(is_active,1)=1 LIMIT 1", (email,))
+        account = cur.fetchone()
+        if not account:
+            conn.commit()
+            return generic
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        cur.execute("UPDATE mobile_password_resets SET used_at=NOW() WHERE account_id=%s AND used_at IS NULL", (int(account["id"]),))
+        cur.execute(
+            "INSERT INTO mobile_password_resets (account_id, token_hash, expires_at) VALUES (%s,%s,NOW()+(30*INTERVAL '1 minute'))",
+            (int(account["id"]), token_hash),
+        )
+        conn.commit()
+        try:
+            _send_password_reset_email(email, token)
+        except Exception:
+            logger.exception("password_reset_email_failed")
+        return generic
+    finally:
+        conn.close()
+
+
+@router.get("/password-reset", response_class=HTMLResponse)
+async def password_reset_page(token: str = ""):
+    if not token.strip():
+        return HTMLResponse("""<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>Dansmagazin şifre sıfırlama</title><style>body{font-family:Arial;max-width:420px;margin:40px auto;padding:20px;background:#111827;color:#f9fafb}input,button{width:100%;padding:12px;margin:8px 0;box-sizing:border-box;border-radius:8px;border:1px solid #475569}button{background:#2563eb;color:white;border:0;font-weight:700}</style>
+<h1>Şifremi unuttum</h1><p>E-posta adresinizi girin. Sıfırlama bağlantısını e-posta ile göndereceğiz.</p><form method='post' action='/auth/password-reset/request-form'><input name='email' type='email' required placeholder='E-posta adresi'><button>Bağlantı gönder</button></form>""")
+    safe_token = html.escape(token, quote=True)
+    return HTMLResponse(f"""<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>Dansmagazin şifre sıfırlama</title><style>body{{font-family:Arial;max-width:420px;margin:40px auto;padding:20px;background:#111827;color:#f9fafb}}input,button{{width:100%;padding:12px;margin:8px 0;box-sizing:border-box;border-radius:8px;border:1px solid #475569}}button{{background:#2563eb;color:white;border:0;font-weight:700}}</style>
+<h1>Şifreyi yenile</h1><form method='post' action='/auth/password-reset/confirm'><input type='hidden' name='token' value='{safe_token}'><input name='password' type='password' minlength='8' required placeholder='Yeni şifre (en az 8 karakter)'><button>Şifreyi güncelle</button></form>""")
+
+
+@router.post("/password-reset/request-form", response_class=HTMLResponse)
+async def request_password_reset_form(email: str = Form(...)):
+    await request_password_reset(PasswordResetRequest(email=email))
+    return HTMLResponse("<h2>İstek alındı</h2><p>E-posta adresi kayıtlıysa bağlantı gönderildi. Bu pencereyi kapatabilirsiniz.</p>")
+
+
+@router.post("/password-reset/confirm")
+async def confirm_password_reset(token: str = Form(...), password: str = Form(...)):
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Şifre en az 8 karakter olmalı")
+    token_hash = hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+    conn = db_conn()
+    try:
+        _ensure_password_reset_table(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT account_id FROM mobile_password_resets WHERE token_hash=%s AND used_at IS NULL AND expires_at>NOW() LIMIT 1", (token_hash,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Bağlantı geçersiz veya süresi dolmuş")
+        cur.execute("UPDATE accounts SET password_hash=%s WHERE id=%s", (_hash_password(password), int(row["account_id"])))
+        cur.execute("UPDATE mobile_password_resets SET used_at=NOW() WHERE token_hash=%s", (token_hash,))
+        conn.commit()
+        return {"detail": "Şifreniz güncellendi. Uygulamaya yeni şifrenizle giriş yapabilirsiniz."}
+    finally:
+        conn.close()
 
 
 def _session_expiry(remember_me: bool) -> str:
@@ -442,6 +579,7 @@ async def _ensure_wp_identity_for_account(conn, account_id: int, email: str, nam
     current_wp_user_id, _ = _find_wp_by_account(conn, int(account_id))
     if current_wp_user_id:
         return current_wp_user_id
+    conn.commit()
 
     existing_customer = await _woo_find_customer_by_email(email)
     if isinstance(existing_customer, dict) and existing_customer.get("id") is not None:
@@ -727,6 +865,18 @@ def _require_bearer_token(authorization: Optional[str]) -> str:
     return token
 
 
+def _checkout_allowed_hosts() -> set[str]:
+    wp_host = (urlparse(WP_BASE_URL).hostname or "").lower()
+    allowed_hosts = set(WOO_SSO_EXTRA_ALLOWED_HOSTS)
+    if wp_host:
+        allowed_hosts.add(wp_host)
+        if wp_host.startswith("www."):
+            allowed_hosts.add(wp_host[4:])
+        else:
+            allowed_hosts.add(f"www.{wp_host}")
+    return allowed_hosts
+
+
 def _normalize_checkout_target(target_url: str) -> str:
     raw = (target_url or "").strip()
     if not raw:
@@ -743,17 +893,10 @@ def _normalize_checkout_target(target_url: str) -> str:
     if p.scheme not in {"http", "https"} or not p.netloc:
         raise HTTPException(status_code=400, detail="Geçersiz target_url")
 
-    wp_host = (urlparse(WP_BASE_URL).hostname or "").lower()
     t_host = (p.hostname or "").lower()
-    allowed_hosts = set()
-    if wp_host:
-        allowed_hosts.add(wp_host)
-        if wp_host.startswith("www."):
-            allowed_hosts.add(wp_host[4:])
-        else:
-            allowed_hosts.add(f"www.{wp_host}")
+    allowed_hosts = _checkout_allowed_hosts()
     if allowed_hosts and t_host not in allowed_hosts:
-        raise HTTPException(status_code=400, detail="target_url yalnızca WordPress domaininde olmalı")
+        raise HTTPException(status_code=400, detail="target_url izinli WooCommerce domaininde olmalı")
 
     # App WebView icin WordPress tarafina "minimal layout" sinyali.
     # WP theme/mu-plugin bu parametreyi okuyup header/footer gizleyebilir.
@@ -859,6 +1002,27 @@ def _ensure_apple_identity_schema(conn):
         ON apple_identity_map ((LOWER(email)))
         """
     )
+
+
+def _ensure_native_identity_schema_once(provider: str):
+    provider = (provider or "").strip().lower()
+    if provider in _NATIVE_IDENTITY_SCHEMA_READY:
+        return
+    with _NATIVE_IDENTITY_SCHEMA_LOCK:
+        if provider in _NATIVE_IDENTITY_SCHEMA_READY:
+            return
+        conn = db_conn()
+        try:
+            conn.autocommit = True
+            if provider == "google":
+                _ensure_google_identity_schema(conn)
+            elif provider == "apple":
+                _ensure_apple_identity_schema(conn)
+            else:
+                raise RuntimeError(f"unknown native identity provider: {provider}")
+            _NATIVE_IDENTITY_SCHEMA_READY.add(provider)
+        finally:
+            conn.close()
 
 
 def _find_account_by_google_sub(conn, google_sub: str) -> Optional[int]:
@@ -1201,7 +1365,35 @@ async def login(payload: LoginRequest):
     if "@" not in login_email or "." not in login_email.split("@", 1)[-1]:
         raise HTTPException(status_code=400, detail="Lütfen e-posta adresinizle giriş yapın")
 
-    wp_token_payload = await _wp_login(login_email, payload.password)
+    try:
+        wp_token_payload = await _wp_login(login_email, payload.password)
+    except HTTPException:
+        # HTML migration may leave the legacy WP login unavailable. Existing
+        # mobile accounts can still authenticate with their local password hash.
+        conn = db_conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM accounts WHERE LOWER(email)=LOWER(%s) LIMIT 1", (login_email,))
+            local = cur.fetchone()
+            if not local or not _verify_password(payload.password, local.get("password_hash") or ""):
+                raise
+            account_id = int(local["id"])
+            if not _is_account_active(conn, account_id):
+                raise HTTPException(status_code=403, detail="Hesap pasif. Lütfen yöneticiyle iletişime geçin.")
+            session_token, expires_at = _create_session(conn, account_id, payload.remember_me)
+            session_row = _get_session(conn, session_token) or {}
+            conn.commit()
+            return SessionResponse(
+                session_token=session_token,
+                expires_at=expires_at,
+                account_id=account_id,
+                email=(local.get("email") or login_email).strip().lower(),
+                name=(local.get("name") or "").strip(),
+                app_role=(local.get("role") or "customer"),
+                can_create_mobile_event=bool(local.get("can_create_mobile_event")),
+            )
+        finally:
+            conn.close()
     jwt_token = (wp_token_payload.get("token") or "").strip()
     wp_email = (wp_token_payload.get("user_email") or "").strip().lower()
     wp_name = (wp_token_payload.get("user_display_name") or "").strip()
@@ -1305,10 +1497,9 @@ async def google_native_login(payload: GoogleNativeLoginRequest):
     email = str(claims["email"]).strip().lower()
     name = str(claims.get("name") or "").strip()
 
+    _ensure_native_identity_schema_once("google")
     conn = db_conn()
     try:
-        _ensure_google_identity_schema(conn)
-
         # 1) Önce Google subject eşleşmesiyle login
         account_id = _find_account_by_google_sub(conn, google_sub)
         created_new_account = False
@@ -1324,6 +1515,7 @@ async def google_native_login(payload: GoogleNativeLoginRequest):
                 account_id = int(row["id"])
             else:
                 # 3) Hiç hesap yoksa yeni kullanıcı oluştur (Google ile kayıt)
+                conn.commit()
                 created_new_account = True
                 random_password = secrets.token_urlsafe(24)
                 woo_customer = None
@@ -1410,10 +1602,9 @@ async def apple_native_login(payload: AppleNativeLoginRequest):
     email = (payload.email or claims.get("email") or "").strip().lower()
     name = (payload.name or "").strip()
 
+    _ensure_native_identity_schema_once("apple")
     conn = db_conn()
     try:
-        _ensure_apple_identity_schema(conn)
-
         account_id = _find_account_by_apple_sub(conn, apple_sub)
         created_new_account = False
         wp_user_id: Optional[int] = None
@@ -1432,6 +1623,7 @@ async def apple_native_login(payload: AppleNativeLoginRequest):
                     status_code=400,
                     detail="Apple e-posta bilgisi alınamadı. Lütfen Apple ile girişi yeniden onaylayın.",
                 )
+            conn.commit()
             created_new_account = True
             random_password = secrets.token_urlsafe(24)
             woo_customer = None
@@ -1525,6 +1717,13 @@ def me(authorization: Optional[str] = Header(default=None)):
         s = _get_session(conn, token)
         if not s:
             raise HTTPException(status_code=401, detail="Geçersiz oturum")
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM sessions WHERE session_token=%s AND expires_at::timestamptz > NOW()",
+            (token,),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=401, detail="Oturum süresi dolmuş; yeniden giriş yapın")
 
         wp_user_id, wp_roles = _find_wp_by_account(conn, int(s["account_id"]))
         app_role, can_create_mobile_event = _get_account_permissions(conn, int(s["account_id"]))
@@ -1537,6 +1736,61 @@ def me(authorization: Optional[str] = Header(default=None)):
             app_role=app_role,
             can_create_mobile_event=can_create_mobile_event,
         )
+    finally:
+        conn.close()
+
+
+@router.get("/admin/users", summary="Yönetici kullanıcı listesi")
+def admin_users(authorization: Optional[str] = Header(default=None)):
+    """Web yönetiminin kullanıcı kartı için güvenli, parola içermeyen liste."""
+    token = _require_bearer_token(authorization)
+    conn = db_conn()
+    try:
+        session = _get_session(conn, token)
+        if not session:
+            raise HTTPException(status_code=401, detail="Geçersiz oturum")
+        role, _ = _get_account_permissions(conn, int(session["account_id"]))
+        if role not in {"admin", "super_admin", "editor"}:
+            raise HTTPException(status_code=403, detail="Yönetici yetkisi gerekli")
+
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, COALESCE(name,'') AS name, COALESCE(email,'') AS email,
+                   COALESCE(phone,'') AS phone, COALESCE(role,'customer') AS role,
+                   COALESCE(is_active,1) AS is_active,
+                   COALESCE(can_create_mobile_event,0) AS can_create_mobile_event,
+                   created_at
+            FROM accounts
+            ORDER BY id DESC
+            """
+        )
+        users = []
+        role_counts = {}
+        for row in cur.fetchall() or []:
+            item = {
+                "id": int(row.get("id") or 0),
+                "name": (row.get("name") or "").strip(),
+                "email": (row.get("email") or "").strip().lower(),
+                "phone": (row.get("phone") or "").strip(),
+                "role": (row.get("role") or "customer").strip().lower(),
+                "isActive": bool(row.get("is_active")),
+                "canCreateMobileEvent": bool(row.get("can_create_mobile_event")),
+                "createdAt": str(row.get("created_at") or ""),
+            }
+            users.append(item)
+            role_counts[item["role"]] = role_counts.get(item["role"], 0) + 1
+
+        cur.execute("SELECT COUNT(*) AS count FROM identity_map WHERE COALESCE(is_active,TRUE)=TRUE")
+        identity_count = int((cur.fetchone() or {}).get("count") or 0)
+        summary = [{"role": key, "count": value, "can_create_count": sum(1 for item in users if item["role"] == key and item["canCreateMobileEvent"])} for key, value in sorted(role_counts.items())]
+        return {
+            "source": "dansmagazin-backend-accounts",
+            "users": users,
+            "appAccounts": users,
+            "identityMap": [{} for _ in range(identity_count)],
+            "appRoleSummary": summary,
+        }
     finally:
         conn.close()
 

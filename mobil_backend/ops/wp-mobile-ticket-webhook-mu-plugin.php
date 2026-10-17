@@ -49,6 +49,7 @@ function dmz_send_order_to_mobile_backend($order_id) {
         'order_id' => (string) $order->get_id(),
         'status' => (string) $order->get_status(),
         'billing_email' => (string) $order->get_billing_email(),
+        'billing_name' => trim((string) $order->get_billing_first_name() . ' ' . (string) $order->get_billing_last_name()),
         'customer_id' => (int) $order->get_customer_id(),
         'line_items' => $line_items,
     ];

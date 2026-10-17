@@ -33,7 +33,9 @@ import 'screens/tickets_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  AppSettings.load().whenComplete(() => runApp(const DansMagazinApp()));
+  runApp(const DansMagazinApp());
+  // Preferences must not block the first Flutter frame on iOS.
+  unawaited(AppSettings.load());
 }
 
 class DansMagazinApp extends StatelessWidget {
@@ -76,7 +78,8 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateMixin {
+class _RootScreenState extends State<RootScreen>
+    with SingleTickerProviderStateMixin {
   static const _apiBase = 'https://api2.dansmagazin.net';
   static const _defaultIndex = 2;
   static const _kRemember = 'auth.remember';
@@ -89,7 +92,6 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
   static const _kWpRoles = 'auth.wp_roles';
   static const _kAppRole = 'auth.app_role';
   static const _kCanCreateMobileEvent = 'auth.can_create_mobile_event';
-  static const _kOnboardingSeen = 'app.onboarding_seen_v1';
   static const _kDismissedPopupIds = 'app.dismissed_popup_ids_v1';
 
   int _index = _defaultIndex;
@@ -108,8 +110,6 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
   Timer? _notifTimer;
   StreamSubscription<Uri>? _deepLinkSub;
   bool _authInFlight = false;
-  bool _onboardingChecked = false;
-  bool _onboardingVisible = false;
   bool _startupPopupChecked = false;
   bool _startupPopupVisible = false;
   int _socialOpenAddFriendsToken = 0;
@@ -156,7 +156,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  late final WidgetsBindingObserver _appLifecycleObserver = _RootLifecycleObserver(
+  late final WidgetsBindingObserver _appLifecycleObserver =
+      _RootLifecycleObserver(
     onResumed: () => _refreshNotificationCount(),
   );
 
@@ -185,7 +186,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
     if (scheme == 'dansmagazin' && host == 'auth-callback') {
       final sessionToken = (uri.queryParameters['session_token'] ?? '').trim();
       if (sessionToken.isEmpty) return;
-      final accountId = int.tryParse((uri.queryParameters['account_id'] ?? '0').trim()) ?? 0;
+      final accountId =
+          int.tryParse((uri.queryParameters['account_id'] ?? '0').trim()) ?? 0;
       final wpUserIdRaw = (uri.queryParameters['wp_user_id'] ?? '').trim();
       final wpUserId = wpUserIdRaw.isEmpty ? null : int.tryParse(wpUserIdRaw);
       final wpRolesRaw = (uri.queryParameters['wp_roles'] ?? '').trim();
@@ -197,7 +199,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
               .where((e) => e.isNotEmpty)
               .toList(growable: false);
       final appRole = (uri.queryParameters['app_role'] ?? 'customer').trim();
-      final canCreate = _readBoolParam(uri.queryParameters['can_create_mobile_event']);
+      final canCreate =
+          _readBoolParam(uri.queryParameters['can_create_mobile_event']);
       final email = (uri.queryParameters['email'] ?? '').trim();
       final name = (uri.queryParameters['name'] ?? '').trim();
 
@@ -252,7 +255,10 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
 
     final host = uri.host.toLowerCase();
     final path = uri.path.trim();
-    final segments = uri.pathSegments.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final segments = uri.pathSegments
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
     if (path.startsWith('/events/') ||
         path.startsWith('/messages/') ||
@@ -275,7 +281,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
         final id = int.tryParse(segments.first) ?? 0;
         if (id > 0) return '/events/$id';
       }
-      if ((host == 'messages' || host == 'message' || host == 'chat') && segments.isNotEmpty) {
+      if ((host == 'messages' || host == 'message' || host == 'chat') &&
+          segments.isNotEmpty) {
         final id = int.tryParse(segments.first) ?? 0;
         if (id > 0) return '/messages/$id';
       }
@@ -287,7 +294,9 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
         if (segments.isEmpty) {
           return '/photos';
         }
-        if (segments.length >= 3 && segments.first == 'feed' && segments[1] == 'posts') {
+        if (segments.length >= 3 &&
+            segments.first == 'feed' &&
+            segments[1] == 'posts') {
           final id = int.tryParse(segments[2]) ?? 0;
           if (id > 0) return '/photos/feed/posts/$id';
         }
@@ -310,7 +319,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
           if (id > 0) return '/store/products/$id';
         }
       }
-      if (host == 'social' && (segments.isNotEmpty && segments.first == 'add-friends')) {
+      if (host == 'social' &&
+          (segments.isNotEmpty && segments.first == 'add-friends')) {
         return '/social/add-friends';
       }
       if (host == 'tickets' || host == 'ticket') {
@@ -325,7 +335,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
 
     if (host.endsWith('dansmagazin.net')) {
       if (path == '/tickets' || path == '/biletlerim') {
-        final ticketId = int.tryParse((uri.queryParameters['ticket_id'] ?? '').trim()) ?? 0;
+        final ticketId =
+            int.tryParse((uri.queryParameters['ticket_id'] ?? '').trim()) ?? 0;
         if (ticketId > 0) return '/profile/tickets/$ticketId';
         return '/profile/tickets';
       }
@@ -335,9 +346,14 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
       if (path == '/store' || path == '/magaza') {
         return '/store';
       }
-      final eId = int.tryParse((uri.queryParameters['event_submission_id'] ?? uri.queryParameters['event_id'] ?? '').trim()) ?? 0;
+      final eId = int.tryParse((uri.queryParameters['event_submission_id'] ??
+                  uri.queryParameters['event_id'] ??
+                  '')
+              .trim()) ??
+          0;
       if (eId > 0) return '/events/$eId';
-      final newsId = int.tryParse((uri.queryParameters['news_id'] ?? '').trim()) ?? 0;
+      final newsId =
+          int.tryParse((uri.queryParameters['news_id'] ?? '').trim()) ?? 0;
       if (newsId > 0) return '/news/$newsId';
     }
     return '';
@@ -367,7 +383,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
       _lastAccessibleIndex = value;
     }
     if (_rootPageController.hasClients) {
-      final currentPage = _rootPageController.page?.round() ?? _rootPageController.initialPage;
+      final currentPage =
+          _rootPageController.page?.round() ?? _rootPageController.initialPage;
       if (currentPage != value) {
         if (animate) {
           unawaited(
@@ -435,7 +452,7 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
           _sessionToken,
           onRouteTap: _openFromPushRoute,
         ));
-        _scheduleOnboardingCheck();
+        _scheduleStartupPopupCheck(forceCheck: true);
         return;
       } catch (_) {
         // invalid/expired token: fall through to logged-out mode
@@ -458,7 +475,7 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
     NotificationCenter.clear();
     _stopNotificationsPolling();
     unawaited(PushNotificationsService.dispose());
-    _scheduleOnboardingCheck();
+    _scheduleStartupPopupCheck(forceCheck: true);
   }
 
   Future<void> _persist({
@@ -514,11 +531,13 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          _setCurrentIndex(_defaultIndex, animate: false, refreshIdentity: false);
+          _setCurrentIndex(_defaultIndex,
+              animate: false, refreshIdentity: false);
         });
         NotificationCenter.clear();
         _stopNotificationsPolling();
-        unawaited(PushNotificationsService.unregisterForSession(previousSession));
+        unawaited(
+            PushNotificationsService.unregisterForSession(previousSession));
         unawaited(PushNotificationsService.dispose());
         _scheduleStartupPopupCheck(forceCheck: true);
         return;
@@ -551,21 +570,22 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _setCurrentIndex(targetIndex ?? _defaultIndex, animate: false, refreshIdentity: false);
+        _setCurrentIndex(targetIndex ?? _defaultIndex,
+            animate: false, refreshIdentity: false);
       });
       _startNotificationsPolling();
       unawaited(PushNotificationsService.initForSession(
         _sessionToken,
         onRouteTap: _openFromPushRoute,
       ));
-      _scheduleOnboardingCheck();
       _scheduleStartupPopupCheck(forceCheck: true);
     } finally {
       _authInFlight = false;
     }
   }
 
-  Future<void> _openAuthIfNeeded({required bool allowGuest, int? targetIndex}) async {
+  Future<void> _openAuthIfNeeded(
+      {required bool allowGuest, int? targetIndex}) async {
     if (_authInFlight || !mounted) return;
     await _openAuth(allowGuest: allowGuest, targetIndex: targetIndex);
   }
@@ -626,19 +646,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
     _stopNotificationsPolling();
     unawaited(PushNotificationsService.unregisterForSession(previousSession));
     unawaited(PushNotificationsService.dispose());
-    _scheduleOnboardingCheck(forceCheck: true);
     _startupPopupChecked = false;
-  }
-
-  void _scheduleOnboardingCheck({bool forceCheck = false}) {
-    if (forceCheck) {
-      _onboardingChecked = false;
-    }
-    if (_onboardingChecked || _onboardingVisible || !mounted) return;
-    _onboardingChecked = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_maybeShowOnboarding());
-    });
+    _scheduleStartupPopupCheck(forceCheck: true);
   }
 
   void _scheduleStartupPopupCheck({bool forceCheck = false}) {
@@ -651,25 +660,6 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowStartupPopup());
     });
-  }
-
-  Future<void> _maybeShowOnboarding() async {
-    if (!mounted || _onboardingVisible || !_bootDone || _authInFlight) return;
-    final prefs = await SharedPreferences.getInstance();
-    final seen = prefs.getBool(_kOnboardingSeen) ?? false;
-    if (seen || !mounted) {
-      _scheduleStartupPopupCheck(forceCheck: true);
-      return;
-    }
-    _onboardingVisible = true;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const _OnboardingDialog(),
-    );
-    await prefs.setBool(_kOnboardingSeen, true);
-    _onboardingVisible = false;
-    _scheduleStartupPopupCheck(forceCheck: true);
   }
 
   int _compareVersionStrings(String a, String b) {
@@ -751,8 +741,10 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
             onWillPop: () async => dismissible,
             child: AlertDialog(
               backgroundColor: AppTheme.surfaceSecondary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              title: Text(popup.title.trim().isEmpty ? 'Duyuru' : popup.title.trim()),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+              title: Text(
+                  popup.title.trim().isEmpty ? 'Duyuru' : popup.title.trim()),
               content: Text(
                 popup.body.trim(),
                 style: const TextStyle(
@@ -869,7 +861,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
       _setCurrentIndex(2, animate: false, refreshIdentity: false);
       return;
     }
-    final feedPostMatch = RegExp(r'^/photos/feed/posts/(\d+)$').firstMatch(path);
+    final feedPostMatch =
+        RegExp(r'^/photos/feed/posts/(\d+)$').firstMatch(path);
     if (feedPostMatch != null) {
       final postId = int.tryParse(feedPostMatch.group(1) ?? '') ?? 0;
       if (postId > 0) {
@@ -1036,7 +1029,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
           albumSlug: albumSlug,
           accountId: _accountId,
           sessionToken: _sessionToken,
-          onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
+          onRequireLogin: () =>
+              _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
         ),
       ),
     );
@@ -1051,7 +1045,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
           postId: postId,
           accountId: _accountId,
           sessionToken: _sessionToken,
-          onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
+          onRequireLogin: () =>
+              _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
           onOpenRoute: _openFromPushRoute,
         ),
       ),
@@ -1087,11 +1082,13 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
 
   Future<void> _openEventDetailById(int submissionId) async {
     try {
-      final uri = Uri.parse('$_apiBase/events').replace(queryParameters: {'limit': '500'});
+      final uri = Uri.parse('$_apiBase/events')
+          .replace(queryParameters: {'limit': '500', 'lang': I18n.language});
       final resp = await http.get(uri);
       if (resp.statusCode != 200) return;
       final body = jsonDecode(resp.body) as Map<String, dynamic>;
-      final items = (body['items'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>();
+      final items = (body['items'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>();
       Map<String, dynamic>? event;
       for (final it in items) {
         if ((it['id'] as num?)?.toInt() == submissionId) {
@@ -1107,7 +1104,9 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
           builder: (_) => EventDetailScreen(
             title: (ev['name'] ?? '').toString(),
             submissionId: submissionId,
-            cover: _asAbsUrl((ev['cover'] ?? ev['cover_url'] ?? ev['image'] ?? '').toString()),
+            cover: _asAbsUrl(
+                (ev['cover'] ?? ev['cover_url'] ?? ev['image'] ?? '')
+                    .toString()),
             description: (ev['description'] ?? '').toString(),
             eventDate: (ev['start_at'] ?? ev['event_date'] ?? '').toString(),
             endAt: (ev['end_at'] ?? '').toString(),
@@ -1116,9 +1115,11 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
             organizer: (ev['organizer_name'] ?? '').toString(),
             program: (ev['program_text'] ?? '').toString(),
             entryFee: (ev['entry_fee'] as num?)?.toDouble() ?? 0.0,
-            ticketUrl: _asAbsUrl((ev['ticket_url'] ?? '').toString(), host: 'https://www.dansmagazin.net'),
+            ticketUrl: _asAbsUrl((ev['ticket_url'] ?? '').toString(),
+                host: 'https://www.dansmagazin.net'),
             wooProductId: (ev['woo_product_id'] ?? '').toString(),
-            ticketSalesEnabled: (ev['ticket_sales_enabled'] == true) || (ev['ticket_sales_enabled'] == 1),
+            ticketSalesEnabled: (ev['ticket_sales_enabled'] == true) ||
+                (ev['ticket_sales_enabled'] == 1),
             sessionToken: _sessionToken,
             canAddToFeed: _canAddToFeedFromDetails,
           ),
@@ -1159,7 +1160,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
         accountId: _accountId,
         sessionToken: _sessionToken,
         appRole: _appRole,
-        onRequireLogin: () => _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
+        onRequireLogin: () =>
+            _openAuthIfNeeded(allowGuest: false, targetIndex: 2),
         onOpenRoute: _openFromPushRoute,
       ),
       SocialScreen(
@@ -1199,7 +1201,9 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
         child: Container(
           decoration: BoxDecoration(
             color: AppTheme.surfacePrimary.withOpacity(0.96),
-            border: Border(top: BorderSide(color: AppTheme.borderStrong.withOpacity(0.92))),
+            border: Border(
+                top:
+                    BorderSide(color: AppTheme.borderStrong.withOpacity(0.92))),
             boxShadow: [
               BoxShadow(
                 color: AppTheme.violet.withOpacity(0.08),
@@ -1247,12 +1251,17 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
           : AnimatedBuilder(
               animation: _logoPulseController,
               builder: (context, _) {
-                final pulse = Curves.easeInOut.transform(_logoPulseController.value);
+                final pulse =
+                    Curves.easeInOut.transform(_logoPulseController.value);
                 final selected = _index == 2;
-                final scale = selected ? 1.0 + (pulse * 0.13) : 0.97 + (pulse * 0.06);
-                final glowOpacity = selected ? 0.34 + (pulse * 0.28) : 0.18 + (pulse * 0.10);
-                final haloScale = selected ? 1.04 + (pulse * 0.18) : 1.0 + (pulse * 0.08);
-                final borderOpacity = selected ? 0.24 + (pulse * 0.16) : 0.10 + (pulse * 0.05);
+                final scale =
+                    selected ? 1.0 + (pulse * 0.13) : 0.97 + (pulse * 0.06);
+                final glowOpacity =
+                    selected ? 0.34 + (pulse * 0.28) : 0.18 + (pulse * 0.10);
+                final haloScale =
+                    selected ? 1.04 + (pulse * 0.18) : 1.0 + (pulse * 0.08);
+                final borderOpacity =
+                    selected ? 0.24 + (pulse * 0.16) : 0.10 + (pulse * 0.05);
                 final shineOffset = lerpDouble(-78, 78, pulse) ?? 0;
                 return GestureDetector(
                   onTap: () => _onNavTap(2),
@@ -1270,8 +1279,10 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
                               shape: BoxShape.circle,
                               gradient: RadialGradient(
                                 colors: [
-                                  AppTheme.orange.withOpacity(selected ? 0.34 + (pulse * 0.20) : 0.16),
-                                  AppTheme.amber.withOpacity(selected ? 0.12 + (pulse * 0.08) : 0.05),
+                                  AppTheme.orange.withOpacity(
+                                      selected ? 0.34 + (pulse * 0.20) : 0.16),
+                                  AppTheme.amber.withOpacity(
+                                      selected ? 0.12 + (pulse * 0.08) : 0.05),
                                   Colors.transparent,
                                 ],
                                 stops: const [0.0, 0.52, 1.0],
@@ -1286,7 +1297,9 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
                           width: 86,
                           height: 86,
                           padding: const EdgeInsets.all(10),
-                          decoration: AppTheme.glowCircle(tone: AppTone.photos, radius: 26).copyWith(
+                          decoration: AppTheme.glowCircle(
+                                  tone: AppTone.photos, radius: 26)
+                              .copyWith(
                             boxShadow: [
                               BoxShadow(
                                 color: AppTheme.orange.withOpacity(glowOpacity),
@@ -1294,7 +1307,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
                                 spreadRadius: selected ? 4 : 1,
                               ),
                               BoxShadow(
-                                color: AppTheme.amber.withOpacity(selected ? 0.18 + (pulse * 0.10) : 0.06),
+                                color: AppTheme.amber.withOpacity(
+                                    selected ? 0.18 + (pulse * 0.10) : 0.06),
                                 blurRadius: selected ? 44 : 26,
                                 spreadRadius: selected ? 2 : 0,
                               ),
@@ -1331,7 +1345,8 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
                                             gradient: LinearGradient(
                                               colors: [
                                                 Colors.white.withOpacity(0.0),
-                                                Colors.white.withOpacity(selected ? 0.34 : 0.18),
+                                                Colors.white.withOpacity(
+                                                    selected ? 0.34 : 0.18),
                                                 Colors.white.withOpacity(0.0),
                                               ],
                                               stops: const [0.0, 0.5, 1.0],
@@ -1361,8 +1376,9 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
 
   Widget _socialNavIcon({required bool active}) {
     final hasNotification = _notificationCount > 0;
-    final iconColor =
-        hasNotification ? AppTheme.pink : (active ? AppTheme.violet : AppTheme.textTertiary);
+    final iconColor = hasNotification
+        ? AppTheme.pink
+        : (active ? AppTheme.violet : AppTheme.textTertiary);
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -1381,25 +1397,16 @@ class _RootScreenState extends State<RootScreen> with SingleTickerProviderStateM
               child: Text(
                 _notificationCount > 99 ? '99+' : _notificationCount.toString(),
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700),
               ),
             ),
           ),
       ],
     );
   }
-}
-
-class _OnboardingStep {
-  final IconData icon;
-  final String titleKey;
-  final String bodyKey;
-
-  const _OnboardingStep({
-    required this.icon,
-    required this.titleKey,
-    required this.bodyKey,
-  });
 }
 
 class _RootLifecycleObserver with WidgetsBindingObserver {
@@ -1412,190 +1419,5 @@ class _RootLifecycleObserver with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       unawaited(onResumed());
     }
-  }
-}
-
-class _OnboardingDialog extends StatefulWidget {
-  const _OnboardingDialog();
-
-  @override
-  State<_OnboardingDialog> createState() => _OnboardingDialogState();
-}
-
-class _OnboardingDialogState extends State<_OnboardingDialog> {
-  final PageController _controller = PageController();
-  int _index = 0;
-
-  static const List<_OnboardingStep> _steps = [
-    _OnboardingStep(
-      icon: Icons.waving_hand_rounded,
-      titleKey: 'onboarding_welcome_title',
-      bodyKey: 'onboarding_welcome_body',
-    ),
-    _OnboardingStep(
-      icon: Icons.article_outlined,
-      titleKey: 'onboarding_news_title',
-      bodyKey: 'onboarding_news_body',
-    ),
-    _OnboardingStep(
-      icon: Icons.shopping_bag_outlined,
-      titleKey: 'onboarding_shop_title',
-      bodyKey: 'onboarding_shop_body',
-    ),
-    _OnboardingStep(
-      icon: Icons.photo_library_outlined,
-      titleKey: 'onboarding_photos_title',
-      bodyKey: 'onboarding_photos_body',
-    ),
-    _OnboardingStep(
-      icon: Icons.groups_outlined,
-      titleKey: 'onboarding_social_title',
-      bodyKey: 'onboarding_social_body',
-    ),
-    _OnboardingStep(
-      icon: Icons.person_outline,
-      titleKey: 'onboarding_profile_title',
-      bodyKey: 'onboarding_profile_body',
-    ),
-  ];
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _next() async {
-    if (_index >= _steps.length - 1) {
-      if (mounted) Navigator.of(context).pop();
-      return;
-    }
-    await _controller.nextPage(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = I18n.t;
-    final isLast = _index == _steps.length - 1;
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 420),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1A2238), Color(0xFF0B1020)],
-          ),
-          border: Border.all(color: Colors.white12),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x55000000),
-              blurRadius: 30,
-              offset: Offset(0, 16),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(t('onboarding_skip')),
-              ),
-            ),
-            SizedBox(
-              height: 340,
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: _steps.length,
-                onPageChanged: (value) => setState(() => _index = value),
-                itemBuilder: (_, i) {
-                  final step = _steps[i];
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 82,
-                          height: 82,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE53935).withOpacity(0.18),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFE53935).withOpacity(0.35)),
-                          ),
-                          child: Icon(step.icon, size: 40, color: const Color(0xFFFF6B6B)),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          t(step.titleKey),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          t(step.bodyKey),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 1.45,
-                            color: Colors.white.withOpacity(0.82),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                _steps.length,
-                (i) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: _index == i ? 22 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _index == i ? const Color(0xFFE53935) : Colors.white24,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(t('onboarding_skip')),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _next,
-                    child: Text(isLast ? t('onboarding_start') : t('onboarding_next')),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

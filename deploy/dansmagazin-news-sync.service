@@ -1,0 +1,10 @@
+[Unit]
+Description=Synchronize published DansMagazin articles to the mobile news feed
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/mobil_backend/ops/sync_static_news.py --root /srv/dansmagazin-static/current --feed /home/ubuntu/mobil_backend/data/static-news.json --image-source /home/ubuntu/etkinlik_fotograf_projesi/media/news_submission_covers --image-source /home/ubuntu/mobil_backend/media/news_submission_covers
+TimeoutStartSec=45
+NoNewPrivileges=true
+

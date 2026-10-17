@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/content_share_service.dart';
+import '../services/commerce_api.dart';
 import '../services/i18n.dart';
 import '../services/store_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/emoji_text.dart';
 import '../widgets/verified_avatar.dart';
 import 'chat_thread_screen.dart';
+import 'app_webview_screen.dart';
 import 'screen_shell.dart';
 
 class StoreScreen extends StatefulWidget {
@@ -28,20 +30,27 @@ class StoreScreen extends StatefulWidget {
 class _StoreScreenState extends State<StoreScreen> {
   late Future<List<StoreSellerItem>> _featuredFuture;
   late Future<List<StoreSellerItem>> _sellersFuture;
+  late Future<List<CommerceProduct>> _commerceFuture;
 
   @override
   void initState() {
     super.initState();
     _featuredFuture = StoreApi.featuredSellers();
     _sellersFuture = StoreApi.sellers();
+    _commerceFuture = CommerceApi.getActiveInternalProducts();
   }
 
   Future<void> _refresh() async {
     setState(() {
       _featuredFuture = StoreApi.featuredSellers();
       _sellersFuture = StoreApi.sellers();
+      _commerceFuture = CommerceApi.getActiveInternalProducts();
     });
-    await Future.wait([_featuredFuture, _sellersFuture]);
+    await Future.wait([
+      _featuredFuture,
+      _sellersFuture,
+      _commerceFuture.catchError((_) => <CommerceProduct>[]),
+    ]);
   }
 
   @override
@@ -54,10 +63,55 @@ class _StoreScreenState extends State<StoreScreen> {
       tone: AppTone.profile,
       onRefresh: _refresh,
       content: [
+        FutureBuilder<List<CommerceProduct>>(
+          future: _commerceFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: TextButton.icon(
+                  onPressed: () => setState(() =>
+                      _commerceFuture = CommerceApi.getActiveInternalProducts()),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Dans Magazin ürünlerini yeniden yükle'),
+                ),
+              );
+            }
+            final products = snapshot.data ?? const <CommerceProduct>[];
+            if (products.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Dans Magazin Ürünleri',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15)),
+                  const SizedBox(height: 10),
+                  for (final product in products)
+                    _CommerceProductTile(
+                      product: product,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AppWebViewScreen(
+                          url: 'https://dansmagazin.net/magaza/?product=commerce-${product.id}&adf_lang=tr',
+                          title: product.name,
+                        ),
+                      )),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
         const Padding(
           padding: EdgeInsets.only(top: 4, bottom: 10),
           child: Text(
-            'Kostüm, ayakkabı ve aklına gelen daha fazlası. Onaylı kullanıcıların ürünlerine göz at, beğendiğin ürün için doğrudan iletişime geç.',
+            'Dans Magazin ürünleri ve topluluk mağazaları.',
             style: TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 10.5,
@@ -146,6 +200,63 @@ class _StoreScreenState extends State<StoreScreen> {
           },
         ),
       ],
+    );
+  }
+}
+
+class _CommerceProductTile extends StatelessWidget {
+  final CommerceProduct product;
+  final VoidCallback onTap;
+
+  const _CommerceProductTile({required this.product, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final lowestPrice = product.variations
+        .map((variation) => variation.price)
+        .reduce((a, b) => a < b ? a : b);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xFF172334),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: product.imageUrl.isNotEmpty
+                        ? Image.network(product.imageUrl, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag_outlined))
+                        : const Icon(Icons.shopping_bag_outlined),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text('${lowestPrice.toStringAsFixed(2)} ₺',
+                          style: const TextStyle(color: AppTheme.cyan, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondary),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

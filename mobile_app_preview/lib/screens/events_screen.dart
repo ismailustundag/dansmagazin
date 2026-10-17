@@ -35,7 +35,13 @@ class EventsScreen extends StatefulWidget {
 
 class _EventsScreenState extends State<EventsScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
-  static const List<String> _kinds = ['all', 'dance_night', 'festival', 'competition', 'promo_lesson'];
+  static const List<String> _kinds = [
+    'all',
+    'dance_night',
+    'festival',
+    'competition',
+    'promo_lesson'
+  ];
   late Future<List<_EventItem>> _future;
   String _selectedKind = 'all';
 
@@ -46,7 +52,10 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Future<List<_EventItem>> _fetchEvents() async {
-    final resp = await http.get(Uri.parse('$_base/events?limit=300'));
+    final uri = Uri.parse('$_base/events').replace(
+      queryParameters: {'limit': '300', 'lang': I18n.language},
+    );
+    final resp = await http.get(uri);
     if (resp.statusCode != 200) throw Exception('Etkinlikler alınamadı');
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
@@ -57,7 +66,9 @@ class _EventsScreenState extends State<EventsScreen> {
 
   List<_EventItem> _filteredItems(List<_EventItem> items) {
     if (_selectedKind == 'all') return items;
-    return items.where((e) => e.eventKind.trim().toLowerCase() == _selectedKind).toList();
+    return items
+        .where((e) => e.eventKind.trim().toLowerCase() == _selectedKind)
+        .toList();
   }
 
   String _kindLabel(String kind) {
@@ -98,7 +109,8 @@ class _EventsScreenState extends State<EventsScreen> {
                   if (snapshot.hasError) {
                     return Center(
                       child: TextButton(
-                        onPressed: () => setState(() => _future = _fetchEvents()),
+                        onPressed: () =>
+                            setState(() => _future = _fetchEvents()),
                         child: Text(I18n.t('events_load_error')),
                       ),
                     );
@@ -191,7 +203,8 @@ class _EventItem {
 
   DateTime get sortKey {
     final parsed = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
-    final dt = parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
+    final dt =
+        parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
     if (dt == null) return DateTime.utc(9999, 1, 1);
     final now = DateTime.now();
     final eventDay = DateTime(dt.year, dt.month, dt.day);
@@ -219,7 +232,8 @@ class _EventItem {
       eventDate: (json['start_at'] ?? json['event_date'] ?? '').toString(),
       endAt: (json['end_at'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
-      ticketUrl: absUrl(json['ticket_url'] ?? json['link'] ?? '', host: 'https://www.dansmagazin.net'),
+      ticketUrl: absUrl(json['ticket_url'] ?? json['link'] ?? '',
+          host: 'https://www.dansmagazin.net'),
       venue: (json['venue'] ?? '').toString(),
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       organizer: (json['organizer_name'] ?? '').toString(),
@@ -228,7 +242,8 @@ class _EventItem {
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
       coverCrop: (json['cover_crop'] ?? 'center').toString(),
-      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
+      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) ||
+          (json['ticket_sales_enabled'] == 1),
     );
   }
 }
@@ -263,7 +278,8 @@ class _EventCard extends StatelessWidget {
                   item.cover,
                   fit: BoxFit.cover,
                   alignment: _coverAlignment(item.coverCrop),
-                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1F2937)),
+                  errorBuilder: (_, __, ___) =>
+                      Container(color: const Color(0xFF1F2937)),
                 ),
               ),
             Padding(
@@ -271,14 +287,18 @@ class _EventCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(item.name,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
                     children: [
                       if (item.city.trim().isNotEmpty)
-                        Text(item.city.trim(), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        Text(item.city.trim(),
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 12)),
                     ],
                   ),
                 ],

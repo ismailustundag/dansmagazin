@@ -1,3 +1,4 @@
+from app.event_locations import location_fields, location_options, public_filters, validate_location, edited_location
 import os
 import re
 import uuid
@@ -6,9 +7,12 @@ import base64
 import html
 import logging
 import random
+import secrets
+import smtplib
 from io import BytesIO
 import hmac
 import hashlib
+from email.message import EmailMessage
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
@@ -23,6 +27,7 @@ from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from app.utils import get_db_connection, display_name
+from app.ticket_email import send_ticket_emails_for_notifications
 
 router = APIRouter(prefix="/events", tags=["Etkinlikler"])
 admin_router = APIRouter(prefix="/admin/events", tags=["Admin Etkinlikler"])
@@ -38,12 +43,19 @@ WOO_CONSUMER_KEY = os.getenv("WOO_CONSUMER_KEY", "").strip()
 WOO_CONSUMER_SECRET = os.getenv("WOO_CONSUMER_SECRET", "").strip()
 WOO_SYNC_SECRET = os.getenv("WOO_SYNC_SECRET", "").strip()
 QR_SIGNING_SECRET = (os.getenv("QR_SIGNING_SECRET", "").strip() or os.getenv("MOBILE_ADMIN_TOKEN", "").strip() or DATABASE_URL or "dansmagazin-ticket-secret")
+SMTP_SERVER = os.getenv("SMTP_SERVER", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587") or "587")
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", os.getenv("EMAIL_USERNAME", "")).strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASSWORD", ""))
+SMTP_FROM = os.getenv("SMTP_FROM", os.getenv("EMAIL_FROM", "Dans Magazin <info@dansmagazin.net>")).strip()
+APP_DOWNLOAD_URL = os.getenv("APP_DOWNLOAD_URL", "https://api2.dansmagazin.net/app-download").strip()
 APP_TIMEZONE = (os.getenv("APP_TIMEZONE", "Europe/Istanbul") or "Europe/Istanbul").strip()
 logger = logging.getLogger("mobil_backend.events")
 
 ALLOWED_EVENT_KINDS = {"dance_night", "festival", "competition", "promo_lesson"}
 ALLOWED_DANCE_STYLES = {"salsa", "bachata", "kizomba", "tango", "lindy_hop", "hip_hop"}
 ALLOWED_COVER_CROPS = {"top", "center", "bottom"}
+SUPPORTED_EVENT_LANGUAGES = {"tr", "en", "es"}
 DEFAULT_AUTO_EVENT_NOTIFICATION_TITLE_TEMPLATE = "Bu akşam: {event_name}"
 DEFAULT_AUTO_EVENT_NOTIFICATION_BODY_TEMPLATE = "{event_name} bu akşam başlıyor. Programı incele, geç kalmadan yerini al."
 EVENT_COVER_INPUT_MAX_BYTES = 45 * 1024 * 1024
@@ -56,6 +68,150 @@ EVENT_COVER_QUALITY_STEPS = (86, 82, 78, 74, 70, 66)
 db_conn = get_db_connection
 _db_conn = db_conn
 _display_name = display_name
+
+
+def _normalize_event_language(raw: Any, fallback: str = "tr") -> str:
+    value = str(raw or "").strip().lower().replace("_", "-").split("-", 1)[0]
+    if value in SUPPORTED_EVENT_LANGUAGES:
+        return value
+    normalized_fallback = str(fallback or "tr").strip().lower()
+    return normalized_fallback if normalized_fallback in SUPPORTED_EVENT_LANGUAGES else "tr"
+
+
+def _parse_event_translations(
+    raw: Any,
+    *,
+    default_language: str,
+    event_name: str,
+    description: str,
+    program_text: str,
+) -> Dict[str, Dict[str, str]]:
+    parsed: Any = {}
+    if isinstance(raw, dict):
+        parsed = raw
+    elif str(raw or "").strip():
+        try:
+            parsed = json.loads(str(raw))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Etkinlik çevirileri geçersiz") from exc
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=400, detail="Etkinlik çevirileri geçersiz")
+
+    translations: Dict[str, Dict[str, str]] = {}
+    for raw_language, raw_fields in parsed.items():
+        language = str(raw_language or "").strip().lower().replace("_", "-").split("-", 1)[0]
+        if language not in SUPPORTED_EVENT_LANGUAGES or not isinstance(raw_fields, dict):
+            continue
+        name = str(raw_fields.get("event_name") or raw_fields.get("name") or "").strip()
+        desc = str(raw_fields.get("description") or "").strip()
+        program = str(raw_fields.get("program_text") or raw_fields.get("program") or "").strip()
+        if not name and not desc and not program:
+            continue
+        translations[language] = {
+            "event_name": name,
+            "description": desc,
+            "program_text": program,
+        }
+
+    default_language = _normalize_event_language(default_language)
+    base = translations.setdefault(default_language, {})
+    base["event_name"] = str(base.get("event_name") or event_name or "").strip()
+    base["description"] = str(base.get("description") or description or "").strip()
+    base["program_text"] = str(base.get("program_text") or program_text or "").strip()
+    if len(base["event_name"]) < 2:
+        raise HTTPException(status_code=400, detail="Ana dilde etkinlik adı zorunlu")
+    return translations
+
+
+def _upsert_event_translations(
+    cur,
+    submission_ids: List[int],
+    *,
+    default_language: str,
+    translations: Dict[str, Dict[str, str]],
+) -> None:
+    default_language = _normalize_event_language(default_language)
+    base = translations.get(default_language) or {}
+    for submission_id in submission_ids:
+        cur.execute(
+            """
+            UPDATE mobile_event_submissions
+            SET default_language=%s,
+                event_name=%s,
+                description=%s,
+                program_text=%s
+            WHERE id=%s
+            """,
+            (
+                default_language,
+                str(base.get("event_name") or "").strip(),
+                str(base.get("description") or "").strip(),
+                str(base.get("program_text") or "").strip(),
+                int(submission_id),
+            ),
+        )
+        for language, values in translations.items():
+            cur.execute(
+                """
+                INSERT INTO mobile_event_translations
+                    (submission_id, language_code, event_name, description, program_text, updated_at)
+                VALUES (%s,%s,%s,%s,%s,NOW())
+                ON CONFLICT (submission_id, language_code) DO UPDATE SET
+                    event_name=EXCLUDED.event_name,
+                    description=EXCLUDED.description,
+                    program_text=EXCLUDED.program_text,
+                    updated_at=NOW()
+                """,
+                (
+                    int(submission_id),
+                    language,
+                    str(values.get("event_name") or "").strip(),
+                    str(values.get("description") or "").strip(),
+                    str(values.get("program_text") or "").strip(),
+                ),
+            )
+
+
+def _load_event_translations(conn, submission_ids: List[int]) -> Dict[int, Dict[str, Dict[str, str]]]:
+    ids = sorted({int(value) for value in submission_ids if int(value) > 0})
+    if not ids:
+        return {}
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT submission_id, language_code, event_name, description, program_text
+        FROM mobile_event_translations
+        WHERE submission_id = ANY(%s)
+        """,
+        (ids,),
+    )
+    result: Dict[int, Dict[str, Dict[str, str]]] = {}
+    for row in cur.fetchall() or []:
+        submission_id = int(row.get("submission_id") or 0)
+        language = _normalize_event_language(row.get("language_code"))
+        result.setdefault(submission_id, {})[language] = {
+            "event_name": str(row.get("event_name") or "").strip(),
+            "description": str(row.get("description") or "").strip(),
+            "program_text": str(row.get("program_text") or "").strip(),
+        }
+    return result
+
+
+def _resolved_event_content(
+    row: Dict[str, Any],
+    translations: Dict[str, Dict[str, str]],
+    requested_language: str,
+) -> Dict[str, str]:
+    default_language = _normalize_event_language(row.get("default_language"))
+    requested_language = _normalize_event_language(requested_language, fallback=default_language)
+    selected = translations.get(requested_language) or translations.get(default_language) or {}
+    return {
+        "event_name": str(selected.get("event_name") or row.get("event_name") or "").strip(),
+        "description": str(selected.get("description") or row.get("description") or "").strip(),
+        "program_text": str(selected.get("program_text") or row.get("program_text") or "").strip(),
+        "content_language": requested_language if translations.get(requested_language) else default_language,
+        "default_language": default_language,
+    }
 
 def _parse_dance_styles(raw: Any) -> List[str]:
     if raw is None:
@@ -170,6 +326,32 @@ def init_event_submission_tables():
             created_at TEXT NOT NULL,
             approved_at TEXT
         )
+        """
+    )
+    cur.execute(
+        """
+        ALTER TABLE mobile_event_submissions
+        ADD COLUMN IF NOT EXISTS default_language TEXT NOT NULL DEFAULT 'tr'
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS mobile_event_translations (
+            submission_id INTEGER NOT NULL REFERENCES mobile_event_submissions(id) ON DELETE CASCADE,
+            language_code VARCHAR(8) NOT NULL,
+            event_name TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            program_text TEXT NOT NULL DEFAULT '',
+            updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (submission_id, language_code),
+            CHECK (language_code IN ('tr', 'en', 'es'))
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_mobile_event_translations_language
+        ON mobile_event_translations(language_code, submission_id)
         """
     )
     cur.execute(
@@ -698,6 +880,9 @@ def init_event_submission_tables():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_mob_entry_sources_token ON mobile_event_entry_sources(qr_token)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_mob_entry_scans_source ON mobile_event_entry_source_scans(source_id, scanned_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_mob_entry_scans_sub ON mobile_event_entry_source_scans(submission_id, scanned_at DESC)")
+    cur.execute("ALTER TABLE mobile_event_submissions ADD COLUMN IF NOT EXISTS country_code TEXT")
+    cur.execute("ALTER TABLE mobile_event_submissions ADD COLUMN IF NOT EXISTS city_id TEXT")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_event_location ON mobile_event_submissions(country_code, city_id) WHERE status='approved'")
     conn.commit()
     conn.close()
     os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -974,6 +1159,15 @@ def _submission_event_day(row: Dict[str, Any]) -> Optional[date]:
     return _parse_event_date_text((row.get("event_date") or row.get("start_at") or "").strip())
 
 
+def _should_reactivate_future_copy(row: Dict[str, Any], *, today: Optional[date] = None) -> bool:
+    if (row.get("source_type") or "").strip().lower() != "copy":
+        return False
+    if (row.get("status") or "").strip().lower() != "expired":
+        return False
+    event_day = _submission_event_day(row)
+    return event_day is not None and event_day >= (today or _now_local().date())
+
+
 def _ticket_type_label(ticket_type: Any) -> str:
     normalized = str(ticket_type or "").strip().lower() or "paid"
     if normalized == "guest":
@@ -1029,6 +1223,7 @@ def _build_active_ticket_control_map(conn, submission_ids: List[int]) -> Dict[in
                 "paid_ticket_count": 0,
                 "guest_ticket_count": 0,
                 "reward_ticket_count": 0,
+                "used_ticket_count": 0,
                 "summary_text": _ticket_control_summary_text({"active_ticket_count": 0}, include_zero=True),
             },
             "holders": [],
@@ -1041,15 +1236,30 @@ def _build_active_ticket_control_map(conn, submission_ids: List[int]) -> Dict[in
         """
         SELECT
             t.submission_id,
-            COUNT(*)::INT AS active_ticket_count,
-            COUNT(DISTINCT t.account_id)::INT AS active_holder_count,
-            COUNT(*) FILTER (WHERE COALESCE(t.ticket_type,'paid')='paid')::INT AS paid_ticket_count,
-            COUNT(*) FILTER (WHERE COALESCE(t.ticket_type,'paid')='guest')::INT AS guest_ticket_count,
-            COUNT(*) FILTER (WHERE COALESCE(t.ticket_type,'paid')='loyalty_reward')::INT AS reward_ticket_count
+            COUNT(*) FILTER (
+                WHERE COALESCE(t.status,'active')='active' AND t.used_at IS NULL
+            )::INT AS active_ticket_count,
+            COUNT(DISTINCT t.account_id) FILTER (
+                WHERE COALESCE(t.status,'active')='active' AND t.used_at IS NULL
+            )::INT AS active_holder_count,
+            COUNT(*) FILTER (
+                WHERE COALESCE(t.status,'active') NOT IN ('cancelled','deleted','void')
+                  AND COALESCE(t.ticket_type,'paid')='paid'
+            )::INT AS paid_ticket_count,
+            COUNT(*) FILTER (
+                WHERE COALESCE(t.status,'active') NOT IN ('cancelled','deleted','void')
+                  AND COALESCE(t.ticket_type,'paid')='guest'
+            )::INT AS guest_ticket_count,
+            COUNT(*) FILTER (
+                WHERE COALESCE(t.status,'active') NOT IN ('cancelled','deleted','void')
+                  AND COALESCE(t.ticket_type,'paid')='loyalty_reward'
+            )::INT AS reward_ticket_count,
+            COUNT(*) FILTER (
+                WHERE COALESCE(t.status,'active') NOT IN ('cancelled','deleted','void')
+                  AND t.used_at IS NOT NULL
+            )::INT AS used_ticket_count
         FROM mobile_tickets t
         WHERE t.submission_id = ANY(%s)
-          AND COALESCE(t.status,'active')='active'
-          AND t.used_at IS NULL
         GROUP BY t.submission_id
         """,
         (normalized_submission_ids,),
@@ -1065,6 +1275,7 @@ def _build_active_ticket_control_map(conn, submission_ids: List[int]) -> Dict[in
             "paid_ticket_count": int(row.get("paid_ticket_count") or 0),
             "guest_ticket_count": int(row.get("guest_ticket_count") or 0),
             "reward_ticket_count": int(row.get("reward_ticket_count") or 0),
+            "used_ticket_count": int(row.get("used_ticket_count") or 0),
         }
         summary["summary_text"] = _ticket_control_summary_text(summary, include_zero=True)
         mapped[submission_id]["summary"] = summary
@@ -1406,7 +1617,7 @@ def _ensure_live_event_state(conn, submission_id: int, *, activate: bool) -> Non
     submitter_email = (row.get("submitter_email") or "").strip().lower()
     slug = (row.get("approved_event_slug") or "").strip()
     saas_event_id = int(row.get("saas_event_id") or 0)
-    album_enabled = bool(row.get("create_photo_album"))
+    album_enabled = False
 
     if not activate and not slug and saas_event_id <= 0:
         return
@@ -1589,6 +1800,8 @@ def _insert_mobile_event_submission(
     source_type: Optional[str] = None,
     source_ref: Optional[str] = None,
     admin_note: Optional[str] = None,
+    country_code: str = "",
+    city_id: str = "",
 ) -> int:
     cur.execute(
         """
@@ -1635,7 +1848,10 @@ def _insert_mobile_event_submission(
         ),
     )
     inserted = cur.fetchone() or {}
-    return int(inserted.get("id") or 0)
+    inserted_id = int(inserted.get("id") or 0)
+    cur.execute("UPDATE mobile_event_submissions SET country_code=%s, city_id=%s WHERE id=%s",
+                (*_valid_event_location(country_code, city_id), inserted_id))
+    return inserted_id
 
 
 def _normalize_map_url(raw: str) -> str:
@@ -1669,13 +1885,17 @@ def _next_weekday_on_or_after(base_day: date, weekday: int) -> date:
 
 def _rollover_and_expire_events(conn) -> None:
     cur = conn.cursor()
+    # Several read endpoints run this maintenance step. Serialize it per
+    # transaction so concurrent requests cannot create the same weekly event.
+    cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("mobile_event_rollover",))
     cur.execute(
         """
         SELECT
             id, submitter_name, submitter_email, event_name, description, event_date, venue, venue_map_url,
-            city, event_kind, COALESCE(dance_styles,'') AS dance_styles,
+            city, country_code, city_id, event_kind, COALESCE(dance_styles,'') AS dance_styles,
             ticket_sales_enabled, repeat_weekly, repeat_weekday, repeat_origin_submission_id,
             organizer_name, program_text, cover_path, start_at, end_at, entry_fee, admin_note,
+            COALESCE(default_language,'tr') AS default_language,
             COALESCE(auto_notification_title_template,'') AS auto_notification_title_template,
             COALESCE(auto_notification_body_template,'') AS auto_notification_body_template,
             approved_event_slug, source_type, source_ref
@@ -1693,6 +1913,9 @@ def _rollover_and_expire_events(conn) -> None:
     for r in rows:
         current_date = _parse_event_date_text((r.get("event_date") or r.get("start_at") or ""))
         if current_date is None or current_date >= today:
+            continue
+        end_date = _parse_event_date_text(r.get("end_at") or "")
+        if end_date is not None and end_date >= today:
             continue
 
         repeat_weekly = bool(r.get("repeat_weekly"))
@@ -1783,6 +2006,29 @@ def _rollover_and_expire_events(conn) -> None:
                 inserted = cur.fetchone() or {}
                 new_submission_id = int(inserted.get("id") or 0)
                 if new_submission_id > 0:
+                    cur.execute(
+                        "UPDATE mobile_event_submissions SET country_code=%s, city_id=%s WHERE id=%s",
+                        (r.get("country_code"), r.get("city_id"), new_submission_id),
+                    )
+                    cur.execute(
+                        "UPDATE mobile_event_submissions SET default_language=%s WHERE id=%s",
+                        (_normalize_event_language(r.get("default_language")), new_submission_id),
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO mobile_event_translations
+                            (submission_id, language_code, event_name, description, program_text, updated_at)
+                        SELECT %s, language_code, event_name, description, program_text, NOW()
+                        FROM mobile_event_translations
+                        WHERE submission_id=%s
+                        ON CONFLICT (submission_id, language_code) DO UPDATE SET
+                            event_name=EXCLUDED.event_name,
+                            description=EXCLUDED.description,
+                            program_text=EXCLUDED.program_text,
+                            updated_at=NOW()
+                        """,
+                        (new_submission_id, int(r["id"])),
+                    )
                     _clone_ticket_scan_permissions(
                         conn,
                         from_submission_id=int(r["id"]),
@@ -2034,6 +2280,8 @@ def _fetch_event_raffle_row(conn, submission_id: int) -> Optional[Dict[str, Any]
         SELECT
             r.id,
             r.submission_id,
+            COALESCE(mes.event_name, '') AS event_name,
+            COALESCE(mes.approved_event_slug, '') AS approved_event_slug,
             r.starts_at,
             r.ends_at,
             r.winner_count,
@@ -2044,6 +2292,7 @@ def _fetch_event_raffle_row(conn, submission_id: int) -> Optional[Dict[str, Any]
             r.updated_at,
             r.drawn_at
         FROM mobile_event_raffles r
+        LEFT JOIN mobile_event_submissions mes ON mes.id = r.submission_id
         WHERE r.submission_id=%s
         LIMIT 1
         """,
@@ -2149,8 +2398,9 @@ def _serialize_event_raffle(
         for w in winners_rows
         if (w.get("winner_kind") or "").strip().lower() == "reserve"
     ]
-    visible_reserve_winners = reserve_winners if can_manage else []
-    visible_reserve_count = int(row.get("winner_count") or 0) if can_manage else 0
+    hide_reserves = _is_visnelik_event(row.get("event_name"), row.get("approved_event_slug"))
+    visible_reserve_winners = [] if hide_reserves else (reserve_winners if can_manage else [])
+    visible_reserve_count = 0 if hide_reserves else (int(row.get("winner_count") or 0) if can_manage else 0)
 
     state = _raffle_state_for_row(row)
     is_drawn = state == "drawn"
@@ -2353,6 +2603,70 @@ def _resolve_account_by_email_or_wp(conn, email: str, wp_user_id: Optional[int] 
     return None
 
 
+def _provision_account_for_paid_woo_order(
+    conn,
+    *,
+    email: str,
+    wp_user_id: Optional[int],
+    name: str,
+) -> Optional[int]:
+    email_normalized = (email or "").strip().lower()
+    if not email_normalized or "@" not in email_normalized:
+        return None
+
+    from app.routers.auth import (
+        _ensure_default_system_friendship,
+        _upsert_identity_map,
+        _upsert_local_account,
+    )
+
+    resolved_name = (name or "").strip() or email_normalized.split("@", 1)[0]
+    account_id = _upsert_local_account(
+        conn,
+        email_normalized,
+        resolved_name,
+        "customer",
+        secrets.token_urlsafe(32),
+    )
+    if wp_user_id:
+        _upsert_identity_map(
+            conn,
+            int(wp_user_id),
+            int(account_id),
+            "woo_paid_order",
+            100,
+            "auto_provisioned_for_paid_ticket",
+        )
+    _ensure_default_system_friendship(conn, int(account_id))
+    logger.info(
+        "woo.order_paid provisioned account_id=%s wp_user_id=%s",
+        account_id,
+        wp_user_id,
+    )
+    return int(account_id)
+
+
+def _woo_order_has_ticket_product(
+    conn,
+    line_items: List[Dict[str, Any]],
+    *,
+    reference_day: Optional[date],
+) -> bool:
+    for line_item in line_items:
+        if not isinstance(line_item, dict):
+            continue
+        product_id = str(line_item.get("product_id") or line_item.get("id") or "").strip()
+        if not product_id:
+            continue
+        if _find_or_create_submission_for_woo_product(
+            conn,
+            product_id,
+            reference_day=reference_day,
+        ):
+            return True
+    return False
+
+
 def _create_ticket_rows(
     conn,
     *,
@@ -2396,6 +2710,129 @@ def _create_ticket_rows(
         if created_id > 0:
             created_ticket_ids.append(created_id)
     return created_ticket_ids
+
+
+def _send_ticket_email(
+    *,
+    recipient: str,
+    recipient_name: str,
+    event_name: str,
+    event_date: str,
+    venue: str,
+    ticket_id: int,
+    qr_payload: str,
+) -> bool:
+    """Send a purchase ticket email without making SMTP failure break ticket creation."""
+    to_email = (recipient or "").strip()
+    if not to_email or not SMTP_SERVER or not SMTP_PASSWORD:
+        return False
+
+    safe_name = (recipient_name or "").strip() or "Merhaba"
+    safe_event = (event_name or "Bu etkinlik").strip()
+    subject = f"Biletiniz hazır: {safe_event}"
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_email
+    msg["Reply-To"] = SMTP_FROM
+    msg.set_content(
+        f"Merhaba {safe_name},\n\n"
+        f"{safe_event} için satın aldığınız bilet hazır.\n"
+        f"Tarih: {(event_date or '-').strip()}\n"
+        f"Mekan: {(venue or '-').strip()}\n"
+        f"Bilet no: {int(ticket_id)}\n\n"
+        f"QR biletinizi Dans Magazin uygulamasında da görebilirsiniz:\n{APP_DOWNLOAD_URL}\n"
+    )
+    html_body = f"""
+    <html><body style="font-family:Arial,sans-serif;color:#17202a;line-height:1.55">
+      <h2 style="color:#126b5f">Biletiniz hazır</h2>
+      <p>Merhaba <b>{html.escape(safe_name)}</b>,</p>
+      <p><b>{html.escape(safe_event)}</b> için satın aldığınız bilet hazır.</p>
+      <p><b>Tarih:</b> {html.escape((event_date or '-').strip())}<br>
+         <b>Mekan:</b> {html.escape((venue or '-').strip())}<br>
+         <b>Bilet no:</b> {int(ticket_id)}</p>
+      <div style="text-align:center;margin:24px 0">
+        <img src="cid:ticket-qr" alt="Bilet QR kodu" style="width:240px;height:240px">
+      </div>
+      <p>QR biletinizi telefonda görmek ve girişte kullanmak için Dans Magazin uygulamasını indirebilirsiniz:</p>
+      <p><a href="{html.escape(APP_DOWNLOAD_URL)}">Dans Magazin uygulamasını indir</a></p>
+    </body></html>
+    """
+    msg.add_alternative(html_body, subtype="html")
+    qr = qrcode.make((qr_payload or "").strip())
+    qr_bytes = BytesIO()
+    qr.save(qr_bytes, format="PNG")
+    msg.get_payload()[-1].add_related(
+        qr_bytes.getvalue(), maintype="image", subtype="png", cid="<ticket-qr>"
+    )
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=20) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
+            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(msg)
+        return True
+    except Exception as exc:
+        logger.warning("ticket_email_failed ticket_id=%s recipient=%s err=%s", ticket_id, to_email, exc)
+        return False
+
+
+def _send_ticket_emails_for_notifications(conn, notifications: List[Dict[str, Any]]) -> Dict[str, int]:
+    sent = 0
+    failed = 0
+    cur = conn.cursor()
+    for item in notifications or []:
+        ticket_id = int(item.get("ticket_id") or 0)
+        account_id = int(item.get("account_id") or 0)
+        if ticket_id <= 0 or account_id <= 0:
+            continue
+        cur.execute(
+            """
+            SELECT COALESCE(a.email,'') AS email, COALESCE(a.name,'') AS name,
+                   t.id AS ticket_id, t.submission_id, t.event_name, t.event_slug, t.qr_token,
+                   COALESCE(mps.dance_school,'') AS school_name,
+                   COALESCE(mps.dance_school_id,0) AS school_id,
+                   COALESCE(mes.start_at, mes.event_date, '') AS event_date,
+                   COALESCE(mes.venue, '') AS venue
+            FROM mobile_tickets t
+            JOIN accounts a ON a.id=t.account_id
+            LEFT JOIN mobile_event_submissions mes ON mes.id=t.submission_id
+            LEFT JOIN mobile_profile_settings mps ON mps.account_id=t.account_id
+            WHERE t.id=%s AND t.account_id=%s
+            """,
+            (ticket_id, account_id),
+        )
+        row = cur.fetchone() or {}
+        if not row.get("email"):
+            failed += 1
+            continue
+        # Use the exact payload returned by /profile/tickets, including the
+        # signed school payload used for Visnelik tickets.
+        from app.routers.profile import _school_qr_payload
+        qr_payload = _school_qr_payload(
+            ticket_id=int(row.get("ticket_id") or ticket_id),
+            submission_id=int(row.get("submission_id") or 0),
+            raw_token=str(row.get("qr_token") or ""),
+            account_id=account_id,
+            event_name=str(row.get("event_name") or ""),
+            event_slug=str(row.get("event_slug") or ""),
+            school_name=str(row.get("school_name") or ""),
+            school_id=int(row.get("school_id") or 0),
+        )
+        if _send_ticket_email(
+            recipient=str(row.get("email") or ""),
+            recipient_name=str(row.get("name") or ""),
+            event_name=str(row.get("event_name") or ""),
+            event_date=str(row.get("event_date") or ""),
+            venue=str(row.get("venue") or ""),
+            ticket_id=ticket_id,
+            qr_payload=qr_payload,
+        ):
+            sent += 1
+        else:
+            failed += 1
+    return {"sent": sent, "failed": failed}
 
 
 def _send_ticket_created_notifications(
@@ -2525,10 +2962,12 @@ def _send_ticket_created_notifications(
             [int(item["account_id"]) for item in normalized_notifications],
             json.dumps(push_summary, ensure_ascii=False),
         )
+        email_summary = send_ticket_emails_for_notifications(conn, normalized_notifications)
         return {
             "ok": True,
             "inserted": len(normalized_notifications),
             "push": push_summary,
+            "email": email_summary,
         }
     except Exception as exc:
         conn.rollback()
@@ -2769,150 +3208,16 @@ def _fetch_profile_school_snapshot(conn, account_id: int) -> Dict[str, Any]:
     }
 
 
-def _find_next_loyalty_submission(conn, *, origin_submission_id: int, current_submission_id: int) -> Optional[Dict[str, Any]]:
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT
-            id,
-            COALESCE(event_name,'') AS event_name,
-            COALESCE(approved_event_slug,'') AS approved_event_slug,
-            COALESCE(event_date, start_at, '') AS event_day_text
-        FROM mobile_event_submissions
-        WHERE status='approved'
-          AND COALESCE(repeat_origin_submission_id, id)=%s
-        ORDER BY COALESCE(event_date, start_at, created_at) ASC, id ASC
-        """,
-        (int(origin_submission_id),),
-    )
-    rows = cur.fetchall() or []
-    current_seen = False
-    today = _now_local().date()
-    for row in rows:
-        row_id = int(row["id"])
-        if row_id == int(current_submission_id):
-            current_seen = True
-            continue
-        event_day = _parse_event_date_text((row.get("event_day_text") or "").strip())
-        if not current_seen and row_id != int(current_submission_id):
-            continue
-        if event_day is not None and event_day < today:
-            continue
-        return row
-    return None
-
-
-def _ensure_loyalty_reward_ticket(
+def _build_school_scan_info(
     conn,
     *,
-    account_id: int,
-    origin_submission_id: int,
-    current_submission_id: int,
-    reward_cycle: int,
-) -> Dict[str, Any]:
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT
-            id,
-            submission_id,
-            event_name,
-            status
-        FROM mobile_tickets
-        WHERE account_id=%s
-          AND COALESCE(ticket_type,'paid')='loyalty_reward'
-          AND COALESCE(reward_origin_submission_id,0)=%s
-          AND COALESCE(reward_cycle,0)=%s
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (int(account_id), int(origin_submission_id), int(reward_cycle)),
-    )
-    existing = cur.fetchone()
-    if existing:
-        return {
-            "ticket_id": int(existing["id"]),
-            "submission_id": int(existing.get("submission_id") or 0),
-            "event_name": (existing.get("event_name") or "").strip(),
-            "created": False,
-        }
-
-    target = _find_next_loyalty_submission(
-        conn,
-        origin_submission_id=int(origin_submission_id),
-        current_submission_id=int(current_submission_id),
-    )
-    if not target:
-        return {"ticket_id": 0, "submission_id": 0, "event_name": "", "created": False}
-
-    event_name = (target.get("event_name") or "").strip()
-    reward_name = event_name if "ucretsiz" in _normalize_school_key(event_name) else f"{event_name} - Ucretsiz Giris"
-    token = f"reward_{uuid.uuid4().hex}"
-    cur.execute(
-        """
-        INSERT INTO mobile_tickets
-            (account_id, submission_id, event_slug, event_name, woo_order_id, woo_order_item_id, woo_order_status, qr_token, status, created_at, ticket_type, reward_origin_submission_id, reward_cycle)
-        VALUES
-            (%s,%s,%s,%s,'','',NULL,%s,'active',%s,'loyalty_reward',%s,%s)
-        RETURNING id
-        """,
-        (
-            int(account_id),
-            int(target["id"]),
-            (target.get("approved_event_slug") or "").strip(),
-            reward_name,
-            token,
-            _iso_now(),
-            int(origin_submission_id),
-            int(reward_cycle),
-        ),
-    )
-    row = cur.fetchone() or {}
-    return {
-        "ticket_id": int(row.get("id") or 0),
-        "submission_id": int(target["id"]),
-        "event_name": reward_name,
-        "created": True,
-    }
-
-
-def _record_visnelik_loyalty_scan(
-    conn,
-    *,
-    ticket_id: int,
     submission_id: int,
-    account_id: int,
-    ticket_type: str,
     school_name: str,
 ) -> Dict[str, Any]:
     origin_submission_id = _repeat_thread_origin_id(conn, submission_id)
     school_name_clean = str(school_name or "").strip()
     school_key = _normalize_school_key(school_name_clean)
     cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT COUNT(*)::INT AS cnt
-        FROM mobile_ticket_scan_logs
-        WHERE buyer_account_id=%s
-          AND COALESCE(entry_origin_submission_id,0)=%s
-          AND scan_result='accepted'
-          AND COALESCE(ticket_type,'paid') <> 'loyalty_reward'
-        """,
-        (int(account_id), int(origin_submission_id)),
-    )
-    qualifying_visits = int((cur.fetchone() or {}).get("cnt") or 0)
-    next_remaining = 0 if qualifying_visits % 5 == 0 else 5 - (qualifying_visits % 5)
-    reward_cycle = qualifying_visits // 5 if qualifying_visits > 0 and qualifying_visits % 5 == 0 else 0
-    reward_info: Dict[str, Any] = {"ticket_id": 0, "submission_id": 0, "event_name": "", "created": False}
-    if reward_cycle > 0:
-        reward_info = _ensure_loyalty_reward_ticket(
-            conn,
-            account_id=int(account_id),
-            origin_submission_id=int(origin_submission_id),
-            current_submission_id=int(submission_id),
-            reward_cycle=int(reward_cycle),
-        )
-
     cur.execute(
         """
         SELECT COUNT(*)::INT AS cnt
@@ -2929,12 +3234,6 @@ def _record_visnelik_loyalty_scan(
         "school_name": school_name_clean,
         "school_key": school_key,
         "school_count": school_count,
-        "qualifying_visits": qualifying_visits,
-        "next_remaining": next_remaining,
-        "reward_cycle": reward_cycle,
-        "reward_ticket_id": int(reward_info.get("ticket_id") or 0),
-        "reward_event_name": (reward_info.get("event_name") or "").strip(),
-        "reward_created": bool(reward_info.get("created")),
     }
 
 
@@ -3072,101 +3371,6 @@ def _build_admin_loyalty_reports(conn, submission_ids: List[int]) -> Dict[str, D
             }
         )
 
-    cur.execute(
-        """
-        SELECT
-            COALESCE(l.entry_origin_submission_id, 0) AS origin_id,
-            l.buyer_account_id,
-            COALESCE(a.name, '') AS buyer_name,
-            COALESCE(a.email, '') AS buyer_email,
-            COALESCE(ps.username, '') AS buyer_username,
-            COALESCE(NULLIF(MAX(l.source_profile_school_name), ''), '') AS school_name,
-            COUNT(*)::INT AS qualifying_visits,
-            MAX(l.scan_at) AS last_scan_at
-        FROM mobile_ticket_scan_logs l
-        JOIN accounts a ON a.id = l.buyer_account_id
-        LEFT JOIN mobile_profile_settings ps ON ps.account_id = a.id
-        WHERE COALESCE(l.entry_origin_submission_id, 0) = ANY(%s)
-          AND l.scan_result='accepted'
-          AND COALESCE(l.ticket_type, 'paid') <> 'loyalty_reward'
-          AND COALESCE(l.buyer_account_id, 0) > 0
-        GROUP BY 1, 2, a.name, a.email, ps.username
-        ORDER BY origin_id ASC, qualifying_visits DESC, MAX(l.scan_at) DESC
-        """,
-        (origin_ids,),
-    )
-    user_progress_map: Dict[int, List[Dict[str, Any]]] = {}
-    for row in (cur.fetchall() or []):
-        origin_id = int(row.get("origin_id") or 0)
-        if origin_id <= 0:
-            continue
-        visit_count = int(row.get("qualifying_visits") or 0)
-        next_remaining = 0 if visit_count <= 0 or visit_count % 5 == 0 else 5 - (visit_count % 5)
-        user_progress_map.setdefault(origin_id, []).append(
-            {
-                "account_id": int(row.get("buyer_account_id") or 0),
-                "buyer_name": display_name(
-                    (row.get("buyer_name") or ""),
-                    (row.get("buyer_email") or ""),
-                    (row.get("buyer_username") or ""),
-                ),
-                "buyer_email": (row.get("buyer_email") or "").strip(),
-                "school_name": (row.get("school_name") or "").strip(),
-                "qualifying_visits": visit_count,
-                "earned_rewards": visit_count // 5,
-                "next_remaining": next_remaining,
-                "last_scan_at": _json_time_text(row.get("last_scan_at") or ""),
-            }
-        )
-
-    cur.execute(
-        """
-        SELECT
-            COALESCE(t.reward_origin_submission_id, 0) AS origin_id,
-            t.id,
-            t.account_id,
-            t.submission_id,
-            COALESCE(t.event_name, '') AS event_name,
-            COALESCE(t.status, 'active') AS status,
-            t.used_at,
-            COALESCE(t.reward_cycle, 0)::INT AS reward_cycle,
-            COALESCE(a.name, '') AS buyer_name,
-            COALESCE(a.email, '') AS buyer_email,
-            COALESCE(ps.username, '') AS buyer_username
-        FROM mobile_tickets t
-        JOIN accounts a ON a.id = t.account_id
-        LEFT JOIN mobile_profile_settings ps ON ps.account_id = a.id
-        WHERE COALESCE(t.ticket_type, 'paid')='loyalty_reward'
-          AND COALESCE(t.reward_origin_submission_id, 0) = ANY(%s)
-        ORDER BY origin_id ASC, reward_cycle DESC, t.id DESC
-        """,
-        (origin_ids,),
-    )
-    reward_rows_map: Dict[int, List[Dict[str, Any]]] = {}
-    for row in (cur.fetchall() or []):
-        origin_id = int(row.get("origin_id") or 0)
-        if origin_id <= 0:
-            continue
-        used_at = _json_time_text(row.get("used_at") or "")
-        reward_rows_map.setdefault(origin_id, []).append(
-            {
-                "ticket_id": int(row.get("id") or 0),
-                "account_id": int(row.get("account_id") or 0),
-                "submission_id": int(row.get("submission_id") or 0),
-                "event_name": (row.get("event_name") or "").strip(),
-                "status": (row.get("status") or "active").strip(),
-                "used_at": used_at,
-                "reward_cycle": int(row.get("reward_cycle") or 0),
-                "buyer_name": display_name(
-                    (row.get("buyer_name") or ""),
-                    (row.get("buyer_email") or ""),
-                    (row.get("buyer_username") or ""),
-                ),
-                "buyer_email": (row.get("buyer_email") or "").strip(),
-                "is_used": bool(used_at),
-            }
-        )
-
     reports: Dict[str, Dict[str, Any]] = {}
     for row in submission_rows:
         submission_id = int(row.get("id") or 0)
@@ -3176,15 +3380,6 @@ def _build_admin_loyalty_reports(conn, submission_ids: List[int]) -> Dict[str, D
         current_summary = current_counts.get(submission_id) or {}
         series_summary = series_counts.get(origin_id) or {}
         school_rows = school_rows_map.get(origin_id) or []
-        user_rows = (user_progress_map.get(origin_id) or [])[:25]
-        reward_rows = (reward_rows_map.get(origin_id) or [])[:20]
-        reward_ticket_count = len(reward_rows_map.get(origin_id) or [])
-        reward_ticket_used_count = sum(1 for item in (reward_rows_map.get(origin_id) or []) if item.get("is_used"))
-        reward_ticket_active_count = sum(
-            1
-            for item in (reward_rows_map.get(origin_id) or [])
-            if not item.get("is_used") and (item.get("status") or "").strip().lower() != "cancelled"
-        )
         reports[str(submission_id)] = {
             "submission_id": submission_id,
             "origin_submission_id": origin_id,
@@ -3192,7 +3387,7 @@ def _build_admin_loyalty_reports(conn, submission_ids: List[int]) -> Dict[str, D
             "event_day_text": (row.get("event_day_text") or "").strip(),
             "status": (row.get("status") or "").strip(),
             "thread_size": int(thread_sizes.get(origin_id) or 1),
-            "loyalty_enabled": bool(_is_visnelik_event(row.get("event_name"), "")),
+            "loyalty_enabled": False,
             "summary": {
                 "current_accepted_scans": int(current_summary.get("accepted_scans") or 0),
                 "current_unique_buyers": int(current_summary.get("unique_buyers") or 0),
@@ -3200,14 +3395,14 @@ def _build_admin_loyalty_reports(conn, submission_ids: List[int]) -> Dict[str, D
                 "series_accepted_scans": int(series_summary.get("accepted_scans") or 0),
                 "series_unique_buyers": int(series_summary.get("unique_buyers") or 0),
                 "school_count": len(school_rows),
-                "reward_ticket_count": reward_ticket_count,
-                "reward_ticket_active_count": reward_ticket_active_count,
-                "reward_ticket_used_count": reward_ticket_used_count,
+                "reward_ticket_count": 0,
+                "reward_ticket_active_count": 0,
+                "reward_ticket_used_count": 0,
                 "last_scan_at": str(current_summary.get("last_scan_at") or series_summary.get("last_scan_at") or ""),
             },
             "schools": school_rows[:20],
-            "user_progress": user_rows,
-            "reward_tickets": reward_rows,
+            "user_progress": [],
+            "reward_tickets": [],
         }
     return reports
 
@@ -3350,6 +3545,46 @@ def _ticket_status_from_woo_status(order_status: str) -> str:
     return "payment_pending"
 
 
+def _apply_woo_order_ticket_status(
+    conn,
+    *,
+    order_id: str,
+    order_status: str,
+    account_id: Optional[int] = None,
+    order_item_prefix: str = "",
+) -> int:
+    normalized_order_id = str(order_id or "").strip()
+    if not normalized_order_id:
+        return 0
+    normalized_order_status = str(order_status or "").strip().lower()
+    ticket_status = _ticket_status_from_woo_status(normalized_order_status)
+    wheres = ["woo_order_id=%s"]
+    vals: List[Any] = [normalized_order_id]
+    if account_id is not None and int(account_id) > 0:
+        wheres.append("account_id=%s")
+        vals.append(int(account_id))
+    if order_item_prefix:
+        wheres.append("woo_order_item_id LIKE %s")
+        vals.append(f"{order_item_prefix}%")
+
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        UPDATE mobile_tickets
+        SET woo_order_status=%s,
+            status=CASE
+                WHEN %s='active' THEN 'active'
+                WHEN %s='payment_pending' AND COALESCE(status,'') IN ('payment_pending','active') THEN 'payment_pending'
+                WHEN %s='cancelled' THEN 'cancelled'
+                ELSE status
+            END
+        WHERE {' AND '.join(wheres)}
+        """,
+        (normalized_order_status, ticket_status, ticket_status, ticket_status, *vals),
+    )
+    return int(cur.rowcount or 0)
+
+
 def _fetch_woo_order_statuses(order_ids: List[str]) -> Dict[str, str]:
     ids: List[str] = []
     seen = set()
@@ -3423,16 +3658,15 @@ def _find_or_create_submission_for_woo_product(
         FROM saas_events
         WHERE external_source='woo' AND external_event_id=%s
         ORDER BY id DESC
-        LIMIT 1
         """,
         (pid,),
     )
-    se = cur.fetchone()
-    slug = ""
-    name = ""
-    if se:
-        slug = (se.get("slug") or "").strip()
-        name = (se.get("name") or "").strip()
+    se_rows = cur.fetchall() or []
+    se = se_rows[0] if se_rows else None
+    slugs = [(row.get("slug") or "").strip() for row in se_rows if (row.get("slug") or "").strip()]
+    names = [(row.get("name") or "").strip() for row in se_rows if (row.get("name") or "").strip()]
+    slug = slugs[0] if slugs else ""
+    name = names[0] if names else ""
 
     candidate_rows: Dict[int, Dict[str, Any]] = {}
     for row in exact_rows:
@@ -3440,7 +3674,7 @@ def _find_or_create_submission_for_woo_product(
         if row_id > 0:
             candidate_rows[row_id] = row
 
-    if slug:
+    for candidate_slug in slugs:
         cur.execute(
             """
             SELECT id, event_name, approved_event_slug, status, event_date, start_at
@@ -3448,14 +3682,14 @@ def _find_or_create_submission_for_woo_product(
             WHERE approved_event_slug=%s
               AND COALESCE(status,'') IN ('approved','expired')
             """,
-            (slug,),
+            (candidate_slug,),
         )
         for row in cur.fetchall() or []:
             row_id = int(row.get("id") or 0)
             if row_id > 0:
                 candidate_rows[row_id] = row
 
-    if name:
+    for candidate_name in names:
         cur.execute(
             """
             SELECT id, event_name, approved_event_slug, status, event_date, start_at
@@ -3463,7 +3697,7 @@ def _find_or_create_submission_for_woo_product(
             WHERE LOWER(COALESCE(event_name,''))=LOWER(%s)
               AND COALESCE(status,'') IN ('approved','expired')
             """,
-            (name,),
+            (candidate_name,),
         )
         for row in cur.fetchall() or []:
             row_id = int(row.get("id") or 0)
@@ -3963,39 +4197,66 @@ def _fetch_woo_products_backfill(per_page: int, max_pages: int) -> tuple[str, Li
     return "wc_store_v1", products
 
 
+def _valid_event_location(country_code, city_id):
+    try:
+        return validate_location(country_code, city_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _current_public_event_ids(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT mes.id, mes.event_date, mes.start_at, mes.end_at FROM mobile_event_submissions mes LEFT JOIN saas_events se ON se.slug=mes.approved_event_slug WHERE mes.status='approved' AND COALESCE(se.is_active,1)=1")
+    today = _now_local().date()
+    return [row["id"] for row in cur.fetchall() if
+            (day := _parse_event_date_text(row.get("end_at") or row.get("event_date") or row.get("start_at") or "")) is not None and day >= today]
+
+
+@router.get("/filter-options", summary="Guncel etkinliklerin ulke ve sehir secenekleri")
+def event_filter_options(event_kind: str = "", dance_styles: str = ""):
+    conn = db_conn()
+    try:
+        _rollover_and_expire_events(conn)
+        conn.commit()
+        wheres, vals = public_filters(event_kind=event_kind, styles=_parse_dance_styles(dance_styles))
+        wheres.append("mes.id = ANY(%s)")
+        vals.append(_current_public_event_ids(conn))
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT mes.city, mes.country_code, mes.city_id FROM mobile_event_submissions mes LEFT JOIN saas_events se ON se.slug=mes.approved_event_slug WHERE " + " AND ".join(wheres), tuple(vals))
+        return location_options(cur.fetchall())
+    finally:
+        conn.close()
+
+
 @router.get("", summary="Onaylanmış etkinlik listesi")
-def list_events(limit: int = 50, city: str = "", event_kind: str = "", dance_styles: str = ""):
+def list_events(
+    limit: int = 50,
+    city: str = "",
+    event_kind: str = "",
+    dance_styles: str = "",
+    country_code: str = "",
+    city_id: str = "",
+    lang: str = "tr",
+):
     conn = db_conn()
     cur = conn.cursor()
     _rollover_and_expire_events(conn)
     conn.commit()
-    wheres = ["mes.status='approved'", "COALESCE(se.is_active, 1)=1"]
-    vals: List[Any] = []
-    city_q = (city or "").strip().lower()
-    kind_q = (event_kind or "").strip().lower()
-    style_q = _parse_dance_styles(dance_styles)
-    if city_q:
-        wheres.append("LOWER(COALESCE(mes.city,''))=%s")
-        vals.append(city_q)
-    if kind_q and kind_q != "all":
-        wheres.append("LOWER(COALESCE(mes.event_kind,''))=%s")
-        vals.append(kind_q)
-    if style_q:
-        style_clauses = []
-        for style in style_q:
-            style_clauses.append("(',' || LOWER(COALESCE(mes.dance_styles,'')) || ',') LIKE %s")
-            vals.append(f"%,{style},%")
-        wheres.append("(" + " OR ".join(style_clauses) + ")")
+    wheres, vals = public_filters(city, event_kind, _parse_dance_styles(dance_styles), country_code, city_id)
+    current_ids = _current_public_event_ids(conn)
+    wheres.append("mes.id = ANY(%s)")
+    vals.append(current_ids)
     cur.execute(
         f"""
         SELECT
             mes.id,
             mes.event_name,
             mes.description,
+            COALESCE(mes.default_language, 'tr') AS default_language,
             mes.event_date,
             mes.venue,
             COALESCE(mes.venue_map_url,'') AS venue_map_url,
-            COALESCE(mes.city,'') AS city,
+            COALESCE(mes.city,'') AS city, mes.country_code, mes.city_id,
             COALESCE(mes.event_kind,'') AS event_kind,
             COALESCE(mes.dance_styles,'') AS dance_styles,
             COALESCE(mes.ticket_sales_enabled, TRUE) AS ticket_sales_enabled,
@@ -4027,9 +4288,18 @@ def list_events(limit: int = 50, city: str = "", event_kind: str = "", dance_sty
         tuple(vals + [max(1, min(int(limit), 500))]),
     )
     rows = cur.fetchall() or []
+    translations_by_id = _load_event_translations(
+        conn,
+        [int(row.get("id") or 0) for row in rows if int(row.get("id") or 0) > 0],
+    )
     conn.close()
     items = []
     for r in rows:
+        content = _resolved_event_content(
+            r,
+            translations_by_id.get(int(r.get("id") or 0), {}),
+            lang,
+        )
         venue_name, venue_map = _split_venue_fields((r.get("venue") or ""), (r.get("venue_map_url") or ""))
         cover_path = (r["cover_path"] or "").strip()
         cover_url = ""
@@ -4052,12 +4322,12 @@ def list_events(limit: int = 50, city: str = "", event_kind: str = "", dance_sty
         items.append(
             {
                 "id": r["id"],
-                "name": r["event_name"],
-                "description": _clean_html_text(r["description"] or ""),
+                "name": content["event_name"],
+                "description": _clean_html_text(content["description"]),
                 "event_date": event_date_out,
                 "venue": venue_name,
                 "venue_map_url": venue_map,
-                "city": (r.get("city") or "").strip(),
+                **location_fields(r),
                 "event_kind": (r.get("event_kind") or "").strip(),
                 "dance_styles": _deserialize_dance_styles(r.get("dance_styles")),
                 "cover_crop": _normalize_cover_crop(r.get("cover_crop")),
@@ -4069,7 +4339,12 @@ def list_events(limit: int = 50, city: str = "", event_kind: str = "", dance_sty
                     else None
                 ),
                 "organizer_name": r["organizer_name"] or "",
-                "program_text": r["program_text"] or "",
+                "program_text": content["program_text"],
+                "content_language": content["content_language"],
+                "default_language": content["default_language"],
+                "available_languages": sorted(
+                    translations_by_id.get(int(r.get("id") or 0), {}).keys()
+                ),
                 "cover": cover_url,
                 "start_at": start_at_out,
                 "end_at": end_at_out,
@@ -4089,10 +4364,14 @@ async def create_submission(
     submitter_email: str = Form(""),
     event_name: str = Form(...),
     description: str = Form(""),
+    default_language: str = Form("tr"),
+    translations_json: str = Form(""),
     event_date: str = Form(""),
     venue: str = Form(""),
     venue_map_url: str = Form(""),
     city: str = Form(""),
+    country_code: str = Form(""),
+    city_id: str = Form(""),
     event_kind: str = Form("dance_night"),
     dance_styles: str = Form(""),
     ticket_sales_enabled: str = Form("0"),
@@ -4110,9 +4389,22 @@ async def create_submission(
     cover_image: Optional[UploadFile] = File(None),
     authorization: Optional[str] = Header(default=None),
 ): # Changed _db_conn to db_conn
-    if len(event_name.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Etkinlik adı çok kısa")
+    default_language_val = _normalize_event_language(default_language)
+    translations_val = _parse_event_translations(
+        translations_json,
+        default_language=default_language_val,
+        event_name=event_name,
+        description=description,
+        program_text=program_text,
+    )
+    base_content = translations_val[default_language_val]
+    event_name_val = base_content["event_name"]
+    description_val = base_content["description"]
+    program_text_val = base_content["program_text"]
     city_val = city.strip()
+    country_code, city_id = _valid_event_location(country_code, city_id)
+    if country_code and not city_id:
+        city_id = "manual:" + uuid.uuid4().hex
     if not city_val:
         raise HTTPException(status_code=400, detail="Şehir zorunlu")
     kind_val = (event_kind or "").strip().lower() or "dance_night"
@@ -4125,7 +4417,7 @@ async def create_submission(
         "yes",
         "on",
     }
-    create_photo_album_val = (create_photo_album or "").strip().lower() in {"1", "true", "yes", "on"}
+    create_photo_album_val = False
     repeat_weekly_requested = (repeat_weekly or "").strip().lower() in {"1", "true", "yes", "on"}
     repeat_mode_val = _normalize_repeat_mode(repeat_mode, repeat_weekly_enabled=repeat_weekly_requested)
     event_date_val, start_at_val, end_at_val = _coerce_event_window(event_date, start_at, end_at)
@@ -4195,12 +4487,12 @@ async def create_submission(
                 cur,
                 submitter_name=fallback_name,
                 submitter_email=fallback_email,
-                event_name=event_name.strip(),
-                description=description.strip(),
+                event_name=event_name_val,
+                description=description_val,
                 event_date=_shift_event_dt_to_date(base_event_source, target_day),
                 venue=venue.strip(),
                 venue_map_url=venue_map_url_val,
-                city=city_val,
+                city=city_val, country_code=country_code, city_id=city_id,
                 event_kind=kind_val,
                 dance_styles=dance_styles_val,
                 ticket_sales_enabled=ticket_sales_val,
@@ -4209,7 +4501,7 @@ async def create_submission(
                 repeat_weekday=None,
                 repeat_origin_submission_id=origin_submission_id,
                 organizer_name=organizer_name.strip(),
-                program_text=program_text.strip(),
+                program_text=program_text_val,
                 cover_path=cover_path,
                 start_at=shifted_start_at,
                 end_at=shifted_end_at,
@@ -4230,12 +4522,12 @@ async def create_submission(
             cur,
             submitter_name=fallback_name,
             submitter_email=fallback_email,
-            event_name=event_name.strip(),
-            description=description.strip(),
+            event_name=event_name_val,
+            description=description_val,
             event_date=event_date_val,
             venue=venue.strip(),
             venue_map_url=venue_map_url_val,
-            city=city_val,
+            city=city_val, country_code=country_code, city_id=city_id,
             event_kind=kind_val,
             dance_styles=dance_styles_val,
             ticket_sales_enabled=ticket_sales_val,
@@ -4244,7 +4536,7 @@ async def create_submission(
             repeat_weekday=repeat_weekday_val,
             repeat_origin_submission_id=clone_thread_origin_id,
             organizer_name=organizer_name.strip(),
-            program_text=program_text.strip(),
+            program_text=program_text_val,
             cover_path=cover_path,
             start_at=start_at_val,
             end_at=end_at_val,
@@ -4254,6 +4546,13 @@ async def create_submission(
         )
         if created_id > 0:
             created_ids.append(created_id)
+    if created_ids:
+        _upsert_event_translations(
+            cur,
+            created_ids,
+            default_language=default_language_val,
+            translations=translations_val,
+        )
     if clone_attendees_from_id > 0:
         for created_id in created_ids:
             if int(created_id) == clone_attendees_from_id:
@@ -4297,12 +4596,13 @@ def list_manage_items(
                 mes.id,
                 mes.event_name,
                 mes.description,
+                COALESCE(mes.default_language, 'tr') AS default_language,
                 mes.event_date,
                 mes.start_at,
                 mes.end_at,
                 mes.venue,
                 COALESCE(mes.venue_map_url,'') AS venue_map_url,
-                COALESCE(mes.city,'') AS city,
+                COALESCE(mes.city,'') AS city, mes.country_code, mes.city_id,
                 COALESCE(mes.event_kind,'') AS event_kind,
                 COALESCE(mes.dance_styles,'') AS dance_styles,
                 COALESCE(mes.ticket_sales_enabled, TRUE) AS ticket_sales_enabled,
@@ -4317,7 +4617,8 @@ def list_manage_items(
                     mes.created_at,
                     mes.approved_at,
                     mes.approved_event_slug,
-                    COALESCE(se.account_id,0) AS owner_account_id
+                    COALESCE(se.account_id,0) AS owner_account_id,
+                    COALESCE(se.is_active,1) AS event_is_active
                 FROM mobile_event_submissions mes
                 LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
                 ORDER BY mes.created_at DESC
@@ -4331,12 +4632,13 @@ def list_manage_items(
                     mes.id,
                     mes.event_name,
                     mes.description,
+                    COALESCE(mes.default_language, 'tr') AS default_language,
                     mes.event_date,
                     mes.start_at,
                     mes.end_at,
                     mes.venue,
                     COALESCE(mes.venue_map_url,'') AS venue_map_url,
-                    COALESCE(mes.city,'') AS city,
+                    COALESCE(mes.city,'') AS city, mes.country_code, mes.city_id,
                     COALESCE(mes.event_kind,'') AS event_kind,
                     COALESCE(mes.dance_styles,'') AS dance_styles,
                     COALESCE(mes.ticket_sales_enabled, TRUE) AS ticket_sales_enabled,
@@ -4350,7 +4652,8 @@ def list_manage_items(
                     mes.created_at,
                     mes.approved_at,
                     mes.approved_event_slug,
-                    COALESCE(se.account_id,0) AS owner_account_id
+                    COALESCE(se.account_id,0) AS owner_account_id,
+                    COALESCE(se.is_active,1) AS event_is_active
                 FROM mobile_event_submissions mes
                 LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
                 WHERE LOWER(COALESCE(mes.submitter_email,''))=%s
@@ -4367,6 +4670,10 @@ def list_manage_items(
                 (actor_email, account_id, account_id),
             )
         rows = cur.fetchall() or []
+        translations_by_id = _load_event_translations(
+            conn,
+            [int(row.get("id") or 0) for row in rows if int(row.get("id") or 0) > 0],
+        )
         ticket_control_map = _build_active_ticket_control_map(
             conn,
             [int(row.get("id") or 0) for row in rows if int(row.get("id") or 0) > 0],
@@ -4389,12 +4696,14 @@ def list_manage_items(
                     "submission_id": submission_id,
                     "name": (r.get("event_name") or "").strip(),
                     "description": (r.get("description") or "").strip(),
+                    "default_language": _normalize_event_language(r.get("default_language")),
+                    "translations": translations_by_id.get(submission_id, {}),
                     "event_date": _normalize_event_dt_text((r.get("event_date") or "").strip()),
                     "start_at": _normalize_event_dt_text((r.get("start_at") or "").strip()),
                     "end_at": _normalize_event_dt_text((r.get("end_at") or "").strip()),
                     "venue": venue_name,
                     "venue_map_url": venue_map,
-                    "city": (r.get("city") or "").strip(),
+                    **location_fields(r),
                     "event_kind": (r.get("event_kind") or "").strip(),
                     "dance_styles": _deserialize_dance_styles(r.get("dance_styles")),
                     "cover_crop": _normalize_cover_crop(r.get("cover_crop")),
@@ -4413,6 +4722,7 @@ def list_manage_items(
                     "entry_fee": float(r.get("entry_fee") or 0),
                     "status": _management_status_text((r.get("status") or "").strip(), ticket_summary),
                     "workflow_status": (r.get("status") or "").strip(),
+                    "event_is_active": bool(int(r.get("event_is_active") or 0)),
                     "created_at": (r.get("created_at") or "").strip(),
                     "approved_at": (r.get("approved_at") or "").strip(),
                     "slug": (r.get("approved_event_slug") or "").strip(),
@@ -4421,6 +4731,7 @@ def list_manage_items(
                     "paid_ticket_count": int(ticket_summary.get("paid_ticket_count") or 0),
                     "guest_ticket_count": int(ticket_summary.get("guest_ticket_count") or 0),
                     "reward_ticket_count": int(ticket_summary.get("reward_ticket_count") or 0),
+                    "used_ticket_count": int(ticket_summary.get("used_ticket_count") or 0),
                     "active_ticket_summary": (ticket_summary.get("summary_text") or "").strip(),
                 }
             )
@@ -4432,13 +4743,18 @@ def list_manage_items(
 @router.post("/manage/items/{submission_id}/update", summary="Editör: kendi etkinliğini güncelle")
 def update_manage_item(
     submission_id: int,
+    event_name: Optional[str] = Form(default=None),
     description: Optional[str] = Form(default=None),
+    default_language: Optional[str] = Form(default=None),
+    translations_json: Optional[str] = Form(default=None),
     event_date: Optional[str] = Form(default=None),
     start_at: Optional[str] = Form(default=None),
     end_at: Optional[str] = Form(default=None),
     venue: Optional[str] = Form(default=None),
     venue_map_url: Optional[str] = Form(default=None),
     city: Optional[str] = Form(default=None),
+    country_code: Optional[str] = Form(default=None),
+    city_id: Optional[str] = Form(default=None),
     event_kind: Optional[str] = Form(default=None),
     dance_styles: Optional[str] = Form(default=None),
     cover_crop: Optional[str] = Form(default=None),
@@ -4463,8 +4779,14 @@ def update_manage_item(
             SELECT
                 mes.id,
                 COALESCE(mes.submitter_email,'') AS submitter_email,
+                COALESCE(mes.event_name,'') AS event_name,
+                COALESCE(mes.description,'') AS description,
+                COALESCE(mes.program_text,'') AS program_text,
+                COALESCE(mes.default_language,'tr') AS default_language,
                 COALESCE(mes.event_kind,'') AS event_kind,
                 COALESCE(mes.dance_styles,'') AS dance_styles,
+                COALESCE(mes.status,'') AS status,
+                COALESCE(mes.source_type,'') AS source_type,
                 COALESCE(mes.approved_event_slug,'') AS slug,
                 COALESCE(se.account_id,0) AS owner_account_id
             FROM mobile_event_submissions mes
@@ -4502,6 +4824,9 @@ def update_manage_item(
         selected_kind = (row.get("event_kind") or "").strip().lower()
         fields_sql: List[str] = []
         vals: List[Any] = []
+        if event_name is not None:
+            fields_sql.append("event_name=%s")
+            vals.append(event_name.strip())
         if description is not None:
             fields_sql.append("description=%s")
             vals.append(description.strip())
@@ -4540,6 +4865,15 @@ def update_manage_item(
                 raise HTTPException(status_code=400, detail="Şehir boş olamaz")
             fields_sql.append("city=%s")
             vals.append(city_val)
+        if city is not None or country_code is not None or city_id is not None:
+            cur.execute("SELECT city, country_code, city_id FROM mobile_event_submissions WHERE id=%s", (int(submission_id),))
+            existing_location = cur.fetchone() or {}
+            try:
+                country, identity = edited_location(existing_location, city, country_code, city_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            fields_sql.extend(["country_code=%s", "city_id=%s"])
+            vals.extend([country, identity])
         if event_kind is not None:
             kind_val = (event_kind or "").strip().lower()
             if kind_val not in ALLOWED_EVENT_KINDS:
@@ -4617,6 +4951,56 @@ def update_manage_item(
                 tuple(vals),
             )
 
+        if translations_json is not None or default_language is not None:
+            next_default_language = _normalize_event_language(
+                default_language if default_language is not None else row.get("default_language")
+            )
+            translations_val = _parse_event_translations(
+                translations_json or {},
+                default_language=next_default_language,
+                event_name=event_name if event_name is not None else (row.get("event_name") or ""),
+                description=description if description is not None else (row.get("description") or ""),
+                program_text=program_text if program_text is not None else (row.get("program_text") or ""),
+            )
+            _upsert_event_translations(
+                cur,
+                [int(submission_id)],
+                default_language=next_default_language,
+                translations=translations_val,
+            )
+
+        if event_date is not None or start_at is not None or end_at is not None:
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(status,'') AS status,
+                    COALESCE(source_type,'') AS source_type,
+                    COALESCE(event_date,'') AS event_date,
+                    COALESCE(start_at,'') AS start_at
+                FROM mobile_event_submissions
+                WHERE id=%s
+                LIMIT 1
+                """,
+                (int(submission_id),),
+            )
+            refreshed_row = cur.fetchone() or {}
+            if _should_reactivate_future_copy(refreshed_row):
+                cur.execute(
+                    """
+                    UPDATE mobile_event_submissions
+                    SET status='approved',
+                        approved_at=%s,
+                        admin_note=%s
+                    WHERE id=%s
+                    """,
+                    (
+                        _iso_now(),
+                        "Kopya etkinlik ileri tarihli olarak güncellendi ve yeniden aktifleştirildi.",
+                        int(submission_id),
+                    ),
+                )
+                _ensure_live_event_state(conn, int(submission_id), activate=True)
+
         conn.commit()
         return {"ok": True, "submission_id": int(submission_id)}
     except HTTPException:
@@ -4625,6 +5009,153 @@ def update_manage_item(
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Güncelleme hatası: {e}")
+    finally:
+        conn.close()
+
+
+class ManageItemActiveRequest(BaseModel):
+    is_active: bool
+
+
+def _require_manage_item_row(conn, submission_id: int, actor: Dict[str, Any]) -> Dict[str, Any]:
+    account_id = int(actor["account_id"])
+    role = (actor.get("role") or "").strip().lower()
+    actor_email = (actor.get("email") or "").strip().lower()
+    if not _actor_can_manage_submission(
+        conn,
+        submission_id=int(submission_id),
+        account_id=account_id,
+        role=role,
+        actor_email=actor_email,
+    ):
+        raise HTTPException(status_code=403, detail="Bu etkinliği yönetme yetkiniz yok")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT
+            mes.*,
+            COALESCE(se.id, 0) AS saas_event_id,
+            COALESCE(se.account_id, 0) AS owner_account_id,
+            COALESCE(se.is_active, 1) AS event_is_active
+        FROM mobile_event_submissions mes
+        LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
+        WHERE mes.id=%s
+        LIMIT 1
+        """,
+        (int(submission_id),),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Etkinlik bulunamadı")
+    return row
+
+
+@router.post("/manage/items/{submission_id}/active", summary="Editör: etkinliği aktif/pasif yap")
+def set_manage_item_active(
+    submission_id: int,
+    payload: ManageItemActiveRequest,
+    authorization: Optional[str] = Header(default=None),
+):
+    conn = db_conn()
+    try:
+        actor = _require_editor_account(conn, authorization)
+        _require_manage_item_row(conn, int(submission_id), actor)
+        _ensure_live_event_state(conn, int(submission_id), activate=bool(payload.is_active))
+        conn.commit()
+        return {"ok": True, "submission_id": int(submission_id), "event_is_active": bool(payload.is_active)}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Etkinlik durumu güncellenemedi: {exc}")
+    finally:
+        conn.close()
+
+
+@router.post("/manage/items/{submission_id}/copy", summary="Editör: etkinliği kopyala")
+def copy_manage_item(
+    submission_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    conn = db_conn()
+    try:
+        actor = _require_editor_account(conn, authorization)
+        row = _require_manage_item_row(conn, int(submission_id), actor)
+        now_iso = _iso_now()
+        base_name = (row.get("event_name") or "").strip() or f"Etkinlik {submission_id}"
+        copy_name = f"{base_name} Kopya"
+        copy_slug = _unique_event_slug(conn, f"{_slug_clean(base_name)}-kopya")
+        cur = conn.cursor()
+        new_id = _insert_mobile_event_submission(
+            cur,
+            submitter_name=(row.get("submitter_name") or actor.get("name") or "").strip(),
+            submitter_email=(row.get("submitter_email") or actor.get("email") or "").strip(),
+            event_name=copy_name,
+            description=(row.get("description") or "").strip(),
+            event_date=(row.get("event_date") or "").strip(),
+            venue=(row.get("venue") or "").strip(),
+            venue_map_url=(row.get("venue_map_url") or "").strip(),
+            city=(row.get("city") or "").strip(),
+            country_code=row.get("country_code") or "", city_id=row.get("city_id") or "",
+            event_kind=(row.get("event_kind") or "").strip(),
+            dance_styles=(row.get("dance_styles") or "").strip(),
+            ticket_sales_enabled=bool(row.get("ticket_sales_enabled") if row.get("ticket_sales_enabled") is not None else True),
+            create_photo_album=False,
+            repeat_weekly=False,
+            repeat_weekday=None,
+            repeat_origin_submission_id=None,
+            organizer_name=(row.get("organizer_name") or "").strip(),
+            program_text=(row.get("program_text") or "").strip(),
+            cover_path=(row.get("cover_path") or "").strip(),
+            start_at=(row.get("start_at") or "").strip(),
+            end_at=(row.get("end_at") or "").strip(),
+            entry_fee=Decimal(str(row.get("entry_fee") or 0)),
+            status="approved",
+            admin_note="Mobil uygulama üzerinden kopyalandı.",
+            created_at=now_iso,
+            approved_at=now_iso,
+            approved_event_slug=copy_slug,
+            source_type="copy",
+            source_ref=str(int(submission_id)),
+        )
+        _ensure_live_event_state(conn, int(new_id), activate=True)
+        _clone_ticket_scan_permissions(conn, from_submission_id=int(submission_id), to_submission_id=int(new_id))
+        conn.commit()
+        return {"ok": True, "submission_id": int(new_id), "name": copy_name}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Etkinlik kopyalanamadı: {exc}")
+    finally:
+        conn.close()
+
+
+@router.delete("/manage/items/{submission_id}", summary="Editör: etkinliği sil")
+def delete_manage_item(
+    submission_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    conn = db_conn()
+    try:
+        actor = _require_editor_account(conn, authorization)
+        _require_manage_item_row(conn, int(submission_id), actor)
+        _ensure_live_event_state(conn, int(submission_id), activate=False)
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE mobile_event_submissions SET status='deleted', admin_note=%s WHERE id=%s",
+            ("Mobil uygulama üzerinden silindi.", int(submission_id)),
+        )
+        conn.commit()
+        return {"ok": True, "submission_id": int(submission_id), "deleted": True}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Etkinlik silinemedi: {exc}")
     finally:
         conn.close()
 
@@ -5039,10 +5570,11 @@ def admin_list_event_items(
                 mes.id,
                 mes.event_name,
                 mes.description,
+                COALESCE(mes.default_language, 'tr') AS default_language,
                 mes.event_date,
                 mes.venue,
                 COALESCE(mes.venue_map_url,'') AS venue_map_url,
-                COALESCE(mes.city,'') AS city,
+                COALESCE(mes.city,'') AS city, mes.country_code, mes.city_id,
                 COALESCE(mes.event_kind,'') AS event_kind,
                 COALESCE(mes.dance_styles,'') AS dance_styles,
                 COALESCE(mes.ticket_sales_enabled, TRUE) AS ticket_sales_enabled,
@@ -5076,6 +5608,10 @@ def admin_list_event_items(
             (max(1, min(int(limit), 1000)),),
         )
         rows = cur.fetchall() or []
+        translations_by_id = _load_event_translations(
+            conn,
+            [int(row.get("id") or 0) for row in rows if int(row.get("id") or 0) > 0],
+        )
         ticket_control_map = _build_active_ticket_control_map(
             conn,
             [int(row.get("id") or 0) for row in rows if int(row.get("id") or 0) > 0],
@@ -5096,19 +5632,21 @@ def admin_list_event_items(
                     "submission_id": submission_id,
                     "name": (r.get("event_name") or "").strip(),
                     "description": (r.get("description") or "").strip(),
+                    "default_language": _normalize_event_language(r.get("default_language")),
+                    "translations": translations_by_id.get(submission_id, {}),
                     "event_date": _normalize_event_dt_text((r.get("event_date") or "").strip()),
                     "start_at": _normalize_event_dt_text((r.get("start_at") or "").strip()),
                     "end_at": _normalize_event_dt_text((r.get("end_at") or "").strip()),
                     "venue": venue_name,
                     "venue_map_url": venue_map,
-                    "city": (r.get("city") or "").strip(),
+                    **location_fields(r),
                     "event_kind": (r.get("event_kind") or "").strip(),
                     "dance_styles": _deserialize_dance_styles(r.get("dance_styles")),
                     "cover_crop": _normalize_cover_crop(r.get("cover_crop")),
                     "ticket_sales_enabled": bool(
                         r.get("ticket_sales_enabled") if r.get("ticket_sales_enabled") is not None else True
                     ),
-                    "create_photo_album": bool(r.get("create_photo_album")),
+                    "create_photo_album": False,
                     "repeat_weekly": bool(r.get("repeat_weekly")),
                     "repeat_weekday": (
                         int(r.get("repeat_weekday"))
@@ -5126,9 +5664,7 @@ def admin_list_event_items(
                     "ticket_url": (r.get("ticket_url") or "").strip(),
                     "woo_product_id": (r.get("woo_product_id") or "").strip(),
                     "event_is_active": bool(int(r.get("event_is_active") or 0)),
-                    "photo_album_enabled": bool(
-                        r.get("photo_album_enabled") if r.get("photo_album_enabled") is not None else True
-                    ),
+                    "photo_album_enabled": False,
                     "created_at": (r.get("created_at") or "").strip(),
                     "approved_at": (r.get("approved_at") or "").strip(),
                     "auto_notification_title_template": (
@@ -5142,6 +5678,7 @@ def admin_list_event_items(
                     "paid_ticket_count": int(ticket_summary.get("paid_ticket_count") or 0),
                     "guest_ticket_count": int(ticket_summary.get("guest_ticket_count") or 0),
                     "reward_ticket_count": int(ticket_summary.get("reward_ticket_count") or 0),
+                    "used_ticket_count": int(ticket_summary.get("used_ticket_count") or 0),
                     "active_ticket_summary": (ticket_summary.get("summary_text") or "").strip(),
                 }
             )
@@ -5227,12 +5764,16 @@ def admin_update_event_item(
     submission_id: int,
     event_name: Optional[str] = Form(default=None),
     description: Optional[str] = Form(default=None),
+    default_language: Optional[str] = Form(default=None),
+    translations_json: Optional[str] = Form(default=None),
     event_date: Optional[str] = Form(default=None),
     start_at: Optional[str] = Form(default=None),
     end_at: Optional[str] = Form(default=None),
     venue: Optional[str] = Form(default=None),
     venue_map_url: Optional[str] = Form(default=None),
     city: Optional[str] = Form(default=None),
+    country_code: Optional[str] = Form(default=None),
+    city_id: Optional[str] = Form(default=None),
     event_kind: Optional[str] = Form(default=None),
     dance_styles: Optional[str] = Form(default=None),
     cover_crop: Optional[str] = Form(default=None),
@@ -5254,7 +5795,18 @@ def admin_update_event_item(
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, approved_event_slug, COALESCE(event_kind,'') AS event_kind FROM mobile_event_submissions WHERE id=%s LIMIT 1",
+            """
+            SELECT id,
+                   approved_event_slug,
+                   COALESCE(event_kind,'') AS event_kind,
+                   COALESCE(event_name,'') AS event_name,
+                   COALESCE(description,'') AS description,
+                   COALESCE(program_text,'') AS program_text,
+                   COALESCE(default_language,'tr') AS default_language
+            FROM mobile_event_submissions
+            WHERE id=%s
+            LIMIT 1
+            """,
             (int(submission_id),),
         )
         row = cur.fetchone()
@@ -5306,6 +5858,15 @@ def admin_update_event_item(
                 raise HTTPException(status_code=400, detail="Şehir boş olamaz")
             fields_sql.append("city=%s")
             vals.append(city_val)
+        if city is not None or country_code is not None or city_id is not None:
+            cur.execute("SELECT city, country_code, city_id FROM mobile_event_submissions WHERE id=%s", (int(submission_id),))
+            existing_location = cur.fetchone() or {}
+            try:
+                country, identity = edited_location(existing_location, city, country_code, city_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            fields_sql.extend(["country_code=%s", "city_id=%s"])
+            vals.extend([country, identity])
         if event_kind is not None:
             kind_val = (event_kind or "").strip().lower()
             if kind_val not in ALLOWED_EVENT_KINDS:
@@ -5387,12 +5948,32 @@ def admin_update_event_item(
                 tuple(vals),
             )
 
+        translated_event_name = event_name.strip() if event_name is not None else (row.get("event_name") or "")
+        if translations_json is not None or default_language is not None:
+            next_default_language = _normalize_event_language(
+                default_language if default_language is not None else row.get("default_language")
+            )
+            translations_val = _parse_event_translations(
+                translations_json or {},
+                default_language=next_default_language,
+                event_name=event_name if event_name is not None else (row.get("event_name") or ""),
+                description=description if description is not None else (row.get("description") or ""),
+                program_text=program_text if program_text is not None else (row.get("program_text") or ""),
+            )
+            _upsert_event_translations(
+                cur,
+                [int(submission_id)],
+                default_language=next_default_language,
+                translations=translations_val,
+            )
+            translated_event_name = translations_val[next_default_language]["event_name"]
+
         if slug:
             se_fields: List[str] = []
             se_vals: List[Any] = []
-            if event_name is not None:
+            if event_name is not None or translations_json is not None or default_language is not None:
                 se_fields.append("name=%s")
-                se_vals.append(event_name.strip())
+                se_vals.append(translated_event_name)
             if woo_product_id is not None and woo_product_id.strip():
                 se_fields.append("external_source=%s")
                 se_vals.append("woo")
@@ -5512,7 +6093,32 @@ def admin_woo_order_paid(
     data = payload or {}
     order_id = str(data.get("order_id") or data.get("id") or "").strip()
     order_status = str(data.get("status") or "").strip().lower()
+    if not order_id:
+        raise HTTPException(status_code=400, detail="order_id eksik")
+    if order_status not in {"processing", "completed"}:
+        conn = db_conn()
+        try:
+            updated_tickets = _apply_woo_order_ticket_status(
+                conn,
+                order_id=order_id,
+                order_status=order_status,
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        return {
+            "ok": True,
+            "order_id": order_id,
+            "order_status": order_status,
+            "updated_tickets": updated_tickets,
+            "created_tickets": 0,
+            "skipped_items": [{"reason": "payment not confirmed"}],
+        }
     buyer_email = str(data.get("billing_email") or data.get("email") or "").strip().lower()
+    buyer_name = str(data.get("billing_name") or data.get("customer_name") or data.get("name") or "").strip()
     wp_user_id_raw = data.get("customer_id") if data.get("customer_id") is not None else data.get("wp_user_id")
     wp_user_id = int(wp_user_id_raw) if str(wp_user_id_raw or "").isdigit() else None
     line_items = data.get("line_items") if isinstance(data.get("line_items"), list) else []
@@ -5527,13 +6133,24 @@ def admin_woo_order_paid(
             }
         ]
 
-    if not order_id:
-        raise HTTPException(status_code=400, detail="order_id eksik")
     ticket_status = _ticket_status_from_woo_status(order_status)
 
     conn = db_conn()
     try:
         account_id = _resolve_account_by_email_or_wp(conn, buyer_email, wp_user_id)
+        order_reference_day = _parse_event_date_text(str(data.get("date_created") or data.get("date_paid") or ""))
+        if not account_id and order_status in {"processing", "completed"}:
+            if _woo_order_has_ticket_product(
+                conn,
+                line_items,
+                reference_day=order_reference_day,
+            ):
+                account_id = _provision_account_for_paid_woo_order(
+                    conn,
+                    email=buyer_email,
+                    wp_user_id=wp_user_id,
+                    name=buyer_name,
+                )
         if not account_id:
             raise HTTPException(status_code=409, detail="Sipariş sahibi app hesabı ile eşleşmedi")
 
@@ -5545,19 +6162,37 @@ def admin_woo_order_paid(
             if not isinstance(li, dict):
                 continue
             product_id = str(li.get("product_id") or li.get("id") or "").strip()
+            event_submission_id_raw = li.get("event_submission_id")
+            event_submission_id = (
+                int(event_submission_id_raw)
+                if str(event_submission_id_raw or "").isdigit() and int(event_submission_id_raw) > 0
+                else None
+            )
             qty_raw = li.get("quantity") if li.get("quantity") is not None else 1
             qty = int(qty_raw) if str(qty_raw).isdigit() else 1
             order_item_id = str(li.get("id") or product_id or uuid.uuid4().hex[:8]).strip()
 
-            if not product_id:
+            if not product_id and not event_submission_id:
                 skipped_items.append({"item_id": order_item_id, "reason": "product_id missing"})
                 continue
 
-            ev = _find_or_create_submission_for_woo_product(
-                conn,
-                product_id,
-                reference_day=_parse_event_date_text(str(data.get("date_created") or data.get("date_paid") or "")),
-            )
+            if event_submission_id:
+                cur.execute(
+                    """
+                    SELECT id, event_name, approved_event_slug, event_date, start_at, status
+                    FROM mobile_event_submissions
+                    WHERE id=%s AND status IN ('approved','active')
+                    LIMIT 1
+                    """,
+                    (event_submission_id,),
+                )
+                ev = cur.fetchone()
+            else:
+                ev = _find_or_create_submission_for_woo_product(
+                    conn,
+                    product_id,
+                    reference_day=order_reference_day,
+                )
             if not ev:
                 skipped_items.append({"product_id": product_id, "reason": "mapped event not found"})
                 continue
@@ -5576,19 +6211,11 @@ def admin_woo_order_paid(
             )
             existing = int((cur.fetchone() or {}).get("cnt") or 0)
             # Var olan bilet satirlarinda siparis/odeme durumunu guncelle.
-            cur.execute(
-                """
-                UPDATE mobile_tickets
-                SET woo_order_status=%s,
-                    status=CASE
-                        WHEN %s='active' AND status IN ('payment_pending','active') THEN 'active'
-                        WHEN %s='payment_pending' AND status IN ('payment_pending','active') THEN 'payment_pending'
-                        WHEN %s='cancelled' THEN 'cancelled'
-                        ELSE status
-                    END
-                WHERE woo_order_id=%s AND woo_order_item_id LIKE %s
-                """,
-                (order_status, ticket_status, ticket_status, ticket_status, order_id, f"{order_item_id}%"),
+            _apply_woo_order_ticket_status(
+                conn,
+                order_id=order_id,
+                order_status=order_status,
+                order_item_prefix=order_item_id,
             )
             if existing >= qty:
                 skipped_items.append(
@@ -5597,6 +6224,18 @@ def admin_woo_order_paid(
                         "reason": "already created",
                         "existing": existing,
                         "updated_status": ticket_status,
+                    }
+                )
+                continue
+
+            event_day = _submission_event_day(ev)
+            if existing <= 0 and event_day is not None and event_day < _now_local().date():
+                skipped_items.append(
+                    {
+                        "product_id": product_id,
+                        "reason": "event already expired; not creating late ticket",
+                        "submission_id": submission_id,
+                        "event_day": event_day.isoformat(),
                     }
                 )
                 continue
@@ -5769,7 +6408,7 @@ def admin_ticket_scan_permissions_bulk(
         conn.close()
 
 
-@admin_router.post("/loyalty-reports/bulk", summary="Etkinlik bazlı okul ve ücretsiz bilet raporu (toplu)")
+@admin_router.post("/loyalty-reports/bulk", summary="Etkinlik bazlı okul raporu (toplu)")
 def admin_loyalty_reports_bulk(
     submission_ids_csv: Optional[str] = Form(default=""),
     x_admin_token: Optional[str] = Header(default=None),
@@ -6847,7 +7486,6 @@ def scan_ticket(
                     (ticket_id, submission_id, scanner_account_id, buyer_account_id, ticket_type, source_profile_school_name, source_profile_school_key, entry_origin_submission_id, scan_result, scan_at)
                 VALUES
                     (%s, %s, %s, %s, %s, %s, %s, %s, 'accepted', %s)
-                RETURNING id
                 """,
                 (
                     ticket_id,
@@ -6861,58 +7499,24 @@ def scan_ticket(
                     accepted_at,
                 ),
             )
-            log_row = cur.fetchone() or {}
-            log_id = int(log_row.get("id") or 0)
-            loyalty_info = {
+            school_info = {
                 "school_name": school_name,
                 "school_count": 0,
-                "qualifying_visits": 0,
-                "next_remaining": 0,
-                "reward_ticket_id": 0,
-                "reward_event_name": "",
-                "reward_created": False,
-                "reward_cycle": 0,
             }
             if _is_visnelik_event(row.get("event_name"), row.get("event_slug")):
-                loyalty_info = _record_visnelik_loyalty_scan(
+                school_info = _build_school_scan_info(
                     conn,
-                    ticket_id=ticket_id,
                     submission_id=int(submission_id),
-                    account_id=int(row["account_id"]),
-                    ticket_type=(row.get("ticket_type") or "paid"),
                     school_name=school_name,
                 )
-                if log_id > 0:
-                    cur.execute(
-                        """
-                        UPDATE mobile_ticket_scan_logs
-                        SET reward_cycle=%s,
-                            reward_ticket_id=%s
-                        WHERE id=%s
-                        """,
-                        (
-                            int(loyalty_info.get("reward_cycle") or 0) or None,
-                            int(loyalty_info.get("reward_ticket_id") or 0) or None,
-                            log_id,
-                        ),
-                    )
 
             buyer_name = display_name((row.get("buyer_name") or ""), (row.get("buyer_email") or ""), (row.get("buyer_username") or ""))
             message_parts = [f"Giriş onaylandı: {buyer_name}"]
-            if str(loyalty_info.get("school_name") or "").strip():
-                message_parts.append(f"Okul: {str(loyalty_info.get('school_name') or '').strip()}")
+            if str(school_info.get("school_name") or "").strip():
+                message_parts.append(f"Okul: {str(school_info.get('school_name') or '').strip()}")
             if _is_visnelik_event(row.get("event_name"), row.get("event_slug")):
-                if int(loyalty_info.get("school_count") or 0) > 0 and str(loyalty_info.get("school_name") or "").strip():
-                    message_parts.append(f"Okul girişi: {int(loyalty_info.get('school_count') or 0)}")
-                if int(loyalty_info.get("qualifying_visits") or 0) > 0:
-                    if int(loyalty_info.get("reward_ticket_id") or 0) > 0:
-                        reward_event_name = str(loyalty_info.get("reward_event_name") or "").strip()
-                        if reward_event_name:
-                            message_parts.append(f"5 giriş tamamlandı, ücretsiz bilet hazır: {reward_event_name}")
-                        else:
-                            message_parts.append("5 giriş tamamlandı, ücretsiz bilet hazır")
-                    elif int(loyalty_info.get("next_remaining") or 0) > 0:
-                        message_parts.append(f"Ücretsiz bilet için {int(loyalty_info.get('next_remaining') or 0)} giriş kaldı")
+                if int(school_info.get("school_count") or 0) > 0 and str(school_info.get("school_name") or "").strip():
+                    message_parts.append(f"Okul girişi: {int(school_info.get('school_count') or 0)}")
             conn.commit()
             return {
                 "ok": True,
@@ -6921,10 +7525,10 @@ def scan_ticket(
                 "message": " | ".join(message_parts),
                 "buyer_name": buyer_name,
                 "buyer_email": (row.get("buyer_email") or ""),
-                "school_name": str(loyalty_info.get("school_name") or "").strip(),
-                "school_count": int(loyalty_info.get("school_count") or 0),
-                "loyalty_visit_count": int(loyalty_info.get("qualifying_visits") or 0),
-                "reward_ticket_id": int(loyalty_info.get("reward_ticket_id") or 0),
+                "school_name": str(school_info.get("school_name") or "").strip(),
+                "school_count": int(school_info.get("school_count") or 0),
+                "loyalty_visit_count": 0,
+                "reward_ticket_id": 0,
             }
 
         cur.execute(
@@ -6957,6 +7561,13 @@ def scan_ticket(
             "buyer_name": display_name((row.get("buyer_name") or ""), (row.get("buyer_email") or ""), (row.get("buyer_username") or "")),
             "buyer_email": (row.get("buyer_email") or ""),
         }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        logger.exception("ticket_scan_failed submission_id=%s", submission_id)
+        raise HTTPException(status_code=500, detail="Bilet kontrol sırasında sistem hatası")
     finally:
         conn.close()
 

@@ -10,7 +10,13 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 def get_db_connection():
     if not DATABASE_URL:
         raise HTTPException(status_code=500, detail="Veritabanı yapılandırması eksik (DATABASE_URL)")
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    with conn.cursor() as cur:
+        cur.execute("SET idle_in_transaction_session_timeout = '60s'")
+        cur.execute("SET lock_timeout = '5s'")
+        cur.execute("SET statement_timeout = '20s'")
+    conn.commit()
+    return conn
 
 def parse_csv_set(raw_value: str) -> set[str]:
     return {item.strip() for item in (raw_value or "").split(",") if item and item.strip()}

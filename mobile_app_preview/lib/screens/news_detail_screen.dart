@@ -78,8 +78,10 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
   }
 
   Future<_NewsDetail> _fetchDetail() async {
-    final url = 'https://api2.dansmagazin.net/discover/news/${widget.postId}';
-    final resp = await http.get(Uri.parse(url));
+    final uri = Uri.parse(
+      'https://api2.dansmagazin.net/discover/news/${widget.postId}',
+    ).replace(queryParameters: {'lang': I18n.language});
+    final resp = await http.get(uri);
     if (resp.statusCode != 200) {
       throw Exception('Haber detayı alınamadı (${resp.statusCode})');
     }

@@ -12,7 +12,8 @@ import '../services/event_social_api.dart';
 import '../services/guest_list_api.dart';
 import '../services/i18n.dart';
 import '../services/profile_api.dart';
-import '../services/turkiye_cities.dart';
+import '../services/event_locations_api.dart';
+import 'event_location_picker.dart';
 import '../theme/app_theme.dart';
 import 'admin_notifications_screen.dart';
 import 'chat_thread_screen.dart';
@@ -256,186 +257,6 @@ String _danceStylesPayload(Iterable<String> styles) {
   return normalized.join(',');
 }
 
-String _cityLookupKey(String raw) {
-  return raw
-      .trim()
-      .toLowerCase()
-      .replaceAll('i̇', 'i')
-      .replaceAll('ı', 'i')
-      .replaceAll('ş', 's')
-      .replaceAll('ç', 'c')
-      .replaceAll('ğ', 'g')
-      .replaceAll('ü', 'u')
-      .replaceAll('ö', 'o');
-}
-
-String _canonicalCityOrUnknown(String raw, List<String> availableCities) {
-  final value = raw.trim();
-  if (value.isEmpty) return 'Belirtilmedi';
-  final target = _cityLookupKey(value);
-  for (final city in availableCities) {
-    if (_cityLookupKey(city) == target) return city;
-  }
-  return 'Belirtilmedi';
-}
-
-const List<String> _preferredEventCities = <String>[
-  'İstanbul',
-  'Ankara',
-  'İzmir',
-  'Bursa',
-  'Antalya',
-  'Eskişehir',
-  'Adana',
-  'Batum',
-  'Lefkoşa',
-];
-
-List<String> _prioritizedEventCities(List<String> cities) {
-  final unique = <String>[];
-  final seen = <String>{};
-  for (final city in cities) {
-    final trimmed = city.trim();
-    if (trimmed.isEmpty) continue;
-    final key = _cityLookupKey(trimmed);
-    if (seen.add(key)) unique.add(trimmed);
-  }
-  final preferred = <String>[];
-  final rest = <String>[];
-  for (final city in unique) {
-    if (city == 'Belirtilmedi') continue;
-    if (_preferredEventCities.contains(city)) {
-      preferred.add(city);
-    } else {
-      rest.add(city);
-    }
-  }
-  final out = <String>[];
-  if (unique.contains('Belirtilmedi')) out.add('Belirtilmedi');
-  out.addAll(preferred);
-  out.addAll(rest);
-  return out;
-}
-
-Future<String?> _showEventCityPickerSheet(
-  BuildContext context, {
-  required String currentCity,
-  required List<String> availableCities,
-}) {
-  final cities = _prioritizedEventCities(availableCities);
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: false,
-    backgroundColor: const Color(0xFF111827),
-    barrierColor: Colors.black.withOpacity(0.45),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (ctx) {
-      return SafeArea(
-        top: false,
-        child: SizedBox(
-          height: MediaQuery.of(ctx).size.height * 0.62,
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 44,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
-                child: Row(
-                  children: [
-                    Text(
-                      I18n.t('event_city_picker_title'),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
-                  itemCount: cities.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 4),
-                  itemBuilder: (ctx, index) {
-                    final city = cities[index];
-                    final selected = city == currentCity;
-                    final preferred = _preferredEventCities.contains(city);
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => Navigator.of(ctx).pop(city),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 13),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? AppTheme.cyan.withOpacity(0.16)
-                                : const Color(0xFF151B28),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: selected
-                                  ? AppTheme.cyan.withOpacity(0.82)
-                                  : Colors.white.withOpacity(0.06),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  city,
-                                  style: TextStyle(
-                                    color: selected
-                                        ? Colors.white
-                                        : Colors.white.withOpacity(0.88),
-                                    fontSize: 15,
-                                    fontWeight: selected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              if (preferred && !selected)
-                                Text(
-                                  I18n.t('popular_city'),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white.withOpacity(0.46),
-                                  ),
-                                ),
-                              if (selected) ...[
-                                const SizedBox(width: 8),
-                                const Icon(Icons.check_rounded,
-                                    size: 18, color: AppTheme.cyan),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
 Widget _eventCityField({
   required String value,
   required bool enabled,
@@ -561,7 +382,7 @@ class EditorEventManagementScreen extends StatelessWidget {
       backgroundColor: AppTheme.bgPrimary,
       appBar: AppBar(
         backgroundColor: AppTheme.bgPrimary,
-        title: const Text('Yönetim Paneli'),
+        title: Text(I18n.t('management_panel')),
       ),
       body: SafeArea(
         top: false,
@@ -570,20 +391,18 @@ class EditorEventManagementScreen extends StatelessWidget {
           children: [
             if (canManageEvents)
               _PanelSection(
-                title: 'Etkinlik Yönetimi',
+                title: I18n.t('event_management'),
                 children: [
                   _ActionCard(
-                    title: 'Etkinlik Oluştur',
-                    subtitle:
-                        'Yeni etkinlik, festival veya dans gecesi oluştur',
+                    title: I18n.t('create_event'),
+                    subtitle: I18n.t('create_event_subtitle'),
                     icon: Icons.add_circle_outline,
                     onTap: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(
                           fullscreenDialog: true,
                           builder: (_) => Scaffold(
-                            appBar:
-                                AppBar(title: const Text('Etkinlik Oluştur')),
+                            appBar: AppBar(title: Text(I18n.t('create_event'))),
                             body: SafeArea(
                               child:
                                   _CreateEventSheet(sessionToken: sessionToken),
@@ -594,9 +413,8 @@ class EditorEventManagementScreen extends StatelessWidget {
                     },
                   ),
                   _ActionCard(
-                    title: 'Etkinlik Düzenle',
-                    subtitle:
-                        'Yayındaki etkinlikleri güncelle ve davetli aktar',
+                    title: I18n.t('edit_event'),
+                    subtitle: I18n.t('edit_event_subtitle'),
                     icon: Icons.edit_calendar_outlined,
                     onTap: () {
                       Navigator.of(context).push(
@@ -611,11 +429,11 @@ class EditorEventManagementScreen extends StatelessWidget {
               ),
             if (canManageEvents)
               _PanelSection(
-                title: 'Bilet ve Davetli Yönetimi',
+                title: I18n.t('ticket_guest_management'),
                 children: [
                   _ActionCard(
-                    title: 'Davetli Listesi Oluştur',
-                    subtitle: 'Şehir, okul veya geceye özel yeni liste hazırla',
+                    title: I18n.t('create_guest_list'),
+                    subtitle: I18n.t('create_guest_list_subtitle'),
                     icon: Icons.group_add_rounded,
                     onTap: () {
                       Navigator.of(context).push(
@@ -629,9 +447,8 @@ class EditorEventManagementScreen extends StatelessWidget {
                     },
                   ),
                   _ActionCard(
-                    title: 'Listeni Düzenle',
-                    subtitle:
-                        'Davetli listelerine kullanıcı ekle, çıkar veya listeyi yeniden adlandır',
+                    title: I18n.t('edit_guest_list'),
+                    subtitle: I18n.t('edit_guest_list_subtitle'),
                     icon: Icons.groups_rounded,
                     onTap: () {
                       Navigator.of(context).push(
@@ -643,9 +460,8 @@ class EditorEventManagementScreen extends StatelessWidget {
                     },
                   ),
                   _ActionCard(
-                    title: 'Bilet Kontrol Et',
-                    subtitle:
-                        'Kapı girişinde QR bilet okut ve kullanılanları izle',
+                    title: I18n.t('ticket_check'),
+                    subtitle: I18n.t('ticket_check_subtitle'),
                     icon: Icons.qr_code_scanner,
                     onTap: () {
                       Navigator.of(context).push(
@@ -660,12 +476,11 @@ class EditorEventManagementScreen extends StatelessWidget {
               ),
             if (canManageStore)
               _PanelSection(
-                title: 'Mağaza Yönetimi',
+                title: I18n.t('store_management'),
                 children: [
                   _ActionCard(
-                    title: 'Mağazamı Yönet',
-                    subtitle:
-                        'Ürün ekle, mağaza profilini ve ürünlerini düzenle',
+                    title: I18n.t('manage_store'),
+                    subtitle: I18n.t('manage_store_subtitle'),
                     icon: Icons.storefront_outlined,
                     onTap: () {
                       Navigator.of(context).push(
@@ -680,12 +495,11 @@ class EditorEventManagementScreen extends StatelessWidget {
               ),
             if (isSuperAdmin)
               _PanelSection(
-                title: 'Anket Yönetimi',
+                title: I18n.t('poll_management'),
                 children: [
                   _ActionCard(
-                    title: 'Anketleri Yönet',
-                    subtitle:
-                        'Akış içindeki anketleri oluştur, yayından kaldır ve sil',
+                    title: I18n.t('manage_polls'),
+                    subtitle: I18n.t('manage_polls_subtitle'),
                     icon: Icons.poll_outlined,
                     onTap: () {
                       Navigator.of(context).push(
@@ -700,12 +514,11 @@ class EditorEventManagementScreen extends StatelessWidget {
               ),
             if (isSuperAdmin)
               _PanelSection(
-                title: 'Bildirim Yönetimi',
+                title: I18n.t('notification_management'),
                 children: [
                   _ActionCard(
-                    title: 'Bildirim Gönder',
-                    subtitle:
-                        'Kullanıcılara bildirim gönder ve yönlendirme hedefi belirle',
+                    title: I18n.t('send_notification'),
+                    subtitle: I18n.t('notification_management_subtitle'),
                     icon: Icons.campaign_rounded,
                     onTap: () {
                       Navigator.of(context).push(
@@ -723,9 +536,10 @@ class EditorEventManagementScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 decoration: AppTheme.panel(
                     tone: AppTone.neutral, radius: 18, subtle: true),
-                child: const Text(
-                  'Bu panelde kullanabileceğin aktif bir yönetim aracı bulunmuyor.',
-                  style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
+                child: Text(
+                  I18n.t('no_management_tools'),
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary, height: 1.4),
                 ),
               ),
           ],
@@ -1642,6 +1456,8 @@ class _ManagedEventItem {
   final String venue;
   final String venueMapUrl;
   final String city;
+  final String countryCode;
+  final String cityId;
   final String eventKind;
   final String coverCrop;
   final List<String> danceStyles;
@@ -1654,6 +1470,8 @@ class _ManagedEventItem {
   final String coverUrl;
   final String status;
   final bool eventIsActive;
+  final String defaultLanguage;
+  final Map<String, Map<String, String>> translations;
 
   _ManagedEventItem({
     required this.submissionId,
@@ -1665,6 +1483,8 @@ class _ManagedEventItem {
     required this.venue,
     required this.venueMapUrl,
     required this.city,
+    this.countryCode = '',
+    this.cityId = '',
     required this.eventKind,
     required this.coverCrop,
     required this.danceStyles,
@@ -1677,22 +1497,49 @@ class _ManagedEventItem {
     required this.coverUrl,
     required this.status,
     required this.eventIsActive,
+    required this.defaultLanguage,
+    required this.translations,
   });
 
   factory _ManagedEventItem.fromJson(Map<String, dynamic> json) {
     final startAt = (json['start_at'] ?? '').toString();
     final endAt = (json['end_at'] ?? '').toString();
     final eventDate = (json['event_date'] ?? '').toString();
+    final defaultLanguage = (json['default_language'] ?? 'tr').toString();
+    final translations = <String, Map<String, String>>{};
+    final rawTranslations = json['translations'];
+    if (rawTranslations is Map) {
+      for (final entry in rawTranslations.entries) {
+        if (entry.value is! Map) continue;
+        final value = entry.value as Map;
+        translations[entry.key.toString()] = {
+          'event_name': (value['event_name'] ?? '').toString(),
+          'description': (value['description'] ?? '').toString(),
+          'program_text': (value['program_text'] ?? '').toString(),
+        };
+      }
+    }
+    final legacy = <String, String>{
+      'event_name': (json['name'] ?? '').toString(),
+      'description': (json['description'] ?? '').toString(),
+      'program_text': (json['program_text'] ?? '').toString(),
+    };
+    translations.putIfAbsent(defaultLanguage, () => legacy);
+    final localized =
+        translations[I18n.language] ?? translations[defaultLanguage] ?? legacy;
     return _ManagedEventItem(
       submissionId: (json['submission_id'] as num?)?.toInt() ?? 0,
-      name: (json['name'] ?? '').toString(),
-      description: (json['description'] ?? '').toString(),
+      name: (localized['event_name'] ?? legacy['event_name']).toString(),
+      description:
+          (localized['description'] ?? legacy['description']).toString(),
       eventDate: startAt.isNotEmpty ? startAt : eventDate,
       startAt: startAt,
       endAt: endAt,
       venue: (json['venue'] ?? '').toString(),
       venueMapUrl: (json['venue_map_url'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
+      countryCode: (json['country_code'] ?? '').toString(),
+      cityId: (json['city_id'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
       coverCrop: (json['cover_crop'] ?? 'center').toString(),
       danceStyles: _normalizeDanceStyles(json['dance_styles']),
@@ -1702,12 +1549,15 @@ class _ManagedEventItem {
           (json['repeat_weekly'] == true) || (json['repeat_weekly'] == 1),
       repeatWeekday: (json['repeat_weekday'] as num?)?.toInt(),
       organizerName: (json['organizer_name'] ?? '').toString(),
-      programText: (json['program_text'] ?? '').toString(),
+      programText:
+          (localized['program_text'] ?? legacy['program_text']).toString(),
       entryFee: (json['entry_fee'] ?? '0').toString(),
       coverUrl: (json['cover_url'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
       eventIsActive:
           (json['event_is_active'] == true) || (json['event_is_active'] == 1),
+      defaultLanguage: defaultLanguage,
+      translations: translations,
     );
   }
 
@@ -1769,8 +1619,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   late final TextEditingController _venueMapCtrl;
   late final TextEditingController _orgCtrl;
   late final TextEditingController _programCtrl;
-  final List<String> _cities = kTurkiyeCitiesWithUnknown;
-  String _city = 'İstanbul';
+  String _countryCode = '';
+  String _cityId = '';
+  String _city = '';
   String _eventKind = 'dance_night';
   String _coverCrop = 'center';
   final Set<String> _danceStyles = <String>{};
@@ -1813,7 +1664,9 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     _venueMapCtrl = TextEditingController(text: parts.mapUrl);
     _orgCtrl = TextEditingController(text: widget.item.organizerName);
     _programCtrl = TextEditingController(text: widget.item.programText);
-    _city = _canonicalCityOrUnknown(widget.item.city, _cities);
+    _city = widget.item.city;
+    _countryCode = widget.item.countryCode;
+    _cityId = widget.item.cityId;
     _eventKind = _normalizeKind(widget.item.eventKind);
     _coverCrop = _normalizeCoverCrop(widget.item.coverCrop);
     _danceStyles.addAll(_normalizeDanceStyles(widget.item.danceStyles));
@@ -1863,12 +1716,29 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
     });
     try {
       final effectiveRepeatWeekly = !_isPromoLesson && _repeatWeekly;
+      final translations = widget.item.translations.map(
+        (language, value) =>
+            MapEntry(language, Map<String, String>.from(value)),
+      );
+      final currentLanguage = I18n.language;
+      final currentContent = translations[currentLanguage] ??
+          <String, String>{'event_name': widget.item.name};
+      translations[currentLanguage] = {
+        'event_name': (currentContent['event_name'] ?? widget.item.name).trim(),
+        'description': _descCtrl.text.trim(),
+        'program_text': _programCtrl.text.trim(),
+      };
       final req = http.MultipartRequest(
         'POST',
         Uri.parse(
             '$_base/events/manage/items/${widget.item.submissionId}/update'),
       )
         ..headers['Authorization'] = 'Bearer ${widget.sessionToken}'
+        ..fields['event_name'] =
+            (translations[currentLanguage]?['event_name'] ?? widget.item.name)
+                .trim()
+        ..fields['default_language'] = widget.item.defaultLanguage
+        ..fields['translations_json'] = jsonEncode(translations)
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['event_date'] = _toApiDate(_startDateCtrl.text.trim())
         ..fields['start_at'] = _formatApiMoment(startMoment)
@@ -1876,6 +1746,8 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
         ..fields['venue'] = _venueNameCtrl.text.trim()
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
+        ..fields['country_code'] = _countryCode
+        ..fields['city_id'] = _cityId
         ..fields['event_kind'] = _eventKind
         ..fields['cover_crop'] = _coverCrop
         ..fields['dance_styles'] = _danceStylesPayload(_danceStyles)
@@ -2243,7 +2115,7 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
               _txt(_venueMapCtrl, 'Konum Linki',
                   keyboardType: TextInputType.url),
               _eventCityField(
-                value: _cities.contains(_city) ? _city : 'Belirtilmedi',
+                value: _countryCode.isEmpty ? _city : '$_city ($_countryCode)',
                 enabled: !_saving,
                 onTap: _pickCity,
                 decoration: _fieldDecoration(I18n.t('event_city_label')),
@@ -2456,13 +2328,14 @@ class _EditManagedEventSheetState extends State<_EditManagedEventSheet> {
   }
 
   Future<void> _pickCity() async {
-    final picked = await _showEventCityPickerSheet(
-      context,
-      currentCity: _city,
-      availableCities: _cities,
-    );
+    final picked = await pickEventLocation(context,
+        EventLocation(city: _city, countryCode: _countryCode, cityId: _cityId));
     if (picked == null || !mounted) return;
-    setState(() => _city = picked);
+    setState(() {
+      _city = picked.city;
+      _countryCode = picked.countryCode;
+      _cityId = picked.cityId;
+    });
   }
 
   String _normalizeKind(String raw) {
@@ -3994,8 +3867,9 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   final _startTimeCtrl = TextEditingController();
   final _endTimeCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
-  final List<String> _cities = kTurkiyeCities;
-  String _city = 'İstanbul';
+  String _countryCode = '';
+  String _cityId = '';
+  String _city = '';
   String _eventKind = 'dance_night';
   final Set<String> _danceStyles = <String>{};
   String _repeatMode = _repeatModeNone;
@@ -4052,13 +3926,14 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   }
 
   Future<void> _pickCity() async {
-    final picked = await _showEventCityPickerSheet(
-      context,
-      currentCity: _city,
-      availableCities: _cities,
-    );
+    final picked = await pickEventLocation(context,
+        EventLocation(city: _city, countryCode: _countryCode, cityId: _cityId));
     if (picked == null || !mounted) return;
-    setState(() => _city = picked);
+    setState(() {
+      _city = picked.city;
+      _countryCode = picked.countryCode;
+      _cityId = picked.cityId;
+    });
   }
 
   void _syncRepeatWeekdayFromStartDate() {
@@ -4131,13 +4006,25 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
           effectiveRepeatMode == _repeatModeWeeklyFixed;
       final selectedRepeatDates =
           _sortedDateKeys(_selectedRepeatDateKeys).map(_dateKey).join(',');
+      final contentLanguage = I18n.language;
+      final translations = {
+        contentLanguage: {
+          'event_name': _eventCtrl.text.trim(),
+          'description': _descCtrl.text.trim(),
+          'program_text': _programCtrl.text.trim(),
+        },
+      };
       final req = http.MultipartRequest('POST', Uri.parse(_submitUrl))
         ..fields['event_name'] = _eventCtrl.text.trim()
         ..fields['description'] = _descCtrl.text.trim()
         ..fields['program_text'] = _programCtrl.text.trim()
+        ..fields['default_language'] = contentLanguage
+        ..fields['translations_json'] = jsonEncode(translations)
         ..fields['venue'] = _venueNameCtrl.text.trim()
         ..fields['venue_map_url'] = _normalizeMapUrl(_venueMapCtrl.text.trim())
         ..fields['city'] = _city
+        ..fields['country_code'] = _countryCode
+        ..fields['city_id'] = _cityId
         ..fields['event_kind'] = _eventKind
         ..fields['dance_styles'] = _danceStylesPayload(_danceStyles)
         ..fields['ticket_sales_enabled'] = '0'
@@ -4209,7 +4096,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
               _txt(_venueMapCtrl, 'Konum Linki',
                   keyboardType: TextInputType.url),
               _eventCityField(
-                value: _city,
+                value: _countryCode.isEmpty ? _city : '$_city ($_countryCode)',
                 enabled: !_sending,
                 onTap: _pickCity,
                 decoration: InputDecoration(

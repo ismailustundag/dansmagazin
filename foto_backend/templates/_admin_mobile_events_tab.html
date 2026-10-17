@@ -223,8 +223,6 @@
       {% set loyalty_report = loyalty_reports_map.get(s.id, {}) if loyalty_reports_map is defined else {} %}
       {% set loyalty_summary = loyalty_report.get('summary', {}) if loyalty_report else {} %}
       {% set loyalty_schools = loyalty_report.get('schools', []) if loyalty_report else [] %}
-      {% set loyalty_users = loyalty_report.get('user_progress', []) if loyalty_report else [] %}
-      {% set loyalty_rewards = loyalty_report.get('reward_tickets', []) if loyalty_report else [] %}
       <div class="muted" style="margin-top:6px;">Kaynak: <span class="badge">{{ s.source_table }}</span></div>
       {% if s.approved_event_slug %}
         <div style="margin:8px 0;"><b>Olusturulan slug:</b> <span class="badge">{{ s.approved_event_slug }}</span></div>
@@ -488,11 +486,14 @@
       </div>
 
       {% set invitees = event_invitees_map.get(s.id, []) if event_invitees_map is defined else [] %}
-      <div class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
-        <div class="section-head" style="margin-top:0;">
-          <div class="section-title">Davetli Yonetimi</div>
-          <a class="preview-action" href="/admin/mobile?tab=events&view=guest-lists">Davetli Listeleri</a>
-        </div>
+      <details class="card" style="margin-top:10px;background:rgba(255,255,255,.03);"{% if current_view != 'history' %} open{% endif %}>
+        <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;list-style:none;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div class="section-title">Davetli Yonetimi</div>
+            <span class="count-badge">{{ invitees|length }}</span>
+          </div>
+          <a class="preview-action" href="/admin/mobile?tab=events&view=guest-lists" onclick="event.stopPropagation();">Davetli Listeleri</a>
+        </summary>
         <div class="muted" style="margin-top:8px;">
           Profilde hazirlanan davetli listelerini sadece bu etkinlige elle aktarirsin. Aktarilan kullanicilarin `Biletlerim` alanina bu etkinlik icin QR bilet hazirlanir; tekrar serisinin diger gunlerine otomatik tasinmaz.
         </div>
@@ -539,6 +540,9 @@
                         {% if invitee.ticket_id %}
                           <span class="badge">QR hazir</span>
                         {% endif %}
+                        {% if invitee.ticket_used %}
+                          <span class="badge" style="background:rgba(22,163,74,.18);border-color:rgba(34,197,94,.45);color:#86efac;">QR okutuldu</span>
+                        {% endif %}
                       </div>
                       <div class="muted" style="margin-top:4px;word-break:break-word;">{{ invitee.email or 'E-posta yok' }}</div>
                       <div class="muted" style="margin-top:4px;">
@@ -549,6 +553,9 @@
                         {% endif %}
                         {% if invitee.invited_at %}
                           · {{ invitee.invited_at|fmt_dt }}
+                        {% endif %}
+                        {% if invitee.ticket_used_at %}
+                          · QR okutulma: {{ invitee.ticket_used_at|fmt_dt }}
                         {% endif %}
                       </div>
                     </div>
@@ -565,7 +572,7 @@
             <div class="muted" style="margin-top:10px;">Bu etkinlikte henuz davetli yok.</div>
           {% endif %}
         </div>
-      </div>
+      </details>
 
       {% if show_scan_permissions %}
         <div class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
@@ -607,12 +614,12 @@
       <details class="card" style="margin-top:10px;background:rgba(255,255,255,.03);">
         <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;">
           <div>
-            <b>Okul ve Ucretsiz Bilet Takibi</b>
+            <b>Okul Takibi</b>
             <div class="muted" style="margin-top:4px;">
               {% if loyalty_report.get('thread_size', 1) > 1 %}
-                Tekrarlayan seri bazında toplanan okul girisleri ve ücretsiz bilet ilerlemesi.
+                Tekrarlayan seri bazında toplanan okul girisleri.
               {% else %}
-                Bu etkinlik için okutulan biletlerden gelen okul ve ücretsiz bilet özeti.
+                Bu etkinlik için okutulan biletlerden gelen okul özeti.
               {% endif %}
             </div>
           </div>
@@ -625,14 +632,11 @@
             <div><b>Seri Toplam Giris:</b> {{ loyalty_summary.get('series_accepted_scans') or 0 }}</div>
             <div><b>Seri Tekil Kisi:</b> {{ loyalty_summary.get('series_unique_buyers') or 0 }}</div>
             <div><b>Okul Sayisi:</b> {{ loyalty_summary.get('school_count') or 0 }}</div>
-            <div><b>Hazir Ucretsiz Bilet:</b> {{ loyalty_summary.get('reward_ticket_active_count') or 0 }}</div>
-            <div><b>Kullanilan Ucretsiz:</b> {{ loyalty_summary.get('reward_ticket_used_count') or 0 }}</div>
-            <div><b>Toplam Ucretsiz:</b> {{ loyalty_summary.get('reward_ticket_count') or 0 }}</div>
           </div>
 
           {% if loyalty_report.get('thread_size', 1) > 1 %}
             <div class="muted" style="margin-top:10px;">
-              Bu etkinlik, {{ loyalty_report.get('thread_size') or 1 }} kayitlik tekrar serisinin parcasi. Okul ve ücretsiz bilet kurali seri genelinde hesaplanir.
+              Bu etkinlik, {{ loyalty_report.get('thread_size') or 1 }} kayitlik tekrar serisinin parcasi. Okul girisleri seri genelinde hesaplanir.
             </div>
           {% endif %}
 
@@ -673,87 +677,6 @@
               {% endif %}
             </div>
 
-            {% if loyalty_report.get('loyalty_enabled') %}
-              <div class="card" style="margin-top:12px;background:rgba(255,255,255,.02);box-shadow:none;">
-                <b>5 Giriste 1 Ucretsiz Takibi</b>
-                {% if loyalty_users and loyalty_users|length > 0 %}
-                  <div style="overflow-x:auto;margin-top:10px;">
-                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                      <thead>
-                        <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,.1);">
-                          <th style="padding:8px 6px;">Kullanici</th>
-                          <th style="padding:8px 6px;">Okul</th>
-                          <th style="padding:8px 6px;">Toplam Giris</th>
-                          <th style="padding:8px 6px;">Kalan</th>
-                          <th style="padding:8px 6px;">Kazanilan</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for item in loyalty_users %}
-                          <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
-                            <td style="padding:8px 6px;">
-                              <div>{{ item.get('buyer_name') or '-' }}</div>
-                              {% if item.get('buyer_email') %}<div class="muted">{{ item.get('buyer_email') }}</div>{% endif %}
-                            </td>
-                            <td style="padding:8px 6px;">{{ item.get('school_name') or '-' }}</td>
-                            <td style="padding:8px 6px;">{{ item.get('qualifying_visits') or 0 }}</td>
-                            <td style="padding:8px 6px;">{{ item.get('next_remaining') or 0 }}</td>
-                            <td style="padding:8px 6px;">{{ item.get('earned_rewards') or 0 }}</td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                {% else %}
-                  <div class="muted" style="margin-top:8px;">Henüz ücretsiz bilet ilerlemesi oluşan kullanıcı yok.</div>
-                {% endif %}
-              </div>
-
-              <div class="card" style="margin-top:12px;background:rgba(255,255,255,.02);box-shadow:none;">
-                <b>Olusan Ucretsiz Biletler</b>
-                {% if loyalty_rewards and loyalty_rewards|length > 0 %}
-                  <div style="overflow-x:auto;margin-top:10px;">
-                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                      <thead>
-                        <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,.1);">
-                          <th style="padding:8px 6px;">Kullanici</th>
-                          <th style="padding:8px 6px;">Cycle</th>
-                          <th style="padding:8px 6px;">Hedef Etkinlik</th>
-                          <th style="padding:8px 6px;">Durum</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for item in loyalty_rewards %}
-                          <tr style="border-bottom:1px solid rgba(255,255,255,.06);">
-                            <td style="padding:8px 6px;">
-                              <div>{{ item.get('buyer_name') or '-' }}</div>
-                              {% if item.get('buyer_email') %}<div class="muted">{{ item.get('buyer_email') }}</div>{% endif %}
-                            </td>
-                            <td style="padding:8px 6px;">#{{ item.get('reward_cycle') or 0 }}</td>
-                            <td style="padding:8px 6px;">{{ item.get('event_name') or '-' }}</td>
-                            <td style="padding:8px 6px;">
-                              {% if item.get('is_used') %}
-                                Kullanildi
-                              {% elif item.get('status') == 'cancelled' %}
-                                Iptal
-                              {% else %}
-                                Hazir
-                              {% endif %}
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                {% else %}
-                  <div class="muted" style="margin-top:8px;">Henüz otomatik oluşturulmuş ücretsiz bilet yok.</div>
-                {% endif %}
-              </div>
-            {% else %}
-              <div class="muted" style="margin-top:12px;">
-                Bu etkinlikte okul bilgisi takip edilir; 5 giriste 1 ücretsiz kuralı ise sadece Vişnelik serileri için aktif.
-              </div>
-            {% endif %}
           {% endif %}
         </div>
       </details>
@@ -995,6 +918,11 @@
             <input name="name" value="{{ selected_list.get('name') or '' }}" maxlength="80" required />
             <button type="submit" style="background:#16a34a;">Adi Kaydet</button>
           </form>
+          <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/copy" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <input name="name" value="{{ selected_list.get('name') or '' }} Kopyasi" maxlength="80" required aria-label="Yeni liste adi" />
+            <button type="submit" style="background:#2563eb;">Listeyi Kopyala</button>
+          </form>
           <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/delete" onsubmit="return confirm('Bu davetli listesi silinsin mi?');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
             <button type="submit" style="background:#ef4444;">Listeyi Sil</button>
@@ -1014,7 +942,7 @@
             <button type="submit" style="background:#2563eb;">Ara</button>
           </form>
           <div class="muted" style="margin-top:8px;">
-            En az {{ guest_list_search_meta.get('min_query_length', 2) if guest_list_search_meta else 2 }} karakter yaz. Zaten listede olan kullanicilar arama sonucunda tekrar gosterilmez.
+            En az {{ guest_list_search_meta.get('min_query_length', 2) if guest_list_search_meta else 2 }} karakter yaz. Zaten listede olan kullanicilar etiketlenir.
           </div>
 
           {% if request and request.query_params and request.query_params.get('guest_user_q') %}
@@ -1030,15 +958,19 @@
                     </div>
                     <div class="muted" style="margin-top:4px;word-break:break-word;">{{ user.email or 'E-posta yok' }}</div>
                   </div>
-                  <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/members/add">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                    <input type="hidden" name="account_id" value="{{ user.account_id }}" />
-                    <button type="submit" style="background:#16a34a;">Listeye Ekle</button>
-                  </form>
+                  {% if user.already_in_guest_list %}
+                    <span class="badge">Zaten listede</span>
+                  {% else %}
+                    <form method="post" action="/admin/mobile/guest-lists/{{ selected_list.get('guest_list_id') }}/members/add">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                      <input type="hidden" name="account_id" value="{{ user.account_id }}" />
+                      <button type="submit" style="background:#16a34a;">Listeye Ekle</button>
+                    </form>
+                  {% endif %}
                 </div>
               {% endfor %}
               {% if guest_list_search_items|length == 0 %}
-                <div class="muted">Bu aramayla eklenebilecek yeni kullanici bulunamadi.</div>
+                <div class="muted">Bu aramayla kullanici bulunamadi.</div>
               {% endif %}
             </div>
           {% endif %}

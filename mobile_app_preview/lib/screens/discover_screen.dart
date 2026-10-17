@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../services/featured_events_api.dart';
 import '../services/i18n.dart';
-import '../services/turkiye_cities.dart';
+import '../services/event_locations_api.dart';
 import '../theme/app_theme.dart';
 import 'event_detail_screen.dart';
 import 'news_detail_screen.dart';
@@ -53,14 +53,28 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   static const String _base = 'https://api2.dansmagazin.net';
-  static const List<String> _eventKinds = ['dance_night', 'festival', 'competition', 'promo_lesson'];
-  static const List<String> _danceStyles = ['salsa', 'bachata', 'kizomba', 'tango', 'lindy_hop', 'hip_hop'];
+  static const List<String> _eventKinds = [
+    'dance_night',
+    'festival',
+    'competition',
+    'promo_lesson'
+  ];
+  static const List<String> _danceStyles = [
+    'salsa',
+    'bachata',
+    'kizomba',
+    'tango',
+    'lindy_hop',
+    'hip_hop'
+  ];
 
   late Future<List<_EventItem>> _eventsFuture;
   late Future<List<_NewsItem>> _newsFuture;
   late Future<List<_EventItem>> _featuredEventsFuture;
   int _tabIndex = 1;
   String _selectedEventCity = '';
+  String _selectedEventCountry = '';
+  bool _loadingLocations = false;
   String _selectedEventKind = '';
   final Set<String> _selectedDanceStyles = <String>{};
 
@@ -86,8 +100,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     String eventKind = '',
     List<String> danceStyles = const <String>[],
   }) async {
-    final params = <String, String>{'limit': '300'};
-    if (city.trim().isNotEmpty) params['city'] = city.trim();
+    final params = <String, String>{'limit': '300', 'lang': I18n.language};
+    if (_selectedEventCountry.isNotEmpty)
+      params['country_code'] = _selectedEventCountry;
+    if (city.isNotEmpty) {
+      final split = city.indexOf('|');
+      params['country_code'] = city.substring(0, split);
+      params['city_id'] = city.substring(split + 1);
+    }
     if (eventKind.trim().isNotEmpty) params['event_kind'] = eventKind.trim();
     if (danceStyles.isNotEmpty) params['dance_styles'] = danceStyles.join(',');
     final uri = Uri.parse('$_base/events').replace(queryParameters: params);
@@ -114,10 +134,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Future<List<_NewsItem>> _fetchNews() async {
     final uri = Uri.parse('$_base/discover').replace(
-      queryParameters: const {
+      queryParameters: {
         'news_limit': '24',
         'events_limit': '0',
         'albums_limit': '0',
+        'lang': I18n.language,
       },
     );
     final resp = await http.get(uri);
@@ -155,6 +176,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   int get _activeEventFilterCount {
     var count = 0;
+    if (_selectedEventCountry.isNotEmpty) count += 1;
     if (_selectedEventCity.trim().isNotEmpty) count += 1;
     if (_selectedEventKind.trim().isNotEmpty) count += 1;
     if (_selectedDanceStyles.isNotEmpty) count += 1;
@@ -202,14 +224,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }) async {
     return showModalBottomSheet<String>(
       context: context,
-      isScrollControlled: false,
+      isScrollControlled: true,
       backgroundColor: AppTheme.surfaceSecondary,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return FractionallySizedBox(
-          heightFactor: 0.62,
+          heightFactor: 0.72,
           child: SafeArea(
             top: false,
             child: Column(
@@ -230,9 +252,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       Expanded(
                         child: Text(
                           title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                       ),
                     ],
@@ -252,12 +275,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           borderRadius: BorderRadius.circular(16),
                           onTap: () => Navigator.of(context).pop(option.key),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 14),
                             decoration: BoxDecoration(
-                              color: selected ? AppTheme.surfaceElevated : AppTheme.surfacePrimary,
+                              color: selected
+                                  ? AppTheme.surfaceElevated
+                                  : AppTheme.surfacePrimary,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: selected ? AppTheme.orange.withOpacity(0.45) : AppTheme.borderSoft,
+                                color: selected
+                                    ? AppTheme.orange.withOpacity(0.45)
+                                    : AppTheme.borderSoft,
                               ),
                             ),
                             child: Row(
@@ -265,13 +293,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                 Expanded(
                                   child: Text(
                                     option.value,
-                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
                                           fontWeight: FontWeight.w500,
                                         ),
                                   ),
                                 ),
                                 if (selected)
-                                  const Icon(Icons.check_rounded, color: AppTheme.orange, size: 18),
+                                  const Icon(Icons.check_rounded,
+                                      color: AppTheme.orange, size: 18),
                               ],
                             ),
                           ),
@@ -289,7 +321,27 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Future<void> _openEventFilters() async {
-    var tempCity = _selectedEventCity;
+    if (_loadingLocations) return;
+    setState(() => _loadingLocations = true);
+    late EventLocationOptions locations;
+    try {
+      locations = await EventLocationsApi.fetch();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Konumlar yüklenemedi. Filtreyi yeniden açarak tekrar deneyin.')));
+      return;
+    } finally {
+      if (mounted) setState(() => _loadingLocations = false);
+    }
+    if (!mounted) return;
+    var tempCountry = _selectedEventCountry;
+    var tempCity =
+        locations.cities.any((item) => item.key == _selectedEventCity)
+            ? _selectedEventCity
+            : '';
+    if (!locations.countries.containsKey(tempCountry)) tempCountry = '';
     var tempKind = _selectedEventKind;
     final tempDanceStyles = <String>{..._selectedDanceStyles};
     final result = await showModalBottomSheet<Map<String, dynamic>>(
@@ -306,7 +358,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             return SafeArea(
               top: false,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+                padding: EdgeInsets.fromLTRB(
+                    16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,7 +369,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           Expanded(
                             child: Text(
                               'Etkinlikleri Filtrele',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
@@ -328,6 +384,27 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Ülke'),
+                        subtitle: Text(
+                            locations.countries[tempCountry] ?? 'Tüm ülkeler'),
+                        trailing: const Icon(Icons.keyboard_arrow_down),
+                        onTap: () async {
+                          final choice = await _pickSingleOptionSheet(
+                              title: 'Ülke',
+                              currentValue: tempCountry,
+                              options: [
+                                const MapEntry('', 'Tüm ülkeler'),
+                                ...locations.countries.entries
+                              ]);
+                          if (choice != null)
+                            setSheetState(() {
+                              tempCountry = choice;
+                              tempCity = '';
+                            });
+                        },
+                      ),
                       InkWell(
                         borderRadius: BorderRadius.circular(16),
                         onTap: () async {
@@ -336,14 +413,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             currentValue: tempCity,
                             options: <MapEntry<String, String>>[
                               MapEntry('', t('all_cities')),
-                              ...kTurkiyeCitiesWithUnknown.map((city) => MapEntry(city, city)),
+                              ...locations.forCountry(tempCountry).map((city) =>
+                                  MapEntry(
+                                      city.key, locations.choiceLabel(city))),
                             ],
                           );
                           if (choice == null) return;
                           setSheetState(() => tempCity = choice);
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 14),
                           decoration: BoxDecoration(
                             color: AppTheme.surfaceElevated,
                             borderRadius: BorderRadius.circular(16),
@@ -357,22 +437,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   children: [
                                     Text(
                                       t('city_filter'),
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
                                             color: AppTheme.textSecondary,
                                             fontSize: 11,
                                           ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      tempCity.isEmpty ? t('all_cities') : tempCity,
-                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      tempCity.isEmpty
+                                          ? t('all_cities')
+                                          : locations.label(tempCity),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
                                             fontWeight: FontWeight.w500,
                                           ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textSecondary),
+                              const Icon(Icons.keyboard_arrow_down_rounded,
+                                  color: AppTheme.textSecondary),
                             ],
                           ),
                         ),
@@ -386,14 +475,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             currentValue: tempKind,
                             options: <MapEntry<String, String>>[
                               MapEntry('', t('all_event_types')),
-                              ..._eventKinds.map((kind) => MapEntry(kind, _kindLabel(kind))),
+                              ..._eventKinds.map(
+                                  (kind) => MapEntry(kind, _kindLabel(kind))),
                             ],
                           );
                           if (choice == null) return;
                           setSheetState(() => tempKind = choice);
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 14),
                           decoration: BoxDecoration(
                             color: AppTheme.surfaceElevated,
                             borderRadius: BorderRadius.circular(16),
@@ -407,22 +498,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   children: [
                                     Text(
                                       t('event_type'),
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
                                             color: AppTheme.textSecondary,
                                             fontSize: 11,
                                           ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      tempKind.isEmpty ? t('all_event_types') : _kindLabel(tempKind),
-                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      tempKind.isEmpty
+                                          ? t('all_event_types')
+                                          : _kindLabel(tempKind),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
                                             fontWeight: FontWeight.w500,
                                           ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textSecondary),
+                              const Icon(Icons.keyboard_arrow_down_rounded,
+                                  color: AppTheme.textSecondary),
                             ],
                           ),
                         ),
@@ -430,7 +530,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       const SizedBox(height: 14),
                       Text(
                         t('dance_styles_filter'),
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 10),
                       Wrap(
@@ -441,7 +542,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               (style) => FilterChip(
                                 label: Text(_danceStyleLabel(style)),
                                 selected: tempDanceStyles.contains(style),
-                                selectedColor: AppTheme.violet.withOpacity(0.28),
+                                selectedColor:
+                                    AppTheme.violet.withOpacity(0.28),
                                 checkmarkColor: AppTheme.textPrimary,
                                 backgroundColor: AppTheme.surfaceElevated,
                                 labelStyle: TextStyle(
@@ -475,6 +577,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             child: OutlinedButton(
                               onPressed: () => setSheetState(() {
                                 tempCity = '';
+                                tempCountry = '';
                                 tempKind = '';
                                 tempDanceStyles.clear();
                               }),
@@ -487,6 +590,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               onPressed: () {
                                 Navigator.of(context).pop(<String, dynamic>{
                                   'city': tempCity,
+                                  'country': tempCountry,
                                   'kind': tempKind,
                                   'styles': tempDanceStyles.toList(),
                                 });
@@ -510,6 +614,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     if (!mounted || result == null) return;
     setState(() {
       _selectedEventCity = (result['city'] ?? '').toString();
+      _selectedEventCountry = (result['country'] ?? '').toString();
       _selectedEventKind = (result['kind'] ?? '').toString();
       _selectedDanceStyles
         ..clear()
@@ -571,7 +676,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             future: _featuredEventsFuture,
             builder: (context, snapshot) {
               final items = snapshot.data ?? const <_EventItem>[];
-              if (snapshot.connectionState == ConnectionState.waiting && items.isEmpty) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  items.isEmpty) {
                 return const SizedBox.shrink();
               }
               if (items.isEmpty) return const SizedBox.shrink();
@@ -592,14 +698,21 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _openEventFilters,
+                onPressed: _loadingLocations ? null : _openEventFilters,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.orange,
                   foregroundColor: AppTheme.textPrimary,
                 ),
-                icon: const Icon(Icons.filter_alt_outlined, size: 18),
+                icon: _loadingLocations
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.filter_alt_outlined, size: 18),
                 label: Text(
-                  _activeEventFilterCount > 0 ? '${t('filter')} ($_activeEventFilterCount)' : t('filter'),
+                  _activeEventFilterCount > 0
+                      ? '${t('filter')} ($_activeEventFilterCount)'
+                      : t('filter'),
                 ),
               ),
             ),
@@ -700,7 +813,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           borderRadius: BorderRadius.circular(20),
           gradient: selected
               ? LinearGradient(
-                  colors: [AppTheme.tonePrimary(tone), AppTheme.toneSecondary(tone)],
+                  colors: [
+                    AppTheme.tonePrimary(tone),
+                    AppTheme.toneSecondary(tone)
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
@@ -773,7 +889,8 @@ class _EventItem {
 
   DateTime get sortKey {
     final parsed = DateTime.tryParse(eventDate.trim().replaceAll(' ', 'T'));
-    final dt = parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
+    final dt =
+        parsed == null ? null : (parsed.isUtc ? parsed.toLocal() : parsed);
     if (dt == null) return DateTime.utc(9999, 1, 1);
     final now = DateTime.now();
     final eventDay = DateTime(dt.year, dt.month, dt.day);
@@ -805,12 +922,14 @@ class _EventItem {
       organizer: (json['organizer_name'] ?? '').toString(),
       program: (json['program_text'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
-      ticketUrl: absUrl(json['ticket_url'] ?? '', host: 'https://www.dansmagazin.net'),
+      ticketUrl:
+          absUrl(json['ticket_url'] ?? '', host: 'https://www.dansmagazin.net'),
       wooProductId: (json['woo_product_id'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
       coverCrop: (json['cover_crop'] ?? 'center').toString(),
-      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
+      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) ||
+          (json['ticket_sales_enabled'] == 1),
     );
   }
 
@@ -854,7 +973,8 @@ class _NewsItem {
     required this.author,
   });
 
-  DateTime get sortKey => DateTime.tryParse(date.trim()) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime get sortKey =>
+      DateTime.tryParse(date.trim()) ?? DateTime.fromMillisecondsSinceEpoch(0);
 
   factory _NewsItem.fromJson(Map<String, dynamic> json) {
     return _NewsItem(
@@ -882,7 +1002,8 @@ class _EventCard extends StatelessWidget {
       child: Container(
         height: 116,
         padding: const EdgeInsets.all(10),
-        decoration: AppTheme.panel(tone: AppTone.events, radius: 22, elevated: true),
+        decoration:
+            AppTheme.panel(tone: AppTone.events, radius: 22, elevated: true),
         child: Row(
           children: [
             ClipRRect(
@@ -897,8 +1018,10 @@ class _EventCard extends StatelessWidget {
                         alignment: _coverAlignment(item.coverCrop),
                         fadeInDuration: Duration.zero,
                         placeholderFadeInDuration: Duration.zero,
-                        errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
-                        placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
+                        errorWidget: (_, __, ___) =>
+                            Container(color: AppTheme.surfaceElevated),
+                        placeholder: (_, __) =>
+                            Container(color: AppTheme.surfacePrimary),
                       )
                     : Container(color: AppTheme.surfaceElevated),
               ),
@@ -910,13 +1033,16 @@ class _EventCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(999),
                       color: AppTheme.orange.withOpacity(0.16),
                     ),
                     child: Text(
-                      item.city.trim().isNotEmpty ? item.city.trim() : 'Etkinlik',
+                      item.city.trim().isNotEmpty
+                          ? item.city.trim()
+                          : 'Etkinlik',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -930,13 +1056,19 @@ class _EventCard extends StatelessWidget {
                     item.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 16),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontSize: 16),
                   ),
                   Text(
                     _formatEventDate(item.eventDate),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -962,7 +1094,8 @@ class _NewsCard extends StatelessWidget {
       child: Container(
         height: 116,
         padding: const EdgeInsets.all(10),
-        decoration: AppTheme.panel(tone: AppTone.discover, radius: 22, elevated: true),
+        decoration:
+            AppTheme.panel(tone: AppTone.discover, radius: 22, elevated: true),
         child: Row(
           children: [
             ClipRRect(
@@ -976,8 +1109,10 @@ class _NewsCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         fadeInDuration: Duration.zero,
                         placeholderFadeInDuration: Duration.zero,
-                        errorWidget: (_, __, ___) => Container(color: AppTheme.surfaceElevated),
-                        placeholder: (_, __) => Container(color: AppTheme.surfacePrimary),
+                        errorWidget: (_, __, ___) =>
+                            Container(color: AppTheme.surfaceElevated),
+                        placeholder: (_, __) =>
+                            Container(color: AppTheme.surfacePrimary),
                       )
                     : Container(color: AppTheme.surfaceElevated),
               ),
@@ -992,13 +1127,19 @@ class _NewsCard extends StatelessWidget {
                     item.title,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 16),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontSize: 16),
                   ),
                   Text(
                     _formatEventDate(item.date),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -1022,11 +1163,14 @@ class _InfoCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      decoration: AppTheme.panel(tone: AppTone.neutral, radius: 18, subtle: true),
+      decoration:
+          AppTheme.panel(tone: AppTone.neutral, radius: 18, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: const TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+          Text(text,
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
           if (actionText != null && onTap != null)
             TextButton(onPressed: onTap, child: Text(actionText!)),
         ],
@@ -1045,7 +1189,8 @@ class _FeaturedEventsCarousel extends StatefulWidget {
   });
 
   @override
-  State<_FeaturedEventsCarousel> createState() => _FeaturedEventsCarouselState();
+  State<_FeaturedEventsCarousel> createState() =>
+      _FeaturedEventsCarouselState();
 }
 
 class _FeaturedEventsCarouselState extends State<_FeaturedEventsCarousel> {
@@ -1102,7 +1247,8 @@ class _FeaturedEventsCarouselState extends State<_FeaturedEventsCarousel> {
             itemCount: widget.items.length,
             onPageChanged: (value) => setState(() => _index = value),
             itemBuilder: (context, index) => Padding(
-              padding: EdgeInsets.only(right: index == widget.items.length - 1 ? 0 : 8),
+              padding: EdgeInsets.only(
+                  right: index == widget.items.length - 1 ? 0 : 8),
               child: _FeaturedEventBanner(
                 item: widget.items[index],
                 onTap: () => widget.onTap(widget.items[index]),
@@ -1122,7 +1268,8 @@ class _FeaturedEventsCarouselState extends State<_FeaturedEventsCarousel> {
                 height: 8,
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 decoration: BoxDecoration(
-                  color: index == _index ? AppTheme.orange : AppTheme.borderStrong,
+                  color:
+                      index == _index ? AppTheme.orange : AppTheme.borderStrong,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -1149,7 +1296,8 @@ class _FeaturedEventBanner extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
       child: Container(
-        decoration: AppTheme.panel(tone: AppTone.events, radius: 24, elevated: true),
+        decoration:
+            AppTheme.panel(tone: AppTone.events, radius: 24, elevated: true),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -1209,11 +1357,13 @@ class _FeaturedEventBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: AppTheme.orange.withOpacity(0.16),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: AppTheme.orange.withOpacity(0.28)),
+                      border:
+                          Border.all(color: AppTheme.orange.withOpacity(0.28)),
                     ),
                     child: const Text(
                       'Öne Çıkan',
@@ -1229,7 +1379,10 @@ class _FeaturedEventBanner extends StatelessWidget {
                     item.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontSize: 18),
                   ),
                   const SizedBox(height: 6),
                   Text(

@@ -1,4 +1,5 @@
 import html
+import json
 import os
 import re
 from datetime import datetime
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 router = APIRouter(prefix="/discover", tags=["Keşfet"])
 
 WP_BASE = os.getenv("WP_BASE_URL", "https://www.dansmagazin.net").rstrip("/")
+STATIC_NEWS_FILE = os.getenv("STATIC_NEWS_FILE", "").strip()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 PUBLIC_MEDIA_BASE = os.getenv("PUBLIC_MEDIA_BASE", "https://foto.dansmagazin.net").rstrip("/")
 PUBLIC_WEB_BASE = os.getenv("PUBLIC_WEB_BASE", "https://foto.dansmagazin.net").rstrip("/")
@@ -20,7 +22,7 @@ PUBLIC_API_BASE = os.getenv("PUBLIC_API_BASE", "https://api2.dansmagazin.net").r
 MOBILE_UPLOAD_DIR = "/home/ubuntu/mobil_backend/media/submission_covers"
 ALT_UPLOAD_DIR = "/home/ubuntu/etkinlik_fotograf_projesi/media/submission_covers"
 DISCOVER_NEWS_CACHE_TTL_SEC = int(os.getenv("DISCOVER_NEWS_CACHE_TTL_SEC", "120"))
-_NEWS_CACHE: Dict[int, Dict[str, Any]] = {}
+_NEWS_CACHE: Dict[str, Dict[str, Any]] = {}
 DISCOVER_HOME_CACHE_TTL_SEC = int(os.getenv("DISCOVER_HOME_CACHE_TTL_SEC", "90"))
 _DISCOVER_HOME_CACHE: Dict[str, Any] = {"ts": 0.0, "items": {}}
 
@@ -57,7 +59,21 @@ def _media_url(path: str) -> str:
     return f"{b}/media/{p}"
 
 
-def _parse_wp_item(item: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_content_language(value: str) -> str:
+    language = (value or "tr").strip().lower().split("-", 1)[0]
+    return language if language in {"tr", "en", "es"} else "tr"
+
+
+def _localized_static_content(item: Dict[str, Any], language: str) -> Dict[str, str]:
+    translations = item.get("_dm_translations") or {}
+    if not isinstance(translations, dict):
+        return {}
+    default_language = _normalize_content_language(str(item.get("_dm_default_language") or "tr"))
+    selected = translations.get(_normalize_content_language(language)) or translations.get(default_language) or {}
+    return selected if isinstance(selected, dict) else {}
+
+
+def _parse_wp_item(item: Dict[str, Any], language: str = "tr") -> Dict[str, Any]:
     image_url = ""
     author_name = ""
     emb = item.get("_embedded") or {}
@@ -72,10 +88,13 @@ def _parse_wp_item(item: Dict[str, Any]) -> Dict[str, Any]:
     if author_arr and isinstance(author_arr, list):
         author = author_arr[0] or {}
         author_name = (author.get("name") or "").strip()
+    localized = _localized_static_content(item, language)
+    localized_title = str(localized.get("title") or "").strip()
+    localized_body = str(localized.get("body_text") or "").strip()
     return {
         "id": item.get("id"),
-        "title": _decode_html_text((item.get("title") or {}).get("rendered") or ""),
-        "excerpt": _strip_html((item.get("excerpt") or {}).get("rendered") or ""),
+        "title": localized_title or _decode_html_text((item.get("title") or {}).get("rendered") or ""),
+        "excerpt": localized_body[:210] or _strip_html((item.get("excerpt") or {}).get("rendered") or ""),
         "date": item.get("date"),
         "link": item.get("link"),
         "image": image_url,
@@ -109,9 +128,13 @@ def _dedupe_news_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
+async def _fetch_wp_news(limit: int = 24, language: str = "tr") -> List[Dict[str, Any]]:
+    language = _normalize_content_language(language)
+    if STATIC_NEWS_FILE:
+        return [_parse_wp_item(item, language) for item in _read_static_news()[:limit]]
     now = time.time()
-    cache = _NEWS_CACHE.get(int(limit))
+    cache_key = f"{int(limit)}:{language}"
+    cache = _NEWS_CACHE.get(cache_key)
     if cache and now - float(cache.get("ts", 0)) <= DISCOVER_NEWS_CACHE_TTL_SEC:
         return list(cache.get("items", []))
 
@@ -135,7 +158,7 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
                     max_scan -= 1
                     if max_scan <= 0:
                         break
-                    items.append(_parse_wp_item(raw))
+                    items.append(_parse_wp_item(raw, language))
                     remaining -= 1
                     if remaining <= 0:
                         break
@@ -148,11 +171,22 @@ async def _fetch_wp_news(limit: int = 24) -> List[Dict[str, Any]]:
         return items
     items = _dedupe_news_items(items)
     if items:
-        _NEWS_CACHE[int(limit)] = {"ts": now, "items": list(items)}
+        _NEWS_CACHE[cache_key] = {"ts": now, "items": list(items)}
     return items
 
 
-async def _fetch_wp_post_detail(post_id: int) -> Dict[str, Any]:
+async def _fetch_wp_post_detail(post_id: int, language: str = "tr") -> Dict[str, Any]:
+    if STATIC_NEWS_FILE:
+        item = next((row for row in _read_static_news() if row["id"] == post_id), None)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Haber bulunamadı")
+        localized = _localized_static_content(item, language)
+        localized_body = str(localized.get("body_text") or "").strip()
+        content_html = (
+            "<p>" + html.escape(localized_body).replace("\n", "<br>") + "</p>"
+            if localized_body else item["content"]["rendered"]
+        )
+        return {**_parse_wp_item(item, language), "content_html": content_html}
     url = f"{WP_BASE}/wp-json/wp/v2/posts/{int(post_id)}"
     params = {"_embed": "1"}
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -165,6 +199,21 @@ async def _fetch_wp_post_detail(post_id: int) -> Dict[str, Any]:
     base = _parse_wp_item(item)
     base["content_html"] = ((item.get("content") or {}).get("rendered") or "").strip()
     return base
+
+
+def _read_static_news() -> List[Dict[str, Any]]:
+    # The exported feed retains WordPress IDs for links and reaction records.
+    try:
+        with open(STATIC_NEWS_FILE, encoding="utf-8") as source:
+            rows = json.load(source)
+        if not isinstance(rows, list):
+            raise ValueError("Expected a news list")
+        for row in rows:
+            if not isinstance(row["id"], int) or not isinstance(row["content"]["rendered"], str):
+                raise ValueError("Invalid news item")
+        return sorted(rows, key=lambda row: row.get("date", ""), reverse=True)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(status_code=503, detail="Haber kaynagi gecici olarak kullanilamiyor") from exc
 
 
 async def _fetch_wp_events(limit: int = 12) -> List[Dict[str, Any]]:
@@ -594,16 +643,18 @@ async def discover_home(
     news_limit: int = Query(default=24, ge=1, le=60),
     events_limit: int = Query(default=12, ge=0, le=30),
     albums_limit: int = Query(default=6, ge=0, le=12),
+    lang: str = Query(default="tr"),
 ):
+    language = _normalize_content_language(lang)
     now = time.time()
-    cache_key = f"{news_limit}:{events_limit}:{albums_limit}"
+    cache_key = f"{news_limit}:{events_limit}:{albums_limit}:{language}"
     cache_items = _DISCOVER_HOME_CACHE.get("items") or {}
     if now - float(_DISCOVER_HOME_CACHE.get("ts", 0)) <= DISCOVER_HOME_CACHE_TTL_SEC:
         cached = cache_items.get(cache_key)
         if isinstance(cached, dict):
             return cached
 
-    news = await _fetch_wp_news(limit=news_limit)
+    news = await _fetch_wp_news(limit=news_limit, language=language)
     if events_limit > 0:
         try:
             events = await _fetch_wp_events(limit=events_limit)
@@ -628,5 +679,5 @@ async def discover_home(
 
 
 @router.get("/news/{post_id}", summary="WordPress haber detayı")
-async def discover_news_detail(post_id: int):
-    return await _fetch_wp_post_detail(post_id)
+async def discover_news_detail(post_id: int, lang: str = Query(default="tr")):
+    return await _fetch_wp_post_detail(post_id, language=lang)

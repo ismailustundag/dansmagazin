@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../services/checkout_api.dart';
 import '../services/content_share_service.dart';
 import '../services/calendar_service.dart';
+import '../services/commerce_api.dart';
 import '../services/date_time_format.dart';
 import '../services/event_social_api.dart';
 import '../services/i18n.dart';
@@ -61,6 +61,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   int _tab = 0;
   bool _openingCheckout = false;
+  CommerceProduct? _commerceProduct;
   bool _loadingAttendees = true;
   bool _loadingComments = true;
   bool _loadingRaffle = true;
@@ -89,7 +90,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     _loadAttendees();
     _loadComments();
     _loadRaffle();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _triggerAutoHintScroll());
+    _loadCommerceProduct();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _triggerAutoHintScroll());
+  }
+
+  Future<void> _loadCommerceProduct() async {
+    final product = await CommerceApi.getProductForEvent(widget.submissionId);
+    if (!mounted || product == null) return;
+    setState(() => _commerceProduct = product);
   }
 
   @override
@@ -127,7 +136,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   void _scheduleAutoHintRetry() {
-    if (_didAutoHintScroll || _userInteractedWithScroll || _autoHintAttempts >= 3) return;
+    if (_didAutoHintScroll ||
+        _userInteractedWithScroll ||
+        _autoHintAttempts >= 3) return;
     _autoHintAttempts += 1;
     Future<void>.delayed(const Duration(milliseconds: 220), () {
       if (!mounted) return;
@@ -166,8 +177,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     if (t.isNotEmpty) {
       final u = Uri.tryParse(t);
       if (u != null) {
-        final parsedPid =
-            u.queryParameters['p'] ?? u.queryParameters['product_id'] ?? u.queryParameters['add-to-cart'];
+        final parsedPid = u.queryParameters['p'] ??
+            u.queryParameters['product_id'] ??
+            u.queryParameters['add-to-cart'];
         if (parsedPid != null && parsedPid.trim().isNotEmpty) {
           return 'https://www.dansmagazin.net/?post_type=product&p=${parsedPid.trim()}';
         }
@@ -185,23 +197,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final directUrl = _buyUrl();
     if (directUrl.isEmpty) return;
 
-    var targetUrl = directUrl;
-    if (widget.sessionToken.trim().isNotEmpty) {
-      try {
-        targetUrl = await CheckoutApi.buildAutoLoginUrl(
-          sessionToken: widget.sessionToken.trim(),
-          targetUrl: directUrl,
-        );
-      } catch (_) {
-        // Auto-login link üretimi başarısızsa normal ürün sayfasına düş.
-      }
-    }
-
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AppWebViewScreen(url: targetUrl, title: widget.title),
-      ),
+          builder: (_) =>
+              AppWebViewScreen(url: directUrl, title: widget.title)),
     );
   }
 
@@ -316,7 +316,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             child: Text(I18n.t('cancel')),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
             child: Text(I18n.t('add_to_feed')),
           ),
         ],
@@ -349,7 +350,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
             if (widget.canAddToFeed)
               ListTile(
-                leading: const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
+                leading:
+                    const Icon(Icons.dynamic_feed_rounded, color: Colors.white),
                 title: Text(I18n.t('add_to_feed')),
                 onTap: () => Navigator.of(context).pop('feed'),
               ),
@@ -471,16 +473,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     if (raw.isEmpty) return '';
     final url = _extractFirstUrl(raw);
     if (url == null) return raw;
-    final cleaned = raw.replaceFirst(url, '').replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    final cleaned =
+        raw.replaceFirst(url, '').replaceAll(RegExp(r'\s+\n'), '\n').trim();
     return cleaned.isEmpty ? raw : cleaned;
   }
 
   Uri? _storedMapUri() {
     final direct = widget.venueMapUrl.trim();
     if (direct.isNotEmpty) {
-      final normalized = direct.startsWith('http://') || direct.startsWith('https://')
-          ? direct
-          : (direct.startsWith('www.') ? 'https://$direct' : direct);
+      final normalized =
+          direct.startsWith('http://') || direct.startsWith('https://')
+              ? direct
+              : (direct.startsWith('www.') ? 'https://$direct' : direct);
       final directUri = Uri.tryParse(normalized);
       if (directUri != null && directUri.hasScheme) return directUri;
     }
@@ -550,13 +554,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
     final explicitEnd = _parseEventDateForCalendar(widget.endAt);
     final hasTime = _eventHasTime(widget.eventDate);
-    final startDate = hasTime ? start : DateTime(start.year, start.month, start.day, 10, 0);
+    final startDate =
+        hasTime ? start : DateTime(start.year, start.month, start.day, 10, 0);
     final endDate = explicitEnd != null
         ? (_eventHasTime(widget.endAt)
             ? explicitEnd
-            : DateTime(explicitEnd.year, explicitEnd.month, explicitEnd.day, 23, 59))
-        : (hasTime ? startDate.add(const Duration(hours: 2)) : startDate.add(const Duration(hours: 1)));
-    final details = widget.description.trim().isEmpty ? widget.title.trim() : widget.description.trim();
+            : DateTime(
+                explicitEnd.year, explicitEnd.month, explicitEnd.day, 23, 59))
+        : (hasTime
+            ? startDate.add(const Duration(hours: 2))
+            : startDate.add(const Duration(hours: 1)));
+    final details = widget.description.trim().isEmpty
+        ? widget.title.trim()
+        : widget.description.trim();
     final event = Event(
       title: widget.title.trim().isEmpty ? 'Etkinlik' : widget.title.trim(),
       description: details,
@@ -583,9 +593,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     setState(() => _changingAttendance = true);
     try {
       if (_joined) {
-        await EventSocialApi.leave(submissionId: widget.submissionId, sessionToken: token);
+        await EventSocialApi.leave(
+            submissionId: widget.submissionId, sessionToken: token);
       } else {
-        await EventSocialApi.attend(submissionId: widget.submissionId, sessionToken: token);
+        await EventSocialApi.attend(
+            submissionId: widget.submissionId, sessionToken: token);
       }
       await _loadAttendees();
     } on EventSocialApiException catch (e) {
@@ -609,7 +621,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       );
       if (!mounted) return;
       setState(() => _raffle = raffle);
-      _showMsg('Çekilişe katıldın. Başvurular durunca sonuçlar burada açıklanacak.');
+      _showMsg(
+          'Çekilişe katıldın. Başvurular durunca sonuçlar burada açıklanacak.');
     } on EventSocialApiException catch (e) {
       _showMsg(e.message);
     } finally {
@@ -638,13 +651,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               isFriend: status == 'already_friends' || status == 'friend',
               friendStatus: status == 'already_friends'
                   ? 'friend'
-                  : (status.isEmpty ? EventSocialApi.statusPendingOutgoing : status),
-              friendRequestId: (result['request_id'] as num?)?.toInt() ?? a.friendRequestId,
+                  : (status.isEmpty
+                      ? EventSocialApi.statusPendingOutgoing
+                      : status),
+              friendRequestId:
+                  (result['request_id'] as num?)?.toInt() ?? a.friendRequestId,
             );
           }).toList();
         });
       }
-      _showMsg(status == 'already_friends' ? 'Zaten arkadaşsınız.' : 'Arkadaşlık isteği gönderildi.');
+      _showMsg(status == 'already_friends'
+          ? 'Zaten arkadaşsınız.'
+          : 'Arkadaşlık isteği gönderildi.');
       await _loadAttendees();
     } on EventSocialApiException catch (e) {
       _showMsg(e.message);
@@ -756,9 +774,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   String _contentText() {
-    if (_tab == 1) return widget.program.trim().isEmpty ? 'Program bilgisi girilmedi.' : widget.program.trim();
-    if (_tab == 2) return _venueLabel().trim().isEmpty ? 'Konum bilgisi girilmedi.' : _venueLabel().trim();
-    return widget.description.trim().isEmpty ? 'Detay bilgisi girilmedi.' : widget.description.trim();
+    if (_tab == 1)
+      return widget.program.trim().isEmpty
+          ? 'Program bilgisi girilmedi.'
+          : widget.program.trim();
+    if (_tab == 2)
+      return _venueLabel().trim().isEmpty
+          ? 'Konum bilgisi girilmedi.'
+          : _venueLabel().trim();
+    final description = _commerceProduct?.description.trim() ?? '';
+    final text =
+        description.isNotEmpty ? description : widget.description.trim();
+    return text.isEmpty ? 'Detay bilgisi girilmedi.' : text;
   }
 
   @override
@@ -766,7 +793,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final buyUrl = _buyUrl();
     final venueLabel = _venueLabel();
     final canOpenMaps = _storedMapUri() != null;
-    final canAddToCalendar = _parseEventDateForCalendar(widget.eventDate) != null;
+    final canAddToCalendar =
+        _parseEventDateForCalendar(widget.eventDate) != null;
     final posterMaxHeight = MediaQuery.of(context).size.height * 0.62;
     return Scaffold(
       backgroundColor: AppTheme.bgPrimary,
@@ -779,315 +807,354 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           children: [
-          if (widget.cover.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: posterMaxHeight),
-                child: Container(
-                  color: AppTheme.surfaceElevated,
-                  child: Image.network(
-                    widget.cover,
-                    width: double.infinity,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.topCenter,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 220,
-                      color: AppTheme.surfaceElevated,
+            if (widget.cover.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: posterMaxHeight),
+                  child: Container(
+                    color: AppTheme.surfaceElevated,
+                    child: Image.network(
+                      widget.cover,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.topCenter,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 220,
+                        color: AppTheme.surfaceElevated,
+                      ),
                     ),
                   ),
                 ),
               ),
+            Container(
+              margin: const EdgeInsets.only(top: 14),
+              padding: const EdgeInsets.all(16),
+              decoration: AppTheme.panel(
+                  tone: AppTone.events, radius: 22, elevated: true),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _line(Icons.calendar_month,
+                      'Başlangıç: ${_fmtDate(widget.eventDate)}'),
+                  if (widget.endAt.trim().isNotEmpty &&
+                      widget.endAt.trim() != widget.eventDate.trim())
+                    _line(Icons.schedule, 'Bitiş: ${_fmtDate(widget.endAt)}'),
+                  if (venueLabel.isNotEmpty)
+                    _line(Icons.location_on, venueLabel),
+                  if (widget.organizer.trim().isNotEmpty)
+                    _line(Icons.public, widget.organizer.trim()),
+                ],
+              ),
             ),
-          Container(
-            margin: const EdgeInsets.only(top: 14),
-            padding: const EdgeInsets.all(16),
-            decoration: AppTheme.panel(tone: AppTone.events, radius: 22, elevated: true),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _line(Icons.calendar_month, 'Başlangıç: ${_fmtDate(widget.eventDate)}'),
-                if (widget.endAt.trim().isNotEmpty && widget.endAt.trim() != widget.eventDate.trim())
-                  _line(Icons.schedule, 'Bitiş: ${_fmtDate(widget.endAt)}'),
-                if (venueLabel.isNotEmpty) _line(Icons.location_on, venueLabel),
-                if (widget.organizer.trim().isNotEmpty) _line(Icons.public, widget.organizer.trim()),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (canAddToCalendar)
+            const SizedBox(height: 12),
+            if (canAddToCalendar)
+              SizedBox(
+                height: 46,
+                child: OutlinedButton.icon(
+                  onPressed: _addToCalendar,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: AppTheme.surfaceSecondary,
+                    side: BorderSide(
+                        color: AppTheme.borderStrong.withOpacity(0.9)),
+                    foregroundColor: AppTheme.textPrimary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: const Icon(Icons.event_available),
+                  label: const Text(
+                    'Takvime Ekle',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            if (canAddToCalendar) const SizedBox(height: 12),
             SizedBox(
-              height: 46,
+              height: 54,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: _joined
+                      ? AppTheme.success.withOpacity(0.12)
+                      : AppTheme.surfaceSecondary,
+                  side: BorderSide(
+                      color: _joined
+                          ? AppTheme.success
+                          : AppTheme.orange.withOpacity(0.8)),
+                  foregroundColor: AppTheme.textPrimary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
+                ),
+                onPressed: _changingAttendance ? null : _toggleAttend,
+                child: _changingAttendance
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(
+                        _joined ? 'Katılımı Geri Çek' : 'Etkinliğe Katılacağım',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 50,
               child: OutlinedButton.icon(
-                onPressed: _addToCalendar,
+                onPressed: _sharingBusy ? null : _openShareActions,
                 style: OutlinedButton.styleFrom(
                   backgroundColor: AppTheme.surfaceSecondary,
-                  side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
+                  side:
+                      BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
                   foregroundColor: AppTheme.textPrimary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
                 ),
-                icon: const Icon(Icons.event_available),
-                label: const Text(
-                  'Takvime Ekle',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          if (canAddToCalendar) const SizedBox(height: 12),
-          SizedBox(
-            height: 54,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: _joined ? AppTheme.success.withOpacity(0.12) : AppTheme.surfaceSecondary,
-                side: BorderSide(color: _joined ? AppTheme.success : AppTheme.orange.withOpacity(0.8)),
-                foregroundColor: AppTheme.textPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              ),
-              onPressed: _changingAttendance ? null : _toggleAttend,
-              child: _changingAttendance
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text(
-                      _joined ? 'Katılımı Geri Çek' : 'Etkinliğe Katılacağım',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 50,
-            child: OutlinedButton.icon(
-              onPressed: _sharingBusy ? null : _openShareActions,
-              style: OutlinedButton.styleFrom(
-                backgroundColor: AppTheme.surfaceSecondary,
-                side: BorderSide(color: AppTheme.borderStrong.withOpacity(0.9)),
-                foregroundColor: AppTheme.textPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              ),
-              icon: _sharingBusy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.ios_share_rounded),
-              label: Text(
-                I18n.t('share'),
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (buyUrl.isNotEmpty)
-            SizedBox(
-              height: 56,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.orange,
-                  foregroundColor: AppTheme.textPrimary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                ),
-                onPressed: _openingCheckout
-                    ? null
-                    : () async {
-                        setState(() => _openingCheckout = true);
-                        try {
-                          await _openCheckout();
-                        } finally {
-                          if (mounted) setState(() => _openingCheckout = false);
-                        }
-                      },
-                child: _openingCheckout
+                icon: _sharingBusy
                     ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(
-                        'Bilet Satın Al',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                      ),
+                    : const Icon(Icons.ios_share_rounded),
+                label: Text(
+                  I18n.t('share'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
-          if (_loadingRaffle || _raffle != null || (_raffleError ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 14),
-            _raffleSection(),
-          ],
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: AppTheme.panel(tone: AppTone.social, radius: 22, subtle: true),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Etkinliğe Katılacaklar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 10),
-                if (_loadingAttendees)
-                  const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()))
-                else if (_attendees.isEmpty)
-                  const Text('Henüz katılımcı yok.')
-                else
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: _attendees
-                        .map(
-                          (a) => _EventAttendeeAvatar(
-                            attendee: a,
-                            onTap: () => _openAttendeeProfile(a),
-                          ),
-                        )
-                        .toList(),
+            const SizedBox(height: 12),
+            if (buyUrl.isNotEmpty)
+              SizedBox(
+                height: 56,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.orange,
+                    foregroundColor: AppTheme.textPrimary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
                   ),
+                  onPressed: _openingCheckout
+                      ? null
+                      : () async {
+                          setState(() => _openingCheckout = true);
+                          try {
+                            await _openCheckout();
+                          } finally {
+                            if (mounted)
+                              setState(() => _openingCheckout = false);
+                          }
+                        },
+                  child: _openingCheckout
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Bilet Satın Al',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
+                ),
+              ),
+            if (_loadingRaffle ||
+                _raffle != null ||
+                (_raffleError ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _raffleSection(),
+            ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: AppTheme.panel(
+                  tone: AppTone.social, radius: 22, subtle: true),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Etkinliğe Katılacaklar',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 10),
+                  if (_loadingAttendees)
+                    const Center(
+                        child: Padding(
+                            padding: EdgeInsets.all(8),
+                            child: CircularProgressIndicator()))
+                  else if (_attendees.isEmpty)
+                    const Text('Henüz katılımcı yok.')
+                  else
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: _attendees
+                          .map(
+                            (a) => _EventAttendeeAvatar(
+                              attendee: a,
+                              onTap: () => _openAttendeeProfile(a),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(child: _tabBtn(0, 'Detaylar')),
+                const SizedBox(width: 8),
+                Expanded(child: _tabBtn(1, 'Program')),
+                const SizedBox(width: 8),
+                Expanded(child: _tabBtn(2, 'Konum')),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(child: _tabBtn(0, 'Detaylar')),
-              const SizedBox(width: 8),
-              Expanded(child: _tabBtn(1, 'Program')),
-              const SizedBox(width: 8),
-              Expanded(child: _tabBtn(2, 'Konum')),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: AppTheme.panel(
-              tone: _tab == 2 ? AppTone.events : AppTone.neutral,
-              radius: 22,
-              subtle: _tab != 2,
-            ),
-            child: _tab == 2
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      EmojiText(
-                        _contentText(),
-                        style: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
-                      ),
-                      if (canOpenMaps) ...[
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _openVenueInMaps,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.orange,
-                              foregroundColor: AppTheme.textPrimary,
-                            ),
-                            child: const Text(
-                              'HARITADA AÇ',
-                              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: AppTheme.panel(
+                tone: _tab == 2 ? AppTone.events : AppTone.neutral,
+                radius: 22,
+                subtle: _tab != 2,
+              ),
+              child: _tab == 2
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        EmojiText(
+                          _contentText(),
+                          style: const TextStyle(
+                              color: AppTheme.textPrimary, height: 1.5),
+                        ),
+                        if (canOpenMaps) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _openVenueInMaps,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.orange,
+                                foregroundColor: AppTheme.textPrimary,
+                              ),
+                              child: const Text(
+                                'HARITADA AÇ',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8),
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
+                    )
+                  : EmojiText(
+                      _contentText(),
+                      style: const TextStyle(
+                          color: AppTheme.textPrimary, height: 1.5),
+                    ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: AppTheme.panel(
+                  tone: AppTone.social, radius: 22, subtle: true),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Yorumlar',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      if (_comments.isNotEmpty)
+                        Text(
+                          '${_comments.length} yorum',
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary, fontSize: 12),
+                        ),
                     ],
-                  )
-                : EmojiText(
-                    _contentText(),
-                    style: const TextStyle(color: AppTheme.textPrimary, height: 1.5),
-                  ),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: AppTheme.panel(tone: AppTone.social, radius: 22, subtle: true),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Yorumlar',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    if (_comments.isNotEmpty)
-                      Text(
-                        '${_comments.length} yorum',
-                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (widget.sessionToken.trim().isEmpty)
-                  _commentNotice('Yorum yazmak için giriş yapmalısın.')
-                else if (_editingComment || _myComment == null) ...[
-                  TextField(
-                    controller: _commentCtrl,
-                    minLines: 3,
-                    maxLines: 5,
-                    decoration: InputDecoration(
-                      hintText: 'Etkinlikle ilgili deneyimini paylaş',
-                      filled: true,
-                      fillColor: AppTheme.surfacePrimary,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide(color: AppTheme.borderSoft),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide(color: AppTheme.borderSoft),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide(color: AppTheme.pink.withOpacity(0.75)),
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Spacer(),
-                      if (_editingComment)
-                        TextButton(
-                          onPressed: _savingComment ? null : _cancelEditingComment,
-                          child: const Text('İptal'),
+                  if (widget.sessionToken.trim().isEmpty)
+                    _commentNotice('Yorum yazmak için giriş yapmalısın.')
+                  else if (_editingComment || _myComment == null) ...[
+                    TextField(
+                      controller: _commentCtrl,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: InputDecoration(
+                        hintText: 'Etkinlikle ilgili deneyimini paylaş',
+                        filled: true,
+                        fillColor: AppTheme.surfacePrimary,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(color: AppTheme.borderSoft),
                         ),
-                      const SizedBox(width: 12),
-                      FilledButton(
-                        onPressed: _savingComment ? null : _saveComment,
-                        child: _savingComment
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Text(_editingComment ? 'Kaydet' : 'Yorum Yap'),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(color: AppTheme.borderSoft),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(
+                              color: AppTheme.pink.withOpacity(0.75)),
+                        ),
                       ),
-                    ],
-                  ),
-                ] else
-                  const SizedBox.shrink(),
-                const SizedBox(height: 14),
-                if (_loadingComments)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: CircularProgressIndicator(),
                     ),
-                  )
-                else if ((_commentsError ?? '').trim().isNotEmpty)
-                  _commentNotice(_commentsError!)
-                else if (_comments.isEmpty)
-                  const Text(
-                    'Henüz yorum yok. İlk deneyimi paylaşan sen olabilirsin.',
-                    style: TextStyle(color: AppTheme.textSecondary),
-                  )
-                else
-                  ..._comments.map(_commentCard),
-              ],
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Spacer(),
+                        if (_editingComment)
+                          TextButton(
+                            onPressed:
+                                _savingComment ? null : _cancelEditingComment,
+                            child: const Text('İptal'),
+                          ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: _savingComment ? null : _saveComment,
+                          child: _savingComment
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Text(_editingComment ? 'Kaydet' : 'Yorum Yap'),
+                        ),
+                      ],
+                    ),
+                  ] else
+                    const SizedBox.shrink(),
+                  const SizedBox(height: 14),
+                  if (_loadingComments)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if ((_commentsError ?? '').trim().isNotEmpty)
+                    _commentNotice(_commentsError!)
+                  else if (_comments.isEmpty)
+                    const Text(
+                      'Henüz yorum yok. İlk deneyimi paylaşan sen olabilirsin.',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    )
+                  else
+                    ..._comments.map(_commentCard),
+                ],
+              ),
             ),
-          ),
           ],
         ),
       ),
@@ -1098,8 +1165,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     if (_loadingRaffle) {
       return Container(
         padding: const EdgeInsets.all(16),
-        decoration: AppTheme.panel(tone: AppTone.events, radius: 22, subtle: true),
-        child: const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator())),
+        decoration:
+            AppTheme.panel(tone: AppTone.events, radius: 22, subtle: true),
+        child: const Center(
+            child: Padding(
+                padding: EdgeInsets.all(8),
+                child: CircularProgressIndicator())),
       );
     }
     if ((_raffleError ?? '').trim().isNotEmpty) {
@@ -1127,7 +1198,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.panel(tone: AppTone.events, radius: 22, subtle: true),
+      decoration:
+          AppTheme.panel(tone: AppTone.events, radius: 22, subtle: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1140,7 +1212,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: stateColor.withOpacity(0.16),
                   borderRadius: BorderRadius.circular(999),
@@ -1160,12 +1233,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           if (raffle.startsAt.trim().isNotEmpty)
             Text(
               'Başvurular açıldı: ${_fmtDate(raffle.startsAt)}',
-              style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+              style:
+                  const TextStyle(color: AppTheme.textSecondary, height: 1.4),
             ),
           if (raffle.endsAt.trim().isNotEmpty)
             Text(
               'Başvurular durdu: ${_fmtDate(raffle.endsAt)}',
-              style: const TextStyle(color: AppTheme.textSecondary, height: 1.4),
+              style:
+                  const TextStyle(color: AppTheme.textSecondary, height: 1.4),
             ),
           const SizedBox(height: 4),
           Text(
@@ -1175,10 +1250,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           const SizedBox(height: 10),
           if (raffle.state == 'draft' || raffle.state == 'scheduled')
             _commentNotice('Yönetici başvuruları henüz açmadı.')
-          else if (raffle.state == 'active' && widget.sessionToken.trim().isEmpty)
+          else if (raffle.state == 'active' &&
+              widget.sessionToken.trim().isEmpty)
             _commentNotice('Çekilişe katılmak için önce giriş yapmalısın.')
           else if (raffle.state == 'active' && raffle.hasJoined)
-            _commentNotice('Çekilişe katıldın. Başvurular durduğunda sonuçlar burada açıklanacak.')
+            _commentNotice(
+                'Çekilişe katıldın. Başvurular durduğunda sonuçlar burada açıklanacak.')
           else if (raffle.state == 'active')
             SizedBox(
               width: double.infinity,
@@ -1192,14 +1269,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.celebration_outlined),
-                label: Text(_joiningRaffle ? 'Kaydediliyor...' : 'Çekilişe Katıl'),
+                label:
+                    Text(_joiningRaffle ? 'Kaydediliyor...' : 'Çekilişe Katıl'),
               ),
             )
           else if (raffle.state == 'closed')
-            _commentNotice('Başvurular kapandı. Sonuçlar açıklandığında burada görünecek.')
+            _commentNotice(
+                'Başvurular kapandı. Sonuçlar açıklandığında burada görünecek.')
           else
             const SizedBox.shrink(),
           if (raffle.primaryWinners.isNotEmpty) ...[
@@ -1212,8 +1292,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ...raffle.primaryWinners.map(
               (winner) => Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration:
+                    AppTheme.glassPanel(tone: AppTone.events, radius: 16),
                 child: Row(
                   children: [
                     Container(
@@ -1232,7 +1314,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                        winner.name.trim().isEmpty
+                            ? 'Kullanıcı'
+                            : winner.name.trim(),
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -1251,8 +1335,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ...raffle.reserveWinners.map(
               (winner) => Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: AppTheme.glassPanel(tone: AppTone.events, radius: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration:
+                    AppTheme.glassPanel(tone: AppTone.events, radius: 16),
                 child: Row(
                   children: [
                     Container(
@@ -1271,7 +1357,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        winner.name.trim().isEmpty ? 'Kullanıcı' : winner.name.trim(),
+                        winner.name.trim().isEmpty
+                            ? 'Kullanıcı'
+                            : winner.name.trim(),
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -1302,7 +1390,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final active = _tab == val;
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
-        backgroundColor: active ? AppTheme.orange.withOpacity(0.18) : AppTheme.surfaceSecondary,
+        backgroundColor: active
+            ? AppTheme.orange.withOpacity(0.18)
+            : AppTheme.surfaceSecondary,
         side: BorderSide(color: active ? AppTheme.orange : AppTheme.borderSoft),
         foregroundColor: AppTheme.textPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1352,7 +1442,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     EmojiText(
-                      item.authorName.trim().isEmpty ? 'Kullanıcı' : item.authorName.trim(),
+                      item.authorName.trim().isEmpty
+                          ? 'Kullanıcı'
+                          : item.authorName.trim(),
                       style: const TextStyle(
                         color: AppTheme.textPrimary,
                         fontSize: 14,
@@ -1392,7 +1484,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   if (item.canDelete) ...[
                     if (item.canEdit) const SizedBox(width: 8),
                     InkWell(
-                      onTap: _deletingCommentId == item.id ? null : () => _deleteComment(item),
+                      onTap: _deletingCommentId == item.id
+                          ? null
+                          : () => _deleteComment(item),
                       borderRadius: BorderRadius.circular(999),
                       child: Container(
                         width: 34,
@@ -1406,9 +1500,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.delete_outline_rounded, size: 18),
+                            : const Icon(Icons.delete_outline_rounded,
+                                size: 18),
                       ),
                     ),
                   ],
@@ -1479,7 +1575,8 @@ class _EventAttendeeAvatar extends StatelessWidget {
                 isVerified: attendee.isVerified,
                 radius: 23,
                 backgroundColor: AppTheme.surfaceElevated,
-                fallbackStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                fallbackStyle:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             if (!attendee.isMe && attendee.friendStatus == 'none')

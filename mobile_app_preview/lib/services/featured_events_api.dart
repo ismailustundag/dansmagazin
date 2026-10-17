@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'error_message.dart';
+import 'i18n.dart';
 
 class FeaturedEventItem {
   final int id;
@@ -45,7 +46,8 @@ class FeaturedEventItem {
     required this.ticketSalesEnabled,
   });
 
-  static String _absUrl(dynamic raw, {String host = 'https://api2.dansmagazin.net'}) {
+  static String _absUrl(dynamic raw,
+      {String host = 'https://api2.dansmagazin.net'}) {
     final v = (raw ?? '').toString().trim();
     if (v.isEmpty) return '';
     if (v.startsWith('http://') || v.startsWith('https://')) return v;
@@ -67,12 +69,14 @@ class FeaturedEventItem {
       organizerName: (json['organizer_name'] ?? '').toString(),
       programText: (json['program_text'] ?? '').toString(),
       entryFee: (json['entry_fee'] as num?)?.toDouble() ?? 0.0,
-      ticketUrl: _absUrl(json['ticket_url'] ?? '', host: 'https://www.dansmagazin.net'),
+      ticketUrl: _absUrl(json['ticket_url'] ?? '',
+          host: 'https://www.dansmagazin.net'),
       wooProductId: (json['woo_product_id'] ?? '').toString(),
       city: (json['city'] ?? '').toString(),
       eventKind: (json['event_kind'] ?? '').toString(),
       coverCrop: (json['cover_crop'] ?? 'center').toString(),
-      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) || (json['ticket_sales_enabled'] == 1),
+      ticketSalesEnabled: (json['ticket_sales_enabled'] == true) ||
+          (json['ticket_sales_enabled'] == 1),
     );
   }
 }
@@ -81,9 +85,13 @@ class FeaturedEventsApi {
   static const _base = 'https://api2.dansmagazin.net';
 
   static Future<List<FeaturedEventItem>> fetchCurrent() async {
-    final resp = await http.get(Uri.parse('$_base/profile/featured-events'));
+    final uri = Uri.parse('$_base/profile/featured-events').replace(
+      queryParameters: {'lang': I18n.language},
+    );
+    final resp = await http.get(uri);
     if (resp.statusCode != 200) {
-      throw Exception(parseApiErrorBody(resp.body, fallback: 'Öne çıkan etkinlikler alınamadı'));
+      throw Exception(parseApiErrorBody(resp.body,
+          fallback: 'Öne çıkan etkinlikler alınamadı'));
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
@@ -92,11 +100,16 @@ class FeaturedEventsApi {
         .toList();
   }
 
-  static Future<List<FeaturedEventItem>> fetchCandidates({int limit = 200}) async {
+  static Future<List<FeaturedEventItem>> fetchCandidates(
+      {int limit = 200}) async {
     final lim = limit < 1 ? 1 : (limit > 300 ? 300 : limit);
-    final resp = await http.get(Uri.parse('$_base/events?limit=$lim'));
+    final uri = Uri.parse('$_base/events').replace(
+      queryParameters: {'limit': '$lim', 'lang': I18n.language},
+    );
+    final resp = await http.get(uri);
     if (resp.statusCode != 200) {
-      throw Exception(parseApiErrorBody(resp.body, fallback: 'Etkinlikler alınamadı'));
+      throw Exception(
+          parseApiErrorBody(resp.body, fallback: 'Etkinlikler alınamadı'));
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])
@@ -110,7 +123,9 @@ class FeaturedEventsApi {
     required List<int> eventIds,
   }) async {
     final resp = await http.put(
-      Uri.parse('$_base/profile/featured-events/admin'),
+      Uri.parse('$_base/profile/featured-events/admin').replace(
+        queryParameters: {'lang': I18n.language},
+      ),
       headers: {
         'Authorization': 'Bearer ${sessionToken.trim()}',
         'Content-Type': 'application/json',
@@ -118,7 +133,8 @@ class FeaturedEventsApi {
       body: jsonEncode({'event_ids': eventIds}),
     );
     if (resp.statusCode != 200) {
-      throw Exception(parseApiErrorBody(resp.body, fallback: 'Öne çıkan etkinlikler kaydedilemedi'));
+      throw Exception(parseApiErrorBody(resp.body,
+          fallback: 'Öne çıkan etkinlikler kaydedilemedi'));
     }
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     return (body['items'] as List<dynamic>? ?? [])

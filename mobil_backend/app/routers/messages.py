@@ -1,4 +1,6 @@
 import os
+import hashlib
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 import logging
@@ -187,11 +189,60 @@ def init_message_extra_tables():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_msg_thread_clears_account ON mobile_message_thread_clears(account_id, peer_account_id)"
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mobile_message_spam_signatures (
+                body_hash TEXT NOT NULL,
+                receiver_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                sender_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                message_id BIGINT NOT NULL REFERENCES mobile_direct_messages(id) ON DELETE CASCADE,
+                created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (body_hash, receiver_account_id, sender_account_id, message_id)
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_msg_spam_signatures_lookup ON mobile_message_spam_signatures(body_hash, receiver_account_id, created_at DESC)"
+        )
         conn.commit()
     except Exception:
         conn.rollback()
     finally:
         conn.close()
+
+
+def _message_body_hash(body: str) -> str:
+    normalized = re.sub(r"\s+", " ", (body or "").strip().casefold())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _enforce_message_spam_limits(conn, *, sender_id: int, receiver_id: int, body: str) -> str:
+    """Reject burst and coordinated duplicate spam without deleting history."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT COUNT(*) AS sent_count
+        FROM mobile_direct_messages
+        WHERE sender_account_id=%s AND created_at::timestamptz >= NOW() - INTERVAL '10 minutes'
+        """,
+        (int(sender_id),),
+    )
+    if int((cur.fetchone() or {}).get("sent_count") or 0) >= 20:
+        raise HTTPException(status_code=429, detail="Kısa sürede çok fazla mesaj gönderdiniz. Lütfen daha sonra tekrar deneyin.")
+
+    body_hash = _message_body_hash(body)
+    cur.execute(
+        """
+        SELECT COUNT(DISTINCT sender_account_id) AS sender_count
+        FROM mobile_message_spam_signatures
+        WHERE body_hash=%s AND receiver_account_id=%s
+          AND created_at >= NOW() - INTERVAL '24 hours'
+        """,
+        (body_hash, int(receiver_id)),
+    )
+    if int((cur.fetchone() or {}).get("sender_count") or 0) >= 3:
+        raise HTTPException(status_code=429, detail="Bu içerik spam koruması nedeniyle gönderilemedi.")
+    return body_hash
 
 
 def unread_messages_count(conn, account_id: int) -> int:
@@ -476,6 +527,7 @@ def send_message(payload: SendMessageRequest, authorization: Optional[str] = Hea
             raise HTTPException(status_code=400, detail="Kendinize mesaj gönderemezsiniz")
         if not _is_friend(conn, me, to_id):
             raise HTTPException(status_code=403, detail="Sadece arkadaşlara mesaj gönderilebilir")
+        body_hash = _enforce_message_spam_limits(conn, sender_id=me, receiver_id=to_id, body=body)
         cur = conn.cursor()
         reply_ref = None
         if reply_to_message_id > 0:
@@ -505,6 +557,14 @@ def send_message(payload: SendMessageRequest, authorization: Optional[str] = Hea
             (me, to_id, body, _iso_now(), reply_ref),
         )
         mid = int(cur.fetchone()["id"])
+        cur.execute(
+            """
+            INSERT INTO mobile_message_spam_signatures
+                (body_hash, receiver_account_id, sender_account_id, message_id)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (body_hash, int(to_id), int(me), int(mid)),
+        )
 
         # Mesaj gonderildiginde "yaziyor..." durumunu kapat.
         cur.execute(

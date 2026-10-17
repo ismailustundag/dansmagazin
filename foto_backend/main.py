@@ -89,6 +89,7 @@ FRAME_KIND_META = {
 
 EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "1") not in ("0", "false", "False")
 FACE_MATCHING_ENABLED = False
+PHOTO_ALBUM_WRITES_ENABLED = False
 
 MATCH_ACTIONS = {
     "upload_only",
@@ -163,6 +164,31 @@ _WP_SYNC_LOCK = threading.Lock()
 _WP_SYNC_LAST_TS = 0.0
 _WP_SYNC_LAST_STATS: Dict[str, Any] = {}
 _WP_SYNC_LAST_ERR = ""
+
+_RETIRED_PHOTO_WRITE_PATHS = (
+    re.compile(r"^/panel/events/create$"),
+    re.compile(r"^/panel/events/\d+/(?:subalbums/create|upload_photos|frames|reprocess)$"),
+    re.compile(r"^/(?:register|register_file|lookup)$"),
+    re.compile(r"^/admin/mobile/submissions/\d+/album/create$"),
+    re.compile(r"^/console/event/create$"),
+    re.compile(
+        r"^/console/event/[^/]+/(?:subalbums/create|users/create|frames|reprocess|upload_photos|match)$"
+    ),
+)
+
+
+@app.middleware("http")
+async def block_retired_photo_writes(request: Request, call_next):
+    if (
+        not PHOTO_ALBUM_WRITES_ENABLED
+        and request.method.upper() == "POST"
+        and any(pattern.match(request.url.path) for pattern in _RETIRED_PHOTO_WRITE_PATHS)
+    ):
+        return HTMLResponse(
+            "Etkinlik albümü ve yüz tanıma sistemi kullanımdan kaldırıldı.",
+            status_code=410,
+        )
+    return await call_next(request)
 
 
 def fmt_dt(value: Any) -> str:
@@ -557,7 +583,7 @@ def _sync_mobile_submission_live_event(
     approved_at: str,
 ) -> Dict[str, Any]:
     event_name = (row.get("event_name") or "").strip() or f"Etkinlik {int(row.get('id') or 0)}"
-    create_photo_album = _boolish(row.get("create_photo_album"), default=True)
+    create_photo_album = False
     existing_slug = (row.get("approved_event_slug") or "").strip()
     slug = existing_slug
 
@@ -1260,7 +1286,7 @@ def _fetch_admin_event_loyalty_reports(event_items: List[Dict[str, Any]]) -> tup
         data={"submission_ids_csv": ",".join(str(sid) for sid in submission_ids)},
     )
     if not res.get("ok"):
-        return {}, str(res.get("error") or "Okul / ücretsiz bilet raporu alınamadı")
+        return {}, str(res.get("error") or "Okul raporu alınamadı")
     data = res.get("data") or {}
     rows = data.get("items_by_submission") if isinstance(data, dict) else {}
     if not isinstance(rows, dict):
@@ -1314,7 +1340,7 @@ def _search_admin_guest_list_users(
     items = data.get("items") if isinstance(data, dict) else []
     if not isinstance(items, list):
         items = []
-    blocked = existing_account_ids or set()
+    existing = existing_account_ids or set()
     filtered: List[Dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
@@ -1323,8 +1349,7 @@ def _search_admin_guest_list_users(
             account_id = int(item.get("account_id") or 0)
         except Exception:
             account_id = 0
-        if account_id > 0 and account_id in blocked:
-            continue
+        item["already_in_guest_list"] = account_id > 0 and account_id in existing
         filtered.append(item)
     meta = {
         "query": (data.get("query") or q) if isinstance(data, dict) else q,
@@ -1354,6 +1379,7 @@ def _fetch_event_invitees_bulk(conn, event_items: List[Dict[str, Any]]) -> Dict[
             ei.source_guest_list_id,
             ei.ticket_id,
             ei.created_at,
+            COALESCE(t.used_at, '') AS ticket_used_at,
             COALESCE(gl.name,'') AS source_guest_list_name,
             COALESCE(NULLIF(TRIM(a.name),''), NULLIF(TRIM(ps.username),''), SPLIT_PART(COALESCE(a.email,''), '@', 1), 'user') AS display_name,
             COALESCE(a.email,'') AS email,
@@ -1365,6 +1391,7 @@ def _fetch_event_invitees_bulk(conn, event_items: List[Dict[str, Any]]) -> Dict[
         JOIN accounts a ON a.id = ei.account_id
         LEFT JOIN mobile_profile_settings ps ON ps.account_id = a.id
         LEFT JOIN mobile_guest_lists gl ON gl.id = ei.source_guest_list_id
+        LEFT JOIN mobile_tickets t ON t.id = ei.ticket_id
         WHERE ei.submission_id = ANY(?)
         ORDER BY ei.submission_id ASC, ei.created_at ASC, ei.account_id ASC
         """,
@@ -1384,6 +1411,8 @@ def _fetch_event_invitees_bulk(conn, event_items: List[Dict[str, Any]]) -> Dict[
                 "source_guest_list_id": int(row["source_guest_list_id"]) if row.get("source_guest_list_id") is not None else None,
                 "source_guest_list_name": (row.get("source_guest_list_name") or "").strip(),
                 "ticket_id": int(row["ticket_id"]) if row.get("ticket_id") is not None else None,
+                "ticket_used_at": (row.get("ticket_used_at") or "").strip(),
+                "ticket_used": bool((row.get("ticket_used_at") or "").strip()),
                 "invited_at": (row.get("created_at") or "").strip(),
             }
         )
@@ -4013,13 +4042,6 @@ def get_current_account(request: Request) -> Optional[sqlite3.Row]:
     if not token:
         return None
 
-    # Rol değişiklikleri panelde beklemeden görünmeli.
-    # maybe_sync_wp_users cache'lidir; her istekte çağrı güvenlidir.
-    try:
-        maybe_sync_wp_users(force=False)
-    except Exception:
-        pass
-
     conn = db_conn()
     c = conn.cursor()
     c.execute("""
@@ -4183,6 +4205,61 @@ def _wp_admin_login(email: str, password: str) -> Dict[str, Any]:
 
 def _mobile_auth_base() -> str:
     return (os.getenv("MOBILE_AUTH_BASE", "https://api2.dansmagazin.net") or "").strip().rstrip("/")
+
+
+def _mobile_admin_login(email: str, password: str) -> Dict[str, Any]:
+    base = _mobile_auth_base()
+    if not base:
+        raise RuntimeError("MOBILE_AUTH_BASE eksik")
+
+    payload = json.dumps(
+        {
+            "email": email.strip().lower(),
+            "password": password,
+            "remember_me": True,
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"{base}/auth/login",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+        login_json = json.loads(body) if body else {}
+    except urllib.error.HTTPError as e:
+        msg = e.read().decode("utf-8", errors="replace")
+        if e.code in (400, 401, 403):
+            try:
+                detail = json.loads(msg).get("detail", "")
+            except Exception:
+                detail = ""
+            raise PermissionError(str(detail or "E-posta veya şifre hatalı"))
+        raise RuntimeError(f"DansMagazin giriş servisi hata verdi (HTTP {e.code})")
+    except Exception as e:
+        raise RuntimeError(f"DansMagazin giriş doğrulaması yapılamadı: {e}")
+
+    if not isinstance(login_json, dict):
+        raise RuntimeError("DansMagazin giriş cevabı geçersiz")
+
+    app_role = str(login_json.get("app_role") or "").strip().lower()
+    wp_roles = [str(r).strip().lower() for r in (login_json.get("wp_roles") or []) if str(r).strip()]
+    allowed_roles = {"super_admin", "admin", "administrator", "editor"}
+    if app_role not in allowed_roles and not any(role in {"administrator", "editor"} for role in wp_roles):
+        raise PermissionError("Panel erişimi için yönetici yetkisi gerekir.")
+
+    wp_user_id_raw = login_json.get("wp_user_id")
+    wp_user_id = int(wp_user_id_raw) if str(wp_user_id_raw or "").isdigit() else 0
+    login_email = (login_json.get("email") or email).strip().lower()
+    login_name = (login_json.get("name") or "").strip()
+    return {
+        "wp_user_id": wp_user_id,
+        "email": login_email,
+        "name": login_name,
+        "roles": wp_roles or [app_role],
+    }
 
 
 def _mobile_session_me(session_token: str) -> Dict[str, Any]:
@@ -4480,7 +4557,7 @@ async def login_post(request: Request):
         return RedirectResponse("/login?err=E-posta ve şifre zorunlu", status_code=303)
 
     try:
-        wp_user = _wp_admin_login(email, password)
+        wp_user = _mobile_admin_login(email, password)
         account_id = _upsert_panel_admin_from_wp(wp_user)
     except PermissionError as e:
         return RedirectResponse(f"/login?err={urllib.parse.quote(str(e))}", status_code=303)
@@ -4543,7 +4620,7 @@ def panel_home(request: Request):
         return RedirectResponse("/login?err=Önce giriş yapın", status_code=303)
 
     if acc["role"] == "super_admin":
-        return RedirectResponse("/admin/users", status_code=303)
+        return RedirectResponse("/admin-v2/overview", status_code=303)
 
     return RedirectResponse("/panel/events", status_code=303)
 
@@ -4555,6 +4632,7 @@ def panel_home(request: Request):
 @app.get("/admin/users", response_class=HTMLResponse, include_in_schema=False)
 def admin_users(request: Request, msg: Optional[str] = None, err: Optional[str] = None):
     _ = require_super_admin(request)
+    return RedirectResponse("/admin-v2/users", status_code=303)
 
     wp_users: List[Dict[str, Any]] = []
     wp_error = ""
@@ -4640,6 +4718,7 @@ def admin_users(request: Request, msg: Optional[str] = None, err: Optional[str] 
 @app.get("/admin/users/{user_id}", response_class=HTMLResponse, include_in_schema=False)
 def admin_user_detail(request: Request, user_id: int, msg: Optional[str] = None, err: Optional[str] = None):
     _ = require_super_admin(request)
+    return RedirectResponse(f"/admin-v2/users/{int(user_id)}", status_code=303)
     conn = db_conn()
     c = conn.cursor()
     c.execute(
@@ -5075,6 +5154,19 @@ def admin_mobile_management(
     if active_tab not in {"events", "news", "notifications", "reports"}:
         active_tab = "events"
     events_view = _normalize_admin_mobile_events_view(view) if active_tab == "events" else "overview"
+    if active_tab == "news":
+        return RedirectResponse("/admin-v2/news", status_code=303)
+    if active_tab == "notifications":
+        return RedirectResponse("/admin-v2/notifications", status_code=303)
+    if active_tab == "reports":
+        target = "/admin-v2/polls" if (view or "").strip().lower() == "polls" else "/admin-v2/reports"
+        return RedirectResponse(target, status_code=303)
+    if events_view == "create":
+        return RedirectResponse("/admin-v2/events/new", status_code=303)
+    if events_view == "guest-lists":
+        target = f"/admin-v2/guests/{int(guest_list_id)}" if int(guest_list_id or 0) > 0 else "/admin-v2/guests"
+        return RedirectResponse(target, status_code=303)
+    return RedirectResponse("/admin-v2/events", status_code=303)
 
     users: List[Dict[str, Any]] = []
     session_token = (request.cookies.get(SESSION_COOKIE) or "").strip()
@@ -5306,7 +5398,7 @@ def admin_mobile_management(
                     loyalty_items = old_event_items
                 loyalty_reports_map, loyalty_reports_err = _cached_admin_event_loyalty_reports(loyalty_items)
             except Exception as e:
-                loyalty_reports_err = f"Okul / ücretsiz bilet raporu okunamadı: {e}"
+                loyalty_reports_err = f"Okul raporu okunamadı: {e}"
             try:
                 invitee_items: List[Dict[str, Any]] = []
                 if events_view == "active":
@@ -5622,7 +5714,7 @@ async def admin_mobile_create_event(
     except Exception:
         acc_email = ""
     ticket_sales_enabled_flag = _boolish(ticket_sales_enabled, default=False)
-    create_photo_album_flag = _boolish(create_photo_album, default=False)
+    create_photo_album_flag = False
     repeat_mode_value = (repeat_mode or "none").strip().lower()
     repeat_weekly_requested = _boolish(repeat_weekly, default=False)
 
@@ -8624,6 +8716,53 @@ async def admin_mobile_guest_list_rename(
     )
 
 
+@app.post("/admin/mobile/guest-lists/{guest_list_id}/copy", include_in_schema=False)
+async def admin_mobile_guest_list_copy(
+    request: Request,
+    guest_list_id: int,
+    name: str = Form(""),
+    csrf_token: str = Form(...),
+):
+    _ = require_super_admin(request)
+    try:
+        verify_csrf_token(request, csrf_token)
+    except HTTPException:
+        return _csrf_refresh_redirect(
+            f"/admin/mobile?tab=events&view=guest-lists&guest_list_id={int(guest_list_id)}&err=Oturum yenilendi, listeyi tekrar kopyalayın"
+        )
+    session_token = (request.cookies.get(SESSION_COOKIE) or "").strip()
+    if not session_token:
+        return RedirectResponse(
+            "/admin/mobile?tab=events&view=guest-lists&err=Oturum tokenı bulunamadı",
+            status_code=303,
+        )
+    list_name = (name or "").strip()
+    if len(list_name) < 2:
+        return RedirectResponse(
+            f"/admin/mobile?tab=events&view=guest-lists&guest_list_id={int(guest_list_id)}&err=Liste adı çok kısa",
+            status_code=303,
+        )
+    res = mobile_backend_bearer_call(
+        f"/profile/guest-lists/{int(guest_list_id)}/copy",
+        session_token,
+        method="POST",
+        json_data={"name": list_name},
+    )
+    if not res.get("ok"):
+        return RedirectResponse(
+            f"/admin/mobile?tab=events&view=guest-lists&guest_list_id={int(guest_list_id)}&err={urllib.parse.quote(str(res.get('error') or 'Davetli listesi kopyalanamadı'))}",
+            status_code=303,
+        )
+    data = res.get("data") or {}
+    copied_id = int(data.get("guest_list_id") or 0) if isinstance(data, dict) else 0
+    member_count = int(data.get("member_count") or 0) if isinstance(data, dict) else 0
+    message = f"Davetli listesi {member_count} kişiyle kopyalandı"
+    return RedirectResponse(
+        f"/admin/mobile?tab=events&view=guest-lists&guest_list_id={copied_id}&msg={urllib.parse.quote(message)}",
+        status_code=303,
+    )
+
+
 @app.post("/admin/mobile/guest-lists/{guest_list_id}/delete", include_in_schema=False)
 async def admin_mobile_guest_list_delete(
     request: Request,
@@ -10284,6 +10423,22 @@ async def gallery_download(token: str, photo_id: int, request: Request):
 # =========================
 # HEALTH
 # =========================
+
+
+from admin_v2 import build_admin_v2_router
+
+app.include_router(
+    build_admin_v2_router(
+        require_super_admin=require_super_admin,
+        db_conn=db_conn,
+        bearer_call=mobile_backend_bearer_call,
+        bearer_form_call=mobile_backend_bearer_form_call,
+        bearer_multipart_call=mobile_backend_bearer_multipart_call,
+        admin_call=mobile_backend_admin_call,
+        hash_password=hash_password,
+        session_cookie=SESSION_COOKIE,
+    )
+)
 
 @app.get("/health")
 def health():

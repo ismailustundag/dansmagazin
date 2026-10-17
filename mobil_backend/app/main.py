@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app.schemas import MobileMenuResponse
@@ -22,6 +23,7 @@ from app.routers.events import (
     init_event_submission_tables,
     router as events_router,
 )
+from app.routers.event_filter_options import router as event_filter_options_router
 from app.routers.photos import init_photo_reaction_tables, router as photos_router
 from app.routers.store import init_store_tables, router as store_router
 from app.routers.news import (
@@ -35,6 +37,9 @@ from app.routers.messages import (
     init_message_typing_state_table,
     router as messages_router,
 )
+from app.commerce_schema import init_commerce_schema
+from app.routers.commerce import public_router as commerce_public_router, router as commerce_router
+from app.routers.payments import router as payments_router
 from app.routers.profile import (
     init_profile_search_indexes,
     init_profile_settings_table,
@@ -45,6 +50,13 @@ from app.routers.profile import (
 from app.utils import get_db_connection
 
 app = FastAPI(title="Mobil Backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://dansmagazin.net", "https://www.dansmagazin.net"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Admin-Token"],
+)
 logger = logging.getLogger("mobil_backend.main")
 _birthday_worker_started = False
 ANDROID_STORE_URL = "https://play.google.com/store/apps/details?id=net.dansmagazin.mobile"
@@ -356,6 +368,7 @@ def on_startup():
     init_message_read_state_table()
     init_message_typing_state_table()
     init_message_extra_tables()
+    init_commerce_schema()
     ensure_default_friendships_for_all_users()
     if not _birthday_worker_started:
         t = threading.Thread(target=_birthday_worker, name="birthday-worker", daemon=True)
@@ -854,10 +867,14 @@ def mobile_menu():
 app.include_router(auth_router)
 app.include_router(discover_router)
 app.include_router(events_router)
+app.include_router(event_filter_options_router)
 app.include_router(admin_events_router)
 app.include_router(news_router)
 app.include_router(admin_news_router)
 app.include_router(photos_router)
 app.include_router(store_router)
 app.include_router(messages_router)
+app.include_router(commerce_router)
+app.include_router(commerce_public_router)
+app.include_router(payments_router)
 app.include_router(profile_router)

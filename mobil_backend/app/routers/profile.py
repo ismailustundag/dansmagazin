@@ -16,7 +16,7 @@ from urllib import request as url_request
 
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, File, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from starlette.responses import FileResponse
 from app.routers.events import (
@@ -586,9 +586,23 @@ def _serialize_guest_list_summary(row: Dict[str, Any]) -> Dict[str, Any]:
         "guest_list_id": int(row.get("id") or 0),
         "name": (row.get("name") or "").strip(),
         "member_count": int(row.get("member_count") or 0),
+        "is_master": bool(row.get("is_master")),
+        "is_owned": bool(row.get("is_owned")),
+        "source_master_list_id": (
+            int(row.get("source_master_list_id"))
+            if row.get("source_master_list_id") is not None
+            else None
+        ),
         "created_at": _json_time_text(row.get("created_at")),
         "updated_at": _json_time_text(row.get("updated_at")),
     }
+
+
+def _is_designated_master_guest_list(actor: Dict[str, Any], name: str) -> bool:
+    if (actor.get("role") or "").strip().lower() != "super_admin":
+        return False
+    normalized = " ".join((name or "").split()).strip().casefold()
+    return normalized in {"ankara genel", "diğer davetli", "diger davetli"}
 
 
 def _serialize_guest_list_member(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -617,16 +631,19 @@ def _fetch_guest_list_detail(conn, owner_account_id: int, guest_list_id: int) ->
         SELECT
             gl.id,
             gl.name,
+            gl.is_master,
+            gl.source_master_list_id,
+            (gl.owner_account_id=%s) AS is_owned,
             gl.created_at,
             gl.updated_at,
             COUNT(glm.account_id) AS member_count
         FROM mobile_guest_lists gl
         LEFT JOIN mobile_guest_list_members glm ON glm.list_id = gl.id
-        WHERE gl.owner_account_id=%s AND gl.id=%s
+        WHERE (gl.owner_account_id=%s OR gl.is_master=TRUE) AND gl.id=%s
         GROUP BY gl.id
         LIMIT 1
         """,
-        (int(owner_account_id), int(guest_list_id)),
+        (int(owner_account_id), int(owner_account_id), int(guest_list_id)),
     )
     row = cur.fetchone()
     if not row:
@@ -1298,6 +1315,8 @@ def init_profile_settings_table():
                 id BIGSERIAL PRIMARY KEY,
                 owner_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
                 name VARCHAR(80) NOT NULL,
+                is_master BOOLEAN NOT NULL DEFAULT FALSE,
+                source_master_list_id BIGINT REFERENCES mobile_guest_lists(id) ON DELETE SET NULL,
                 created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
                 updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
                 UNIQUE (owner_account_id, name)
@@ -1305,9 +1324,32 @@ def init_profile_settings_table():
             """
         )
         cur.execute(
+            "ALTER TABLE mobile_guest_lists ADD COLUMN IF NOT EXISTS is_master BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cur.execute(
+            "ALTER TABLE mobile_guest_lists ADD COLUMN IF NOT EXISTS source_master_list_id BIGINT REFERENCES mobile_guest_lists(id) ON DELETE SET NULL"
+        )
+        cur.execute(
+            """
+            UPDATE mobile_guest_lists gl
+            SET is_master=TRUE
+            FROM accounts a
+            WHERE a.id=gl.owner_account_id
+              AND LOWER(COALESCE(a.role,''))='super_admin'
+              AND LOWER(TRIM(gl.name)) IN ('ankara genel', 'diğer davetli', 'diger davetli')
+            """
+        )
+        cur.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_mobile_guest_lists_owner_updated
             ON mobile_guest_lists(owner_account_id, updated_at DESC, id DESC)
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_mobile_guest_lists_master_updated
+            ON mobile_guest_lists(is_master, updated_at DESC, id DESC)
+            WHERE is_master=TRUE
             """
         )
         cur.execute(
@@ -1462,15 +1504,18 @@ def _serialize_featured_event(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _fetch_featured_events(conn) -> List[Dict[str, Any]]:
+def _fetch_featured_events(conn, language: str = "tr") -> List[Dict[str, Any]]:
+    language = str(language or "tr").strip().lower().replace("_", "-").split("-", 1)[0]
+    if language not in {"tr", "en", "es"}:
+        language = "tr"
     cur = conn.cursor() # Changed _serialize_featured_event to serialize_featured_event
     cur.execute(
         """
         SELECT
             mfe.slot,
             mes.id,
-            mes.event_name,
-            mes.description,
+            COALESCE(NULLIF(requested_translation.event_name,''), NULLIF(default_translation.event_name,''), mes.event_name) AS event_name,
+            COALESCE(NULLIF(requested_translation.description,''), NULLIF(default_translation.description,''), mes.description) AS description,
             mes.event_date,
             mes.venue,
             COALESCE(mes.venue_map_url,'') AS venue_map_url,
@@ -1480,7 +1525,7 @@ def _fetch_featured_events(conn) -> List[Dict[str, Any]]:
             COALESCE(mes.cover_crop,'center') AS cover_crop,
             COALESCE(mes.ticket_sales_enabled, TRUE) AS ticket_sales_enabled,
             mes.organizer_name,
-            mes.program_text,
+            COALESCE(NULLIF(requested_translation.program_text,''), NULLIF(default_translation.program_text,''), mes.program_text) AS program_text,
             mes.cover_path,
             mes.start_at,
             mes.end_at,
@@ -1490,11 +1535,18 @@ def _fetch_featured_events(conn) -> List[Dict[str, Any]]:
             COALESCE(se.external_event_id, '') AS woo_product_id
         FROM mobile_featured_events mfe
         JOIN mobile_event_submissions mes ON mes.id = mfe.submission_id
+        LEFT JOIN mobile_event_translations requested_translation
+          ON requested_translation.submission_id = mes.id
+         AND requested_translation.language_code = %s
+        LEFT JOIN mobile_event_translations default_translation
+          ON default_translation.submission_id = mes.id
+         AND default_translation.language_code = COALESCE(mes.default_language, 'tr')
         LEFT JOIN saas_events se ON se.slug = mes.approved_event_slug
         WHERE mes.status = 'approved'
           AND COALESCE(se.is_active, 1) = 1
         ORDER BY mfe.slot ASC
-        """
+        """,
+        (language,),
     )
     return [_serialize_featured_event(row) for row in (cur.fetchall() or [])]
 
@@ -2656,16 +2708,23 @@ def guest_lists(authorization: Optional[str] = Header(default=None)):
             SELECT
                 gl.id,
                 gl.name,
+                gl.is_master,
+                gl.source_master_list_id,
+                (gl.owner_account_id=%s) AS is_owned,
                 gl.created_at,
                 gl.updated_at,
                 COUNT(glm.account_id) AS member_count
             FROM mobile_guest_lists gl
             LEFT JOIN mobile_guest_list_members glm ON glm.list_id = gl.id
-            WHERE gl.owner_account_id=%s
+            WHERE gl.owner_account_id=%s OR gl.is_master=TRUE
             GROUP BY gl.id
-            ORDER BY gl.updated_at DESC, gl.id DESC
+            ORDER BY (gl.owner_account_id=%s) DESC, gl.is_master ASC, gl.updated_at DESC, gl.id DESC
             """,
-            (int(actor["account_id"]),),
+            (
+                int(actor["account_id"]),
+                int(actor["account_id"]),
+                int(actor["account_id"]),
+            ),
         )
         rows = cur.fetchall() or []
         return {"items": [_serialize_guest_list_summary(row) for row in rows]}
@@ -2698,11 +2757,21 @@ def create_guest_list(
             raise HTTPException(status_code=409, detail="Bu isimde bir davetli listesi zaten var")
         cur.execute(
             """
-            INSERT INTO mobile_guest_lists (owner_account_id, name, created_at, updated_at)
-            VALUES (%s,%s,NOW(),NOW())
+            INSERT INTO mobile_guest_lists (
+                owner_account_id,
+                name,
+                is_master,
+                created_at,
+                updated_at
+            )
+            VALUES (%s,%s,%s,NOW(),NOW())
             RETURNING id
             """,
-            (int(actor["account_id"]), name),
+            (
+                int(actor["account_id"]),
+                name,
+                _is_designated_master_guest_list(actor, name),
+            ),
         )
         created = cur.fetchone() or {}
         conn.commit()
@@ -2710,6 +2779,94 @@ def create_guest_list(
     except HTTPException:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+@router.post("/guest-lists/{guest_list_id}/copy", summary="Yonetici: davetli listesini kopyala")
+def copy_guest_list(
+    guest_list_id: int,
+    payload: GuestListUpsertRequest,
+    authorization: Optional[str] = Header(default=None),
+):
+    conn = _db_conn()
+    try:
+        actor = _require_guest_list_manager(conn, authorization)
+        owner_account_id = int(actor["account_id"])
+        name = " ".join((payload.name or "").split()).strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Liste adi en az 2 karakter olmali")
+
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, is_master, source_master_list_id
+            FROM mobile_guest_lists
+            WHERE id=%s AND (owner_account_id=%s OR is_master=TRUE)
+            LIMIT 1
+            """,
+            (int(guest_list_id), owner_account_id),
+        )
+        source = cur.fetchone()
+        if not source:
+            raise HTTPException(status_code=404, detail="Kopyalanacak davetli listesi bulunamadi")
+
+        cur.execute(
+            """
+            SELECT id
+            FROM mobile_guest_lists
+            WHERE owner_account_id=%s AND LOWER(name)=LOWER(%s)
+            LIMIT 1
+            """,
+            (owner_account_id, name),
+        )
+        if cur.fetchone():
+            raise HTTPException(status_code=409, detail="Bu isimde bir davetli listesi zaten var")
+
+        cur.execute(
+            """
+            INSERT INTO mobile_guest_lists (
+                owner_account_id,
+                name,
+                is_master,
+                source_master_list_id,
+                created_at,
+                updated_at
+            )
+            VALUES (%s,%s,FALSE,%s,NOW(),NOW())
+            RETURNING id
+            """,
+            (
+                owner_account_id,
+                name,
+                (
+                    int(source.get("id") or 0)
+                    if bool(source.get("is_master"))
+                    else source.get("source_master_list_id")
+                ),
+            ),
+        )
+        created = cur.fetchone() or {}
+        copied_guest_list_id = int(created.get("id") or 0)
+        cur.execute(
+            """
+            INSERT INTO mobile_guest_list_members (list_id, account_id, added_by_account_id, created_at)
+            SELECT %s, account_id, %s, NOW()
+            FROM mobile_guest_list_members
+            WHERE list_id=%s
+            ORDER BY created_at ASC, account_id ASC
+            ON CONFLICT (list_id, account_id) DO NOTHING
+            """,
+            (copied_guest_list_id, owner_account_id, int(guest_list_id)),
+        )
+        conn.commit()
+        return _fetch_guest_list_detail(conn, owner_account_id, copied_guest_list_id)
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Davetli listesi kopyalanamadi: {exc}")
     finally:
         conn.close()
 
@@ -2997,7 +3154,6 @@ def profile_tickets(limit: int = 200, authorization: Optional[str] = Header(defa
             (int(account_id), max(1, min(int(limit), 1000))),
         )
         rows = cur.fetchall() or []
-        rows = _reconcile_ticket_rows_with_woo(conn, account_id, rows)
         rows = [r for r in rows if not _ticket_is_hidden(r)]
         rows = _sort_profile_ticket_rows(rows)
         return {
@@ -3077,8 +3233,6 @@ def profile_ticket_detail(ticket_id: int, authorization: Optional[str] = Header(
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Bilet bulunamadı")
-        updated_rows = _reconcile_ticket_rows_with_woo(conn, account_id, [row])
-        row = (updated_rows or [row])[0]
         if _ticket_is_hidden(row):
             raise HTTPException(status_code=404, detail="Bilet bulunamadı")
         return {
@@ -3757,16 +3911,17 @@ def _dispatch_push_for_accounts(
             continue
         allowed_rows.append(row)
     tokens = [str(r.get("device_token") or "").strip() for r in allowed_rows if str(r.get("device_token") or "").strip()]
-    targets_dbg = [
-        {
-            "account_id": int(r.get("account_id") or 0),
-            "platform": str(r.get("platform") or "unknown"),
-            "token_prefix": str(r.get("device_token") or "")[:16],
-            "category": category,
-        }
-        for r in allowed_rows
-    ]
-    logger.info("push_targets accounts=%s targets=%s", targets, json.dumps(targets_dbg, ensure_ascii=False))
+    platform_counts: Dict[str, int] = {}
+    for row in allowed_rows:
+        platform = str(row.get("platform") or "unknown").strip().lower() or "unknown"
+        platform_counts[platform] = platform_counts.get(platform, 0) + 1
+    logger.info(
+        "push_targets account_count=%s token_count=%s platforms=%s category=%s",
+        len(targets),
+        len(tokens),
+        json.dumps(platform_counts, ensure_ascii=False),
+        category,
+    )
     data_payload: Dict[str, Any] = {
         "type": (notification_type or "manual"),
         "route": (route or "/profile/notifications"),
@@ -3797,6 +3952,44 @@ def _dispatch_push_for_accounts(
             (invalid_tokens,),
         )
     return result
+
+
+def _dispatch_manual_push_background(
+    account_ids: List[int],
+    title: str,
+    body: str,
+    sender_account_id: int,
+    route: str,
+    batch_id: str,
+) -> None:
+    conn = _db_conn()
+    try:
+        result = _dispatch_push_for_accounts(
+            conn=conn,
+            account_ids=account_ids,
+            title=title,
+            body=body,
+            sender_account_id=sender_account_id,
+            route=route,
+        )
+        conn.commit()
+        logger.info(
+            "push_send_background sender=%s targets=%s batch_id=%s result=%s",
+            sender_account_id,
+            len(account_ids),
+            batch_id,
+            json.dumps(result, ensure_ascii=False),
+        )
+    except Exception:
+        conn.rollback()
+        logger.exception(
+            "push_send_background_failed sender=%s targets=%s batch_id=%s",
+            sender_account_id,
+            len(account_ids),
+            batch_id,
+        )
+    finally:
+        conn.close()
 
 
 def trigger_birthday_notifications_today(reason: str = "manual") -> Dict[str, Any]:
@@ -4437,6 +4630,7 @@ def profile_notifications_sent_delete_one(
 @router.post("/notifications/send", summary="Kullanıcılara bildirim gönder")
 def profile_send_notifications(
     payload: SendNotificationRequest,
+    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(default=None),
 ):
     conn = db_conn()
@@ -4499,27 +4693,26 @@ def profile_send_notifications(
             """,
             rows,
         )
-        push_result = _dispatch_push_for_accounts(
-            conn=conn,
+        conn.commit()
+        background_tasks.add_task(
+            _dispatch_manual_push_background,
             account_ids=targets,
             title=title,
             body=body,
             sender_account_id=int(sender_account_id),
             route=target_route,
+            batch_id=batch_id,
         )
-        logger.info(
-            "push_send sender=%s targets=%s result=%s",
-            int(sender_account_id),
-            len(targets),
-            json.dumps(push_result, ensure_ascii=False),
-        )
-        conn.commit()
         return {
             "ok": True,
             "sender_account_id": int(sender_account_id),
             "sent_count": len(rows),
             "batch_id": batch_id,
-            "push": push_result,
+            "push": {
+                "enabled": bool(FCM_PROJECT_ID and FCM_SERVICE_ACCOUNT_FILE) or bool(FCM_SERVER_KEY),
+                "queued": True,
+                "target_account_count": len(targets),
+            },
         }
     except HTTPException:
         conn.rollback()
@@ -4554,10 +4747,10 @@ def app_popup_current():
 
 
 @router.get("/featured-events", summary="Öne çıkan etkinlikler")
-def featured_events_current():
+def featured_events_current(lang: str = "tr"):
     conn = _db_conn()
     try: # Changed _db_conn to db_conn
-        return {"ok": True, "items": _fetch_featured_events(conn)}
+        return {"ok": True, "items": _fetch_featured_events(conn, lang)}
     finally:
         conn.close()
 
@@ -4565,6 +4758,7 @@ def featured_events_current():
 @router.put("/featured-events/admin", summary="Super admin öne çıkan etkinlikleri kaydet")
 def admin_featured_events_upsert(
     payload: FeaturedEventsUpdateRequest,
+    lang: str = "tr",
     authorization: Optional[str] = Header(default=None),
 ):
     conn = db_conn()
@@ -4613,7 +4807,7 @@ def admin_featured_events_upsert(
         return {
             "ok": True,
             "updated_by_account_id": int(sender_account_id),
-            "items": _fetch_featured_events(conn),
+            "items": _fetch_featured_events(conn, lang),
         }
     except HTTPException:
         conn.rollback()

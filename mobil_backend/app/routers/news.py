@@ -1,6 +1,8 @@
+import json
 import os
 import re
 import uuid
+from app import static_news
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +31,51 @@ WP_POST_SYNC_PASSWORD = (
     os.getenv("WP_POST_SYNC_PASSWORD", "").strip()
     or os.getenv("WP_SYNC_ADMIN_PASSWORD", "").strip()
 )
+
+NEWS_LANGUAGES = {"tr", "en", "es"}
+
+
+def _normalize_news_language(value: Any, fallback: str = "tr") -> str:
+    language = str(value or "").strip().lower().split("-", 1)[0]
+    return language if language in NEWS_LANGUAGES else fallback
+
+
+def _normalize_news_translations(
+    raw: Any,
+    *,
+    default_language: str,
+    legacy_title: str = "",
+    legacy_body_text: str = "",
+) -> Dict[str, Dict[str, str]]:
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw) if raw.strip() else {}
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Haber cevirileri gecersiz")
+    translations: Dict[str, Dict[str, str]] = {}
+    if isinstance(raw, dict):
+        for key, value in raw.items():
+            language = _normalize_news_language(key, fallback="")
+            if not language or not isinstance(value, dict):
+                continue
+            title = str(value.get("title") or "").strip()
+            body_text = str(value.get("body_text") or "").strip()
+            if title or body_text:
+                translations[language] = {"title": title, "body_text": body_text}
+    base = translations.setdefault(default_language, {})
+    if legacy_title and not base.get("title"):
+        base["title"] = legacy_title.strip()
+    if legacy_body_text and not base.get("body_text"):
+        base["body_text"] = legacy_body_text.strip()
+    title = str(base.get("title") or "").strip()
+    body_text = str(base.get("body_text") or "").strip()
+    if len(title) < 3:
+        raise HTTPException(status_code=400, detail="Ana dilde haber basligi cok kisa")
+    if len(body_text) < 10:
+        raise HTTPException(status_code=400, detail="Ana dilde haber metni cok kisa")
+    base["title"] = title
+    base["body_text"] = body_text
+    return translations
 
 
 def _db_conn():
@@ -63,6 +110,22 @@ def init_news_submission_tables():
             wp_post_id BIGINT,
             wp_post_url TEXT
         )
+        """
+    )
+    cur.execute(
+        "ALTER TABLE mobile_news_submissions ADD COLUMN IF NOT EXISTS default_language TEXT NOT NULL DEFAULT 'tr'"
+    )
+    cur.execute(
+        "ALTER TABLE mobile_news_submissions ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb"
+    )
+    cur.execute(
+        """
+        UPDATE mobile_news_submissions
+        SET translations=jsonb_build_object(
+            COALESCE(NULLIF(default_language,''),'tr'),
+            jsonb_build_object('title', COALESCE(title,''), 'body_text', COALESCE(body_text,''))
+        )
+        WHERE translations IS NULL OR translations='{}'::jsonb
         """
     )
     cur.execute(
@@ -305,7 +368,15 @@ def _wp_publish_post(
     submitter_name: str,
     submitter_account_id: int,
     cover_path: str,
+    submission_id: int = 0,
+    default_language: str = "tr",
+    translations: Optional[Dict[str, Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
+    if static_news.enabled():
+        return static_news.publish(submission_id, title=title, body_text=body_text,
+            default_language=default_language, translations=translations or {},
+            source_link=source_link, submitter_name=submitter_name,
+            submitter_account_id=submitter_account_id, cover_path=cover_path)
     token = _wp_login_token()
     author_id = _resolve_wp_author_id(conn, submitter_account_id)
     parts: List[str] = []
@@ -387,6 +458,8 @@ def _wp_existing_post_ids(post_ids: List[int]) -> set[int]:
 
 
 def _wp_delete_post(post_id: int):
+    if static_news.enabled():
+        return static_news.delete(post_id)
     pid = int(post_id or 0)
     if pid <= 0:
         return {"ok": True, "already_missing": True}
@@ -406,6 +479,8 @@ def _wp_delete_post(post_id: int):
 
 
 def _prune_missing_wp_posts(conn) -> int:
+    if static_news.enabled():
+        return 0
     cur = conn.cursor()
     cur.execute(
         """
@@ -447,14 +522,20 @@ def _invalidate_discover_cache():
 async def create_news_submission(
     title: str = Form(...),
     body_text: str = Form(...),
+    default_language: str = Form("tr"),
+    translations_json: str = Form(""),
     source_link: str = Form(""),
     cover_image: Optional[UploadFile] = File(None),
     authorization: Optional[str] = Header(default=None),
 ):
-    if len(title.strip()) < 3:
-        raise HTTPException(status_code=400, detail="Haber başlığı çok kısa")
-    if len(body_text.strip()) < 10:
-        raise HTTPException(status_code=400, detail="Haber metni çok kısa")
+    default_language_val = _normalize_news_language(default_language)
+    translations_val = _normalize_news_translations(
+        translations_json,
+        default_language=default_language_val,
+        legacy_title=title,
+        legacy_body_text=body_text,
+    )
+    base_content = translations_val[default_language_val]
     source_link_val = _normalize_link(source_link)
     cover_path = ""
     if cover_image and getattr(cover_image, "filename", ""):
@@ -470,18 +551,20 @@ async def create_news_submission(
             INSERT INTO mobile_news_submissions
             (
                 submitter_account_id, submitter_name, submitter_email,
-                title, body_text, source_link, cover_path,
+                title, body_text, default_language, translations, source_link, cover_path,
                 status, admin_note, created_at, updated_at
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,'pending','',%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,'pending','',%s,%s)
             RETURNING id
             """,
             (
                 int(actor["account_id"]),
                 (actor.get("name") or "").strip(),
                 (actor.get("email") or "").strip().lower(),
-                title.strip(),
-                body_text.strip(),
+                base_content["title"],
+                base_content["body_text"],
+                default_language_val,
+                json.dumps(translations_val, ensure_ascii=False),
                 source_link_val,
                 cover_path,
                 now,
@@ -541,6 +624,8 @@ def list_manage_news_items(
                     "submitter_email": (r.get("submitter_email") or "").strip(),
                     "title": (r.get("title") or "").strip(),
                     "body_text": (r.get("body_text") or "").strip(),
+                    "default_language": _normalize_news_language(r.get("default_language")),
+                    "translations": r.get("translations") if isinstance(r.get("translations"), dict) else {},
                     "source_link": (r.get("source_link") or "").strip(),
                     "cover_url": cover,
                     "status": (r.get("status") or "").strip(),
@@ -562,6 +647,8 @@ async def update_manage_news_item(
     submission_id: int,
     title: Optional[str] = Form(default=None),
     body_text: Optional[str] = Form(default=None),
+    default_language: Optional[str] = Form(default=None),
+    translations_json: Optional[str] = Form(default=None),
     source_link: Optional[str] = Form(default=None),
     cover_image: Optional[UploadFile] = File(None),
     authorization: Optional[str] = Header(default=None),
@@ -574,7 +661,8 @@ async def update_manage_news_item(
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, submitter_account_id, status
+            SELECT id, submitter_account_id, status, title, body_text,
+                   COALESCE(default_language,'tr') AS default_language, translations
             FROM mobile_news_submissions
             WHERE id=%s
             LIMIT 1
@@ -590,16 +678,33 @@ async def update_manage_news_item(
 
         fields_sql: List[str] = []
         vals: List[Any] = []
-        if title is not None:
-            if len(title.strip()) < 3:
-                raise HTTPException(status_code=400, detail="Haber başlığı çok kısa")
-            fields_sql.append("title=%s")
-            vals.append(title.strip())
-        if body_text is not None:
-            if len(body_text.strip()) < 10:
-                raise HTTPException(status_code=400, detail="Haber metni çok kısa")
-            fields_sql.append("body_text=%s")
-            vals.append(body_text.strip())
+        if translations_json is not None or default_language is not None:
+            next_default_language = _normalize_news_language(default_language or row.get("default_language"))
+            next_translations = _normalize_news_translations(
+                translations_json if translations_json is not None else row.get("translations"),
+                default_language=next_default_language,
+                legacy_title=title if title is not None else str(row.get("title") or ""),
+                legacy_body_text=body_text if body_text is not None else str(row.get("body_text") or ""),
+            )
+            base_content = next_translations[next_default_language]
+            fields_sql.extend(["title=%s", "body_text=%s", "default_language=%s", "translations=%s::jsonb"])
+            vals.extend([
+                base_content["title"],
+                base_content["body_text"],
+                next_default_language,
+                json.dumps(next_translations, ensure_ascii=False),
+            ])
+        else:
+            if title is not None:
+                if len(title.strip()) < 3:
+                    raise HTTPException(status_code=400, detail="Haber başlığı çok kısa")
+                fields_sql.append("title=%s")
+                vals.append(title.strip())
+            if body_text is not None:
+                if len(body_text.strip()) < 10:
+                    raise HTTPException(status_code=400, detail="Haber metni çok kısa")
+                fields_sql.append("body_text=%s")
+                vals.append(body_text.strip())
         if source_link is not None:
             fields_sql.append("source_link=%s")
             vals.append(_normalize_link(source_link))
@@ -615,7 +720,18 @@ async def update_manage_news_item(
             f"UPDATE mobile_news_submissions SET {', '.join(fields_sql)} WHERE id=%s",
             tuple(vals),
         )
+        if static_news.enabled() and row.get("status") == "approved":
+            cur.execute("SELECT * FROM mobile_news_submissions WHERE id=%s", (int(submission_id),))
+            saved = cur.fetchone()
+            static_news.publish(submission_id, post_id=saved.get("wp_post_id"),
+                title=saved["title"], body_text=saved["body_text"],
+                default_language=saved.get("default_language") or "tr",
+                translations=saved.get("translations") or {},
+                source_link=saved.get("source_link") or "",
+                submitter_name=saved.get("submitter_name") or "",
+                cover_path=saved.get("cover_path") or "")
         conn.commit()
+        _invalidate_discover_cache()
         return {"ok": True, "submission_id": int(submission_id)}
     except HTTPException:
         conn.rollback()
@@ -660,8 +776,11 @@ def approve_manage_news_item(
 
         pub = _wp_publish_post(
             conn,
+            submission_id=submission_id,
             title=(row.get("title") or "").strip(),
             body_text=(row.get("body_text") or "").strip(),
+            default_language=_normalize_news_language(row.get("default_language")),
+            translations=row.get("translations") if isinstance(row.get("translations"), dict) else {},
             source_link=(row.get("source_link") or "").strip(),
             submitter_name=(row.get("submitter_name") or "").strip(),
             submitter_account_id=int(row.get("submitter_account_id") or 0),
@@ -859,8 +978,11 @@ def admin_approve_news_submission(
             }
         pub = _wp_publish_post(
             conn,
+            submission_id=submission_id,
             title=(row.get("title") or "").strip(),
             body_text=(row.get("body_text") or "").strip(),
+            default_language=_normalize_news_language(row.get("default_language")),
+            translations=row.get("translations") if isinstance(row.get("translations"), dict) else {},
             source_link=(row.get("source_link") or "").strip(),
             submitter_name=(row.get("submitter_name") or "").strip(),
             submitter_account_id=int(row.get("submitter_account_id") or 0),
