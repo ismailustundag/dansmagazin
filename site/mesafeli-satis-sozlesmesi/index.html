@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mesafeli Satış Sözleşmesi - Dans Magazin</title>
+  <meta name="description" content="Online satışlar için mesafeli satış sözleşmesi.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/dm-modern.css?v=20261013-compact-options-14">
+  <style>
+    html.dm-app-mode .dm-header,
+    html.dm-app-mode .dm-footer,
+    html.dm-app-mode [data-admin-nav] { display: none !important; }
+    html.dm-app-mode main { width: min(980px, calc(100% - 1.25rem)); margin: 0 auto; }
+    html.dm-payment-complete .dm-checkout-grid { display: none !important; }
+    html.dm-payment-complete .dm-checkout-result { display: block !important; }
+  </style>
+  <script>
+    (() => {
+      const params = new URLSearchParams(location.search);
+      const path = location.pathname;
+      if (params.get("halkode_status") === "paid") document.documentElement.classList.add("dm-payment-complete");
+      const explicitAppEntry = params.get("app") === "1";
+      const purchasePath = path.startsWith("/urun/ankara-dans-festivali-fullpass") || path.startsWith("/sepet/") || path.startsWith("/odeme/");
+      const checkoutPath = path.startsWith("/sepet/") || path.startsWith("/odeme/");
+      const appMode = explicitAppEntry || (sessionStorage.getItem("dm_app_mode") === "1" && checkoutPath);
+      if (!appMode) return;
+      sessionStorage.setItem("dm_app_mode", "1");
+      document.documentElement.classList.add("dm-app-mode");
+      const allowed = purchasePath;
+      if (!allowed) location.replace("/urun/ankara-dans-festivali-fullpass/?app=1");
+    })();
+  </script>
+  <script src="/assets/dm-shop.js?v=20261017-shared-catalog-1" defer></script>
+  <link rel="icon" type="image/png" href="/favicon.png?v=20261008">
+</head>
+<body>
+  <header class="dm-header">
+    <a class="dm-brand" href="/">
+      <img src="/wp-content/uploads/2024/05/Yeni-Logo1-TEMIZ-1.png" alt="Dans Magazin">
+      <span>Dans Magazin</span>
+    </a>
+    <nav class="dm-nav" aria-label="Ana menü">
+      <a href="/">Ana Sayfa</a>
+      <a href="/haberler/">Haberler</a>
+      <a href="/magaza/">Mağaza</a>
+      <a href="/hesabim/">Hesabım</a>
+      <a href="/yonetim/" hidden data-admin-nav>Yönetim</a>
+    </nav>
+  </header>
+  <main>
+    <section class="dm-intro dm-shop-intro">
+      <div>
+        <span class="dm-kicker">Dans Magazin mağaza</span>
+        <h1>Mesafeli Satış Sözleşmesi</h1>
+        <p>Online satışlar için mesafeli satış sözleşmesi.</p>
+      </div>
+      <a class="dm-ticket" href="/sepet/">Sepeti gör</a>
+    </section>
+    <article class="dm-shop-panel dm-legal-page"><span class="dm-shop-badge">Dans Magazin</span><h1>Mesafeli Satış Sözleşmesi</h1><p>Bu sayfanın içeriği hazırlanıyor.</p></article>
+  </main>
+  <footer class="dm-footer">
+    <div class="dm-footer-brand"><span>Dans Magazin</span><span>Güvenli mağaza</span></div>
+    <nav class="dm-footer-links" aria-label="Yasal bağlantılar"><a href="/kvkk/">KVKK</a> <a href="/gizlilik-politikasi/">Gizlilik Politikası</a> <a href="/sartlar-ve-kosullar/">Şartlar ve Koşullar</a> <a href="/mesafeli-satis-sozlesmesi/">Mesafeli Satış Sözleşmesi</a> <a href="/iletisim/">İletişim</a></nav>
+  </footer>
+  <script>
+    (() => {{
+      try {
+        const session = JSON.parse(localStorage.getItem("dm_auth") || "null");
+        const email = String(session?.email || "").trim().toLowerCase();
+        const role = email === "ism.ustundag@gmail.com" ? "superadmin" : session?.role;
+        const visible = ["admin", "superadmin"].includes(role);
+        document.querySelectorAll("[data-admin-nav]").forEach(link => { link.hidden = !visible; });
+      } catch (error) {}
+    }})();
+    </script>
+</body>
+</html>
