@@ -33,6 +33,12 @@ foto_backend/backup_*.tar.gz
 # OS
 .DS_Store
 
+# Admin V2 frontend
+admin_v2/node_modules/
+admin_v2/.vite/
+admin_v2/coverage/
+admin_v2/artifacts/test-results/
+
 # Secrets / credentials
 **/.env
 **/.env.*
