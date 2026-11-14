@@ -65,13 +65,31 @@ def _require_account_id(conn, authorization: Optional[str]) -> int:
 
 
 def _is_friend(conn, a: int, b: int) -> bool:
-    if get_blocked_peer_ids(conn, a) or get_blocked_peer_ids(conn, b): # Changed _block_exists_any to get_blocked_peer_ids
+    blocked_by_a = get_blocked_peer_ids(conn, a)
+    blocked_by_b = get_blocked_peer_ids(conn, b)
+    if b in blocked_by_a or a in blocked_by_b:
         return False
     x, y = (a, b) if a < b else (b, a)
     cur = conn.cursor()
     cur.execute(
         "SELECT 1 FROM mobile_friendships WHERE user_a_id=%s AND user_b_id=%s LIMIT 1",
         (x, y),
+    )
+    return bool(cur.fetchone())
+
+
+def _has_existing_conversation(conn, a: int, b: int) -> bool:
+    """Allow message history to remain readable after friendship changes."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT 1
+        FROM mobile_direct_messages
+        WHERE (sender_account_id=%s AND receiver_account_id=%s)
+           OR (sender_account_id=%s AND receiver_account_id=%s)
+        LIMIT 1
+        """,
+        (int(a), int(b), int(b), int(a)),
     )
     return bool(cur.fetchone())
 
@@ -216,6 +234,14 @@ def _message_body_hash(body: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _contains_external_contact(body: str) -> bool:
+    normalized = (body or "").strip().casefold()
+    return bool(
+        re.search(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", normalized)
+        or re.search(r"(?:https?://|www\.)\S+", normalized)
+    )
+
+
 def _enforce_message_spam_limits(conn, *, sender_id: int, receiver_id: int, body: str) -> str:
     """Reject burst and coordinated duplicate spam without deleting history."""
     cur = conn.cursor()
@@ -242,6 +268,19 @@ def _enforce_message_spam_limits(conn, *, sender_id: int, receiver_id: int, body
     )
     if int((cur.fetchone() or {}).get("sender_count") or 0) >= 3:
         raise HTTPException(status_code=429, detail="Bu içerik spam koruması nedeniyle gönderilemedi.")
+
+    if _contains_external_contact(body):
+        cur.execute(
+            """
+            SELECT COUNT(DISTINCT sender_account_id) AS sender_count
+            FROM mobile_message_spam_signatures
+            WHERE body_hash=%s
+              AND created_at >= NOW() - INTERVAL '7 days'
+            """,
+            (body_hash,),
+        )
+        if int((cur.fetchone() or {}).get("sender_count") or 0) >= 2:
+            raise HTTPException(status_code=429, detail="Bu iletişim bilgisi spam koruması nedeniyle gönderilemedi.")
     return body_hash
 
 
@@ -383,8 +422,8 @@ def list_messages(with_account_id: Optional[int] = None, limit: int = 100, autho
         peer = int(with_account_id)
         if peer == me:
             raise HTTPException(status_code=400, detail="Kendinizle mesajlaşamazsınız")
-        if not _is_friend(conn, me, peer):
-            raise HTTPException(status_code=403, detail="Sadece arkadaşlar arasında mesajlaşma açık")
+        if not _is_friend(conn, me, peer) and not _has_existing_conversation(conn, me, peer):
+            raise HTTPException(status_code=403, detail="Bu konuşmaya erişim yok")
         cur.execute(
             """
             SELECT
@@ -614,7 +653,7 @@ def send_message(payload: SendMessageRequest, authorization: Optional[str] = Hea
                     (account_id, title, body, notification_type, sent_by_account_id, send_batch_id, send_to_all, target_route, created_at)
                 VALUES (%s, %s, %s, 'message', %s, NULL, FALSE, %s, NOW())
                 """,
-                (int(to_id), notif_title, notif_body, int(me), "/profile/notifications"),
+                (int(to_id), notif_title, notif_body, int(me), f"/messages/{int(me)}"),
             )
         except Exception as exc:
             logger.warning("message_notification_insert_failed to=%s err=%s", int(to_id), str(exc))
@@ -630,7 +669,7 @@ def send_message(payload: SendMessageRequest, authorization: Optional[str] = Hea
                 title=notif_title,
                 body=notif_body,
                 sender_account_id=int(me),
-                route="/profile/notifications",
+                route=f"/messages/{int(me)}",
                 notification_type="message",
                 extra_data={
                     "from_account_id": int(me),

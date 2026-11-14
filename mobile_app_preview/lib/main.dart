@@ -14,6 +14,7 @@ import 'services/app_settings.dart';
 import 'services/i18n.dart';
 import 'services/notification_center.dart';
 import 'services/notifications_api.dart';
+import 'services/ota_update_service.dart';
 import 'services/photo_polls_api.dart';
 import 'services/push_notifications_service.dart';
 import 'theme/app_theme.dart';
@@ -36,6 +37,7 @@ void main() {
   runApp(const DansMagazinApp());
   // Preferences must not block the first Flutter frame on iOS.
   unawaited(AppSettings.load());
+  OtaUpdateService.scheduleStartupCheck();
 }
 
 class DansMagazinApp extends StatelessWidget {
@@ -158,7 +160,10 @@ class _RootScreenState extends State<RootScreen>
 
   late final WidgetsBindingObserver _appLifecycleObserver =
       _RootLifecycleObserver(
-    onResumed: () => _refreshNotificationCount(),
+    onResumed: () async {
+      await _refreshNotificationCount();
+      await OtaUpdateService.checkAndDownload();
+    },
   );
 
   static bool _readBoolParam(String? v) {
