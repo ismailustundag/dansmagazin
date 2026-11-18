@@ -252,7 +252,9 @@ class I18n {
       'select_city_prompt': 'Şehir seçin',
       'event_management_screen_title': 'Etkinlik Yönetimi',
       'create_event_title': 'Etkinlik Oluştur',
-      'create_event_subtitle': 'Yeni etkinliği onaya gönder.',
+      'create_your_event': 'Etkinliğini Oluştur',
+      'event_sent_for_approval':
+          'Etkinliğin onaya gönderildi. Onaylandıktan sonra yayınlanacak.',
       'create_news_title': 'Haber Oluştur',
       'create_news_subtitle': 'Yeni haberi onaya gönder.',
       'manage_news_title': 'Haberleri Yönet',
@@ -563,7 +565,9 @@ class I18n {
       'select_city_prompt': 'Select a city',
       'event_management_screen_title': 'Event Management',
       'create_event_title': 'Create Event',
-      'create_event_subtitle': 'Send a new event for approval.',
+      'create_your_event': 'Create Your Event',
+      'event_sent_for_approval':
+          'Your event was sent for approval. It will be published after review.',
       'create_news_title': 'Create News',
       'create_news_subtitle': 'Send a new news item for approval.',
       'manage_news_title': 'Manage News',
@@ -882,7 +886,9 @@ class I18n {
       'select_city_prompt': 'Selecciona una ciudad',
       'event_management_screen_title': 'Gestión de Eventos',
       'create_event_title': 'Crear Evento',
-      'create_event_subtitle': 'Envía un nuevo evento para aprobación.',
+      'create_your_event': 'Crea Tu Evento',
+      'event_sent_for_approval':
+          'Tu evento fue enviado para aprobación. Se publicará después de la revisión.',
       'create_news_title': 'Crear Noticia',
       'create_news_subtitle': 'Envía una nueva noticia para aprobación.',
       'manage_news_title': 'Gestionar Noticias',

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../services/i18n.dart';
 import 'event_detail_screen.dart';
+import 'editor_event_management_screen.dart';
 
 Alignment _coverAlignment(String raw) {
   switch (raw.trim().toLowerCase()) {
@@ -44,6 +45,24 @@ class _EventsScreenState extends State<EventsScreen> {
   ];
   late Future<List<_EventItem>> _future;
   String _selectedKind = 'all';
+
+  Future<void> _openCreateEvent() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: Text(I18n.t('create_event'))),
+          body: SafeArea(
+            child: CreateEventSheet(sessionToken: widget.sessionToken),
+          ),
+        ),
+      ),
+    );
+    if (created != true || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(I18n.t('event_sent_for_approval'))),
+    );
+  }
 
   @override
   void initState() {
@@ -99,6 +118,18 @@ class _EventsScreenState extends State<EventsScreen> {
       child: SafeArea(
         child: Column(
           children: [
+            if (widget.canCreateEvent && widget.sessionToken.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _openCreateEvent,
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: Text(I18n.t('create_your_event')),
+                  ),
+                ),
+              ),
             Expanded(
               child: FutureBuilder<List<_EventItem>>(
                 future: _future,

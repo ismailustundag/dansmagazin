@@ -405,7 +405,7 @@ class EditorEventManagementScreen extends StatelessWidget {
                             appBar: AppBar(title: Text(I18n.t('create_event'))),
                             body: SafeArea(
                               child:
-                                  _CreateEventSheet(sessionToken: sessionToken),
+                                  CreateEventSheet(sessionToken: sessionToken),
                             ),
                           ),
                         ),
@@ -3844,16 +3844,16 @@ class _RepeatSelectedDatesSheetState extends State<_RepeatSelectedDatesSheet> {
   }
 }
 
-class _CreateEventSheet extends StatefulWidget {
+class CreateEventSheet extends StatefulWidget {
   final String sessionToken;
 
-  const _CreateEventSheet({required this.sessionToken});
+  const CreateEventSheet({super.key, required this.sessionToken});
 
   @override
-  State<_CreateEventSheet> createState() => _CreateEventSheetState();
+  State<CreateEventSheet> createState() => _CreateEventSheetState();
 }
 
-class _CreateEventSheetState extends State<_CreateEventSheet> {
+class _CreateEventSheetState extends State<CreateEventSheet> {
   static const String _submitUrl =
       'https://api2.dansmagazin.net/events/submissions';
 

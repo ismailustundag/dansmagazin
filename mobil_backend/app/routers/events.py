@@ -9,6 +9,7 @@ import logging
 import random
 import secrets
 import smtplib
+from difflib import SequenceMatcher
 from io import BytesIO
 import hmac
 import hashlib
@@ -18,6 +19,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 import unicodedata
+from urllib.parse import urljoin, urlparse
 
 import httpx
 import psycopg2
@@ -38,6 +40,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_DIR = os.path.join(ROOT_DIR, "media", "submission_covers")
 ALT_UPLOAD_DIR = os.getenv("ALT_UPLOAD_DIR", "/home/ubuntu/etkinlik_fotograf_projesi/media/submission_covers")
 PUBLIC_API_BASE = os.getenv("PUBLIC_API_BASE", "https://api2.dansmagazin.net").rstrip("/")
+ADMIN_PANEL_BASE = os.getenv("ADMIN_PANEL_BASE", "https://foto.dansmagazin.net").rstrip("/")
 WOO_BASE_URL = os.getenv("WOO_BASE_URL", os.getenv("WP_BASE_URL", "https://dansmagazin.net")).rstrip("/")
 WOO_CONSUMER_KEY = os.getenv("WOO_CONSUMER_KEY", "").strip()
 WOO_CONSUMER_SECRET = os.getenv("WOO_CONSUMER_SECRET", "").strip()
@@ -62,6 +65,8 @@ EVENT_COVER_INPUT_MAX_BYTES = 45 * 1024 * 1024
 EVENT_COVER_TARGET_MAX_BYTES = 1500 * 1024
 EVENT_COVER_MAX_SIDE_STEPS = (1600, 1440, 1280, 1080, 960)
 EVENT_COVER_QUALITY_STEPS = (86, 82, 78, 74, 70, 66)
+REMOTE_EVENT_COVER_MAX_BYTES = 12 * 1024 * 1024
+REMOTE_EVENT_COVER_ALLOWED_SUFFIXES = (".cdninstagram.com", ".fbcdn.net")
 
 
 # Renamed _db_conn to db_conn for consistency
@@ -1901,7 +1906,6 @@ def _rollover_and_expire_events(conn) -> None:
             approved_event_slug, source_type, source_ref
         FROM mobile_event_submissions
         WHERE status='approved'
-          AND COALESCE(source_type,'') <> 'woo'
         """
     )
     rows = cur.fetchall() or []
@@ -2043,6 +2047,7 @@ def _rollover_and_expire_events(conn) -> None:
                 exclude_submission_id=int(r["id"]),
             )
 
+        _ensure_live_event_state(conn, int(r["id"]), activate=False)
         cur.execute("UPDATE mobile_event_submissions SET status='expired' WHERE id=%s", (int(r["id"]),))
         expired_submission_ids.append(int(r["id"]))
     if expired_submission_ids:
@@ -2108,6 +2113,116 @@ def _require_editor_account(conn, authorization: Optional[str]) -> Dict[str, Any
         "email": (row.get("email") or "").strip().lower(),
         "role": role,
     }
+
+
+def _require_event_submitter_account(conn, authorization: Optional[str]) -> Dict[str, Any]:
+    """Allow every active signed-in account to submit an event for approval."""
+    token = _require_bearer(authorization)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT
+            a.id AS account_id,
+            COALESCE(a.name, '') AS name,
+            COALESCE(a.email, '') AS email,
+            COALESCE(a.role, '') AS role
+        FROM sessions s
+        JOIN accounts a ON a.id=s.account_id
+        WHERE s.session_token=%s AND COALESCE(a.is_active,1)=1
+        LIMIT 1
+        """,
+        (token,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Geçersiz oturum")
+    return {
+        "account_id": int(row["account_id"]),
+        "name": (row.get("name") or "").strip(),
+        "email": (row.get("email") or "").strip().lower(),
+        "role": (row.get("role") or "").strip().lower(),
+    }
+
+
+def _notify_super_admins_for_event_submission(
+    conn,
+    *,
+    actor_account_id: int,
+    submitter_name: str,
+    event_name: str,
+    submission_id: int,
+    created_count: int,
+) -> Dict[str, Any]:
+    """Persist and push a single approval notification to active super admins."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id
+        FROM accounts
+        WHERE COALESCE(is_active,1)=1
+          AND LOWER(COALESCE(role,''))='super_admin'
+        ORDER BY id
+        """
+    )
+    account_ids = [
+        int(row["id"])
+        for row in (cur.fetchall() or [])
+        if int(row.get("id") or 0) > 0
+    ]
+    if not account_ids:
+        logger.warning(
+            "event_submission_admin_notification_no_recipient submission_id=%s",
+            submission_id,
+        )
+        return {"inserted": 0, "push": {"attempted": 0, "success": 0, "failure": 0}}
+
+    title = "Yeni etkinlik onayı bekliyor"
+    count_suffix = f" ve {created_count - 1} tarih daha" if created_count > 1 else ""
+    body = f"{submitter_name or 'Bir kullanıcı'}, {event_name} etkinliğini{count_suffix} onaya gönderdi."
+    batch_id = f"event-submission-{submission_id}-{uuid.uuid4().hex[:10]}"
+    target_route = "/profile/notifications"
+    cur.executemany(
+        """
+        INSERT INTO mobile_user_notifications
+            (account_id, title, body, notification_type, sent_by_account_id,
+             send_batch_id, send_to_all, target_route, created_at)
+        VALUES (%s,%s,%s,'event_submission_pending',%s,%s,FALSE,%s,NOW())
+        """,
+        [
+            (
+                account_id,
+                title,
+                body,
+                int(actor_account_id),
+                batch_id,
+                target_route,
+            )
+            for account_id in account_ids
+        ],
+    )
+    conn.commit()
+
+    push_result: Dict[str, Any] = {"attempted": 0, "success": 0, "failure": 0}
+    try:
+        from app.routers.profile import _dispatch_push_for_accounts
+
+        push_result = _dispatch_push_for_accounts(
+            conn,
+            account_ids=account_ids,
+            title=title,
+            body=body,
+            sender_account_id=int(actor_account_id),
+            route=target_route,
+            notification_type="event_submission_pending",
+        )
+        conn.commit()
+    except Exception as exc:
+        logger.warning(
+            "event_submission_admin_push_failed submission_id=%s err=%s",
+            submission_id,
+            exc,
+        )
+    return {"inserted": len(account_ids), "push": push_result}
 
 
 def _friend_pair(a: int, b: int) -> tuple[int, int]:
@@ -3850,6 +3965,51 @@ def _save_cover(upload: UploadFile) -> str:
     return abs_path
 
 
+def _is_allowed_remote_event_cover_url(raw_url: str) -> bool:
+    try:
+        parsed = urlparse((raw_url or "").strip())
+    except ValueError:
+        return False
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        return False
+    host = parsed.hostname.rstrip(".").lower()
+    return any(host.endswith(suffix) for suffix in REMOTE_EVENT_COVER_ALLOWED_SUFFIXES)
+
+
+def _save_remote_event_cover(raw_url: str) -> str:
+    current_url = (raw_url or "").strip()
+    if not _is_allowed_remote_event_cover_url(current_url):
+        raise HTTPException(status_code=400, detail="Etkinlik görseli güvenilir bir Instagram kaynağı değil")
+
+    response = None
+    with httpx.Client(timeout=httpx.Timeout(20.0, connect=8.0), follow_redirects=False) as client:
+        for _ in range(4):
+            response = client.get(current_url, headers={"User-Agent": "DansMagazinEventImporter/1.0"})
+            if response.status_code not in {301, 302, 303, 307, 308}:
+                break
+            next_url = urljoin(current_url, response.headers.get("location", ""))
+            if not _is_allowed_remote_event_cover_url(next_url):
+                raise HTTPException(status_code=400, detail="Etkinlik görseli güvenilmeyen bir adrese yönlendirildi")
+            current_url = next_url
+
+    if response is None or response.status_code >= 400:
+        code = response.status_code if response is not None else 0
+        raise HTTPException(status_code=400, detail=f"Etkinlik görseli indirilemedi (HTTP {code})")
+    content_type = (response.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Etkinlik görseli geçerli bir resim değil")
+    raw = response.content
+    if not raw or len(raw) > REMOTE_EVENT_COVER_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Etkinlik görseli boş veya çok büyük")
+
+    filename = f"{uuid.uuid4().hex}.jpg"
+    abs_path = os.path.join(ALT_UPLOAD_DIR, filename)
+    jpeg_data = _convert_cover_to_jpeg_bytes(raw)
+    with open(abs_path, "wb") as stream:
+        stream.write(jpeg_data)
+    return abs_path
+
+
 def _slug_clean(v: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (v or "").strip().lower())
     return re.sub(r"-{2,}", "-", s).strip("-")
@@ -4448,17 +4608,35 @@ async def create_submission(
         fee_val = Decimal(entry_fee or "0")
     except InvalidOperation:
         raise HTTPException(status_code=400, detail="Geçersiz giriş ücreti")
-    cover_path = "" # Changed _db_conn to db_conn
-    if cover_image and getattr(cover_image, "filename", ""):
-        cover_path = _save_cover(cover_image)
     conn = db_conn()
     cur = conn.cursor()
-    actor = _require_editor_account(conn, authorization)
+    actor = _require_event_submitter_account(conn, authorization)
     actor_account_id = int(actor["account_id"])
     actor_role = (actor.get("role") or "").strip().lower()
     actor_email = (actor.get("email") or "").strip().lower()
     fallback_name = actor["name"] or submitter_name.strip() or "mobile-user"
     fallback_email = actor["email"] or submitter_email.strip().lower() or "mobile-user@dansmagazin.net"
+    cur.execute(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM mobile_event_submissions
+        WHERE LOWER(COALESCE(submitter_email,''))=%s
+          AND COALESCE(status,'pending')='pending'
+          AND created_at::timestamp >= NOW() - INTERVAL '24 hours'
+        """,
+        (fallback_email,),
+    )
+    recent_pending_count = int((cur.fetchone() or {}).get("cnt") or 0)
+    requested_count = len(repeat_selected_dates_val) if repeat_mode_val == "selected_dates" else 1
+    if requested_count > 30 or recent_pending_count + requested_count > 30:
+        conn.close()
+        raise HTTPException(
+            status_code=429,
+            detail="24 saat içinde en fazla 30 etkinlik tarihi onaya gönderilebilir",
+        )
+    cover_path = ""
+    if cover_image and getattr(cover_image, "filename", ""):
+        cover_path = _save_cover(cover_image)
     created_at = _iso_now()
     created_ids: List[int] = []
     clone_attendees_from_id = int(clone_attendees_from_submission_id or 0) if clone_attendees_from_submission_id else 0
@@ -4563,15 +4741,35 @@ async def create_submission(
                 to_submission_id=int(created_id),
             )
     conn.commit()
-    conn.close()
     if not created_ids:
+        conn.close()
         raise HTTPException(status_code=500, detail="Etkinlik kaydı oluşturulamadı")
+    try:
+        notification_result = _notify_super_admins_for_event_submission(
+            conn,
+            actor_account_id=actor_account_id,
+            submitter_name=fallback_name,
+            event_name=event_name_val,
+            submission_id=int(created_ids[0]),
+            created_count=len(created_ids),
+        )
+    except Exception as exc:
+        conn.rollback()
+        logger.warning(
+            "event_submission_admin_notification_failed submission_id=%s err=%s",
+            int(created_ids[0]),
+            exc,
+        )
+        notification_result = {"inserted": 0, "error": "notification_failed"}
+    conn.close()
     return {
         "ok": True,
         "submission_id": int(created_ids[0]),
         "submission_ids": created_ids,
         "created_count": len(created_ids),
         "repeat_mode": repeat_mode_val,
+        "status": "pending",
+        "admin_notification": notification_result,
     }
 
 
@@ -5164,6 +5362,32 @@ class GuestListImportRequest(BaseModel):
     guest_list_id: int
 
 
+class EventImportRequest(BaseModel):
+    external_id: str
+    source_url: str
+    event_name: str
+    description: str = ""
+    event_date: str
+    start_at: str = ""
+    end_at: str = ""
+    venue: str = ""
+    city: str
+    country_code: str = ""
+    city_id: str = ""
+    event_kind: str = "festival"
+    dance_styles: Any = ""
+    organizer_name: str = ""
+    program_text: str = ""
+    cover_image_url: str = ""
+    source_language: str = "tr"
+    translations: Any = None
+    status: str = "pending"
+
+
+class EventCoverImportRequest(BaseModel):
+    cover_image_url: str
+
+
 @router.get("/manage/items/{submission_id}/invitees", summary="Editör: etkinliğin davetlileri")
 def list_event_invitees(
     submission_id: int,
@@ -5404,6 +5628,317 @@ def remove_event_invitee(
         conn.close()
 
 
+def _event_import_result(row: Dict[str, Any], *, duplicate: bool) -> Dict[str, Any]:
+    submission_id = int(row.get("id") or row.get("submission_id") or 0)
+    return {
+        "id": submission_id,
+        "status": str(row.get("status") or "pending").strip().lower(),
+        "url": f"{ADMIN_PANEL_BASE}/admin-v2/events/{submission_id}",
+        "duplicate": bool(duplicate),
+    }
+
+
+def _normalize_duplicate_text(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").strip().lower())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = re.sub(r"\b20\d{2}\b", " ", text)
+    text = re.sub(r"^\s*\d+[.]?\s+", "", text)
+    return " ".join(re.findall(r"[a-z0-9]+", text))
+
+
+def _duplicate_text_similarity(left: Any, right: Any) -> float:
+    left_text = _normalize_duplicate_text(left)
+    right_text = _normalize_duplicate_text(right)
+    if not left_text or not right_text:
+        return 0.0
+    return SequenceMatcher(None, left_text, right_text).ratio()
+
+
+def _duplicate_token_coverage(left: Any, right: Any) -> float:
+    left_tokens = set(_normalize_duplicate_text(left).split())
+    right_tokens = set(_normalize_duplicate_text(right).split())
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
+
+
+def _event_duplicate_confidence(
+    candidate: Dict[str, Any],
+    *,
+    event_name: str,
+    city: str,
+    venue: str,
+    organizer_name: str,
+    event_day: date,
+) -> float:
+    candidate_day = _parse_event_date_text(candidate.get("event_date") or candidate.get("start_at"))
+    if candidate_day is None:
+        return 0.0
+    day_delta = abs((candidate_day - event_day).days)
+    if day_delta > 1:
+        return 0.0
+
+    city_match = _normalize_duplicate_text(candidate.get("city")) == _normalize_duplicate_text(city)
+    if not city_match:
+        return 0.0
+
+    title_similarity = _duplicate_text_similarity(candidate.get("event_name"), event_name)
+    token_coverage = _duplicate_token_coverage(candidate.get("event_name"), event_name)
+    venue_similarity = _duplicate_text_similarity(candidate.get("venue"), venue)
+    organizer_similarity = _duplicate_text_similarity(candidate.get("organizer_name"), organizer_name)
+    supporting_similarity = max(venue_similarity, organizer_similarity)
+
+    if day_delta == 0:
+        if title_similarity >= 0.78 or token_coverage >= 0.80:
+            return max(title_similarity, token_coverage)
+        if title_similarity >= 0.48 and supporting_similarity >= 0.78:
+            return min(1.0, 0.55 * title_similarity + 0.45 * supporting_similarity + 0.12)
+        return 0.0
+
+    if title_similarity >= 0.72 and (token_coverage >= 0.72 or supporting_similarity >= 0.72):
+        return min(1.0, 0.60 * title_similarity + 0.40 * max(token_coverage, supporting_similarity))
+    return 0.0
+
+
+def _find_probable_event_duplicate(
+    cur,
+    *,
+    event_name: str,
+    city: str,
+    venue: str,
+    organizer_name: str,
+    event_day: date,
+) -> Optional[Dict[str, Any]]:
+    cur.execute(
+        """
+        SELECT id, status, cover_path, event_name, city, venue, organizer_name,
+               event_date, start_at
+        FROM mobile_event_submissions
+        WHERE COALESCE(status,'') IN ('pending','approved')
+          AND LEFT(COALESCE(event_date, start_at, ''), 10) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+          AND ABS(LEFT(COALESCE(event_date, start_at, ''), 10)::date - %s::date) <= 1
+        ORDER BY CASE WHEN COALESCE(status,'')='approved' THEN 0 ELSE 1 END, id ASC
+        """,
+        (event_day.isoformat(),),
+    )
+    best: Optional[Dict[str, Any]] = None
+    best_confidence = 0.0
+    for raw_candidate in cur.fetchall() or []:
+        candidate = dict(raw_candidate)
+        confidence = _event_duplicate_confidence(
+            candidate,
+            event_name=event_name,
+            city=city,
+            venue=venue,
+            organizer_name=organizer_name,
+            event_day=event_day,
+        )
+        if confidence > best_confidence:
+            best = candidate
+            best_confidence = confidence
+    if best is not None:
+        best["duplicate_confidence"] = round(best_confidence, 4)
+    return best
+
+
+@admin_router.post("/import", summary="Otomatik etkinlik taslağı aktar")
+def admin_import_event_draft(
+    payload: EventImportRequest,
+    x_admin_token: Optional[str] = Header(default=None),
+):
+    _require_admin(x_admin_token)
+    external_id = str(payload.external_id or "").strip()[:255]
+    source_url = _normalize_map_url(payload.source_url)
+    event_name = str(payload.event_name or "").strip()
+    city = str(payload.city or "").strip()
+    requested_status = str(payload.status or "pending").strip().lower()
+    if not external_id:
+        raise HTTPException(status_code=400, detail="external_id zorunlu")
+    if not source_url:
+        raise HTTPException(status_code=400, detail="Geçerli source_url zorunlu")
+    if len(event_name) < 3:
+        raise HTTPException(status_code=400, detail="event_name zorunlu")
+    if not city:
+        raise HTTPException(status_code=400, detail="city zorunlu")
+    if requested_status not in {"draft", "pending"}:
+        raise HTTPException(status_code=400, detail="status yalnızca draft veya pending olabilir")
+
+    kind = str(payload.event_kind or "festival").strip().lower()
+    if kind not in ALLOWED_EVENT_KINDS:
+        raise HTTPException(status_code=400, detail="Geçersiz etkinlik türü")
+    event_date, start_at, end_at = _coerce_event_window(
+        str(payload.event_date or ""),
+        str(payload.start_at or ""),
+        str(payload.end_at or ""),
+    )
+    event_day = _parse_event_date_text(event_date or start_at)
+    if event_day is None:
+        raise HTTPException(status_code=400, detail="Geçerli event_date zorunlu")
+    if event_day < _now_local().date():
+        raise HTTPException(status_code=400, detail="Geçmiş tarihli etkinlik aktarılamaz")
+
+    cover_url = _normalize_map_url(payload.cover_image_url)
+    if str(payload.cover_image_url or "").strip() and not cover_url:
+        raise HTTPException(status_code=400, detail="cover_image_url geçersiz")
+    country_code, city_id = _valid_event_location(payload.country_code, payload.city_id)
+    default_language = _normalize_event_language(payload.source_language)
+    description = str(payload.description or "").strip()
+    program_text = str(payload.program_text or "").strip()
+    translations = _parse_event_translations(
+        payload.translations or {},
+        default_language=default_language,
+        event_name=event_name,
+        description=description,
+        program_text=program_text,
+    )
+    base_content = translations[default_language]
+    event_name = str(base_content.get("event_name") or event_name).strip()
+    description = str(base_content.get("description") or description).strip()
+    program_text = str(base_content.get("program_text") or program_text).strip()
+    source_type = "instagram"
+
+    conn = db_conn()
+    try:
+        cur = conn.cursor()
+        lock_key = f"event-import:{source_type}:{external_id.lower()}"
+        cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (lock_key,))
+        cur.execute(
+            """
+            SELECT id, status, cover_path
+            FROM mobile_event_submissions
+            WHERE (
+                LOWER(BTRIM(COALESCE(source_type,'')))=%s
+                AND LOWER(BTRIM(COALESCE(source_ref,'')))=LOWER(BTRIM(%s))
+            ) OR (
+                LOWER(BTRIM(COALESCE(event_name,'')))=LOWER(BTRIM(%s))
+                AND LOWER(BTRIM(COALESCE(city,'')))=LOWER(BTRIM(%s))
+                AND LEFT(COALESCE(event_date, start_at, ''), 10)=%s
+                AND COALESCE(status,'') IN ('pending','approved')
+            )
+            ORDER BY CASE
+                WHEN LOWER(BTRIM(COALESCE(source_type,'')))=%s
+                 AND LOWER(BTRIM(COALESCE(source_ref,'')))=LOWER(BTRIM(%s))
+                THEN 0 ELSE 1 END,
+                id ASC
+            LIMIT 1
+            """,
+            (source_type, external_id, event_name, city, event_date[:10], source_type, external_id),
+        )
+        existing = cur.fetchone()
+        if not existing:
+            existing = _find_probable_event_duplicate(
+                cur,
+                event_name=event_name,
+                city=city,
+                venue=str(payload.venue or "").strip(),
+                organizer_name=str(payload.organizer_name or "").strip(),
+                event_day=event_day,
+            )
+        if existing:
+            if cover_url and not (existing.get("cover_path") or "").strip():
+                cover_path = _save_remote_event_cover(cover_url)
+                cur.execute(
+                    "UPDATE mobile_event_submissions SET cover_path=%s WHERE id=%s",
+                    (cover_path, int(existing["id"])),
+                )
+            conn.commit()
+            return _event_import_result(dict(existing), duplicate=True)
+
+        cover_path = _save_remote_event_cover(cover_url) if cover_url else ""
+        created_at = _iso_now()
+        submission_id = _insert_mobile_event_submission(
+            cur,
+            submitter_name="Instagram event discovery",
+            submitter_email="automation@dansmagazin.net",
+            event_name=event_name,
+            description=description,
+            event_date=event_date,
+            venue=str(payload.venue or "").strip(),
+            venue_map_url="",
+            city=city,
+            country_code=country_code,
+            city_id=city_id,
+            event_kind=kind,
+            dance_styles=_serialize_dance_styles(payload.dance_styles),
+            ticket_sales_enabled=False,
+            create_photo_album=False,
+            repeat_weekly=False,
+            repeat_weekday=None,
+            repeat_origin_submission_id=None,
+            organizer_name=str(payload.organizer_name or "").strip(),
+            program_text=program_text,
+            cover_path=cover_path,
+            start_at=start_at,
+            end_at=end_at,
+            entry_fee=Decimal("0"),
+            status="pending",
+            created_at=created_at,
+            source_type=source_type,
+            source_ref=external_id,
+            admin_note=f"Otomatik keşif kaynağı: {source_url}",
+        )
+        _upsert_event_translations(
+            cur,
+            [submission_id],
+            default_language=default_language,
+            translations=translations,
+        )
+        conn.commit()
+        return _event_import_result({"id": submission_id, "status": "pending"}, duplicate=False)
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        logger.exception("event import failed")
+        raise HTTPException(status_code=500, detail="Etkinlik taslağı aktarılamadı") from exc
+    finally:
+        conn.close()
+
+
+@admin_router.post("/submissions/{submission_id}/cover-import", summary="Admin: uzak etkinlik görselini kalıcı kaydet")
+def admin_import_submission_cover(
+    submission_id: int,
+    payload: EventCoverImportRequest,
+    x_admin_token: Optional[str] = Header(default=None),
+):
+    _require_admin(x_admin_token)
+    cover_url = _normalize_map_url(payload.cover_image_url)
+    if not cover_url:
+        raise HTTPException(status_code=400, detail="cover_image_url geçersiz")
+
+    conn = db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, COALESCE(cover_path,'') AS cover_path FROM mobile_event_submissions WHERE id=%s LIMIT 1",
+            (int(submission_id),),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Etkinlik bulunamadı")
+        existing_path = (row.get("cover_path") or "").strip()
+        if existing_path and _cover_exists(existing_path):
+            return {"ok": True, "id": int(submission_id), "cover_url": _cover_url(existing_path), "unchanged": True}
+
+        cover_path = _save_remote_event_cover(cover_url)
+        cur.execute(
+            "UPDATE mobile_event_submissions SET cover_path=%s WHERE id=%s",
+            (cover_path, int(submission_id)),
+        )
+        conn.commit()
+        return {"ok": True, "id": int(submission_id), "cover_url": _cover_url(cover_path), "unchanged": False}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        logger.exception("event cover import failed")
+        raise HTTPException(status_code=500, detail="Etkinlik görseli kaydedilemedi") from exc
+    finally:
+        conn.close()
+
+
 @admin_router.get("/submissions", summary="Admin: etkinlik talepleri")
 def admin_list_submissions(
     status: str = "pending",
@@ -5589,6 +6124,7 @@ def admin_list_event_items(
                 mes.end_at,
                 mes.entry_fee,
                 mes.status,
+                mes.admin_note,
                 mes.source_type,
                 mes.source_ref,
                 mes.approved_event_slug,
@@ -5658,6 +6194,7 @@ def admin_list_event_items(
                     "cover_url": cover,
                     "entry_fee": float(r.get("entry_fee") or 0),
                     "status": (r.get("status") or "").strip(),
+                    "admin_note": (r.get("admin_note") or "").strip(),
                     "source_type": (r.get("source_type") or "").strip(),
                     "source_ref": (r.get("source_ref") or "").strip(),
                     "slug": (r.get("approved_event_slug") or "").strip(),

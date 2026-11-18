@@ -1158,7 +1158,7 @@ class _RootScreenState extends State<RootScreen>
       ),
       EventsStoreHubScreen(
         sessionToken: _sessionToken,
-        canCreateEvent: _canCreateMobileEvent,
+        canCreateEvent: _isLoggedIn,
         canAddToFeed: _canAddToFeedFromDetails,
       ),
       PhotosScreen(
